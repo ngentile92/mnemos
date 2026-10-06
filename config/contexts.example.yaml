@@ -1,0 +1,27 @@
+# Mnemos — contexts. Copy to config/contexts.yaml (gitignored) and edit.
+#
+# Each context is an isolated MCP endpoint (its own gateway, GitHub OAuth App, Cognee user/dataset,
+# Infisical project and skills folder). `shared` is reserved: it is the cross-context dataset.
+#
+#   owner:        how the server instructions refer to you ("Alex's shared memory hub ...")
+#   description:  what belongs in the context; sent to the model in the MCP `initialize` instructions.
+#                 Keep descriptions short: the whole instruction block must stay under 1,300 chars.
+#   projects:     optional sub-projects -> Cognee dataset name. With projects, memory_save requires `project`.
+#   dataset:      optional dataset name for contexts without projects (default: the context name).
+#
+# The compose file ships three contexts (work / personal / side). Renaming descriptions or projects only
+# needs this file + scripts/bootstrap_cognee.py. Adding or removing a context also needs compose/.env
+# changes: see "Adding a context" in README.md.
+owner: Alex
+
+contexts:
+  work:
+    description: "Alex's job: company repos, clients, tickets and work chat"
+  personal:
+    description: "personal life and personal projects: home, finances, purchases, interests"
+  side:
+    description: "side projects (Shop, Blog and this hub, Mnemos)"
+    projects:
+      shop: side_shop
+      blog: side_blog
+      mnemos: side_mnemos

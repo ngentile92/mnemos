@@ -1,0 +1,226 @@
+# mnemos — stack completo (producción en la notebook).
+# Arranque: ./scripts/bootstrap.sh (una vez) y después `docker compose up -d`.
+# Nada publica puertos en 0.0.0.0: lo local va a 127.0.0.1 y lo público sale SOLO por los sidecars
+# de Tailscale Funnel (hub-work / hub-personal / hub-side), que apuntan a cada gateway.
+name: mnemos
+
+x-ts: &ts
+  image: tailscale/tailscale:v1.102.5
+  restart: unless-stopped
+  networks: [internal]
+  # Modo userspace (TS_USERSPACE=true): no necesita /dev/net/tun ni NET_ADMIN, anda igual en Docker Desktop
+  # para Mac, y alcanza porque el sidecar solo publica el gateway (serve/funnel → 127.0.0.1:8000).
+
+x-gateway: &gateway
+  build: ./gateway
+  image: mnemos/gateway:local
+  restart: unless-stopped
+  depends_on:
+    cognee: { condition: service_started }
+    skills-sync: { condition: service_started }
+
+x-gateway-env: &gateway-env
+  HUB_ALLOWED_GITHUB_LOGINS: ${HUB_ALLOWED_GITHUB_LOGINS:-${GITHUB_USER:?definí GITHUB_USER en .env}}
+  COGNEE_URL: http://cognee:8000
+  INFISICAL_URL: http://infisical:8080
+  INFISICAL_ENVIRONMENT: prod
+  HUB_DATASETS_FILE: /config/cognee-datasets.json
+  HUB_SECRET_POLICY_FILE: /config/secret-policy.yaml
+  HUB_SKILLS_ROOT: /skills
+  HUB_RECALL_SEARCH_TYPE: ${HUB_RECALL_SEARCH_TYPE:-GRAPH_COMPLETION}
+
+services:
+  # ---------------------------------------------------------------- credenciales
+  vaultwarden:
+    image: vaultwarden/server:1.37.3
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${VW_DOMAIN:?}
+      SIGNUPS_ALLOWED: ${VW_SIGNUPS_ALLOWED:-false}
+      ADMIN_TOKEN: ${VW_ADMIN_TOKEN:-}
+    volumes: ["./data/vaultwarden:/data"]
+    ports: ["127.0.0.1:8081:80"]      # tailscale serve --https=443 → acá (solo tailnet)
+
+  infisical-db:
+    image: postgres:14-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: infisical
+      POSTGRES_PASSWORD: ${INFISICAL_DB_PASSWORD:?}
+      POSTGRES_DB: infisical
+    volumes: ["infisical_pg:/var/lib/postgresql/data"]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U infisical"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  infisical-redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    volumes: ["infisical_redis:/data"]
+    networks: [internal]
+
+  infisical:
+    image: infisical/infisical:v0.165.16
+    restart: unless-stopped
+    depends_on:
+      infisical-db: { condition: service_healthy }
+      infisical-redis: { condition: service_started }
+    environment:
+      NODE_ENV: production
+      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY:?}
+      AUTH_SECRET: ${INFISICAL_AUTH_SECRET:?}
+      DB_CONNECTION_URI: postgres://infisical:${INFISICAL_DB_PASSWORD}@infisical-db:5432/infisical
+      REDIS_URL: redis://infisical-redis:6379
+      SITE_URL: ${INFISICAL_SITE_URL:?}
+      TELEMETRY_ENABLED: "false"
+    ports: ["127.0.0.1:8082:8080"]    # tailscale serve --https=8443 → acá (solo tailnet)
+    networks: [internal]
+
+  # ---------------------------------------------------------------- memoria
+  cognee:
+    image: cognee/cognee:1.6.1
+    restart: unless-stopped
+    stop_grace_period: 30s
+    env_file: [./cognee.env]
+    volumes:
+      - cognee_system:/cognee-storage/system
+      - cognee_data:/cognee-storage/data
+    ports: ["127.0.0.1:8010:8000"]    # solo scripts/dashboard locales (8010: el 8000 del host queda libre para runservers de Django); los gateways usan la red interna
+    networks: [internal]
+
+  # ---------------------------------------------------------------- skills
+  skills-sync:
+    build: ./skills-sync
+    image: mnemos/skills-sync:local
+    restart: unless-stopped
+    environment:
+      REPO_URL: git@github.com:${GITHUB_USER}/${SKILLS_REPO:-mnemos-skills}.git
+      BRANCH: main
+      INTERVAL_SECONDS: "60"
+    volumes:
+      - skills_repo:/skills
+      - ./secrets/skills_deploy_key:/run/secrets/deploy_key:ro
+
+  # ---------------------------------------------------------------- capa pública: work
+  ts-work:
+    <<: *ts
+    hostname: hub-work
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY_PUBLIC:-}
+      TS_HOSTNAME: hub-work
+      TS_EXTRA_ARGS: --advertise-tags=tag:hub-public
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_ACCEPT_DNS: "false"          # que el DNS de Docker resuelva cognee/infisical
+    volumes:
+      - ts_work:/var/lib/tailscale
+      - ./config/tailscale/work:/config:ro
+
+  gateway-work:
+    <<: *gateway
+    network_mode: service:ts-work
+    environment:
+      <<: *gateway-env
+      HUB_CONTEXT: work
+      HUB_PUBLIC_URL: https://hub-work.${TS_TAILNET:-SIN-TAILNET}.ts.net
+      GITHUB_CLIENT_ID: ${GH_OAUTH_WORK_ID:-}
+      GITHUB_CLIENT_SECRET: ${GH_OAUTH_WORK_SECRET:-}
+      HUB_JWT_SIGNING_KEY: ${HUB_JWT_SIGNING_KEY_WORK:?}
+      HUB_STORAGE_ENCRYPTION_KEY: ${HUB_STORAGE_KEY_WORK:?}
+      COGNEE_API_KEY: ${COGNEE_KEY_WORK:-}
+      INFISICAL_CLIENT_ID: ${INF_MI_WORK_ID:-}
+      INFISICAL_CLIENT_SECRET: ${INF_MI_WORK_SECRET:-}
+    volumes:
+      - skills_repo:/skills:ro
+      - ./config:/config:ro
+      - gw_work:/data
+
+  # ---------------------------------------------------------------- capa pública: personal
+  ts-personal:
+    <<: *ts
+    hostname: hub-personal
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY_PUBLIC:-}
+      TS_HOSTNAME: hub-personal
+      TS_EXTRA_ARGS: --advertise-tags=tag:hub-public
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_ACCEPT_DNS: "false"
+    volumes:
+      - ts_personal:/var/lib/tailscale
+      - ./config/tailscale/personal:/config:ro
+
+  gateway-personal:
+    <<: *gateway
+    network_mode: service:ts-personal
+    environment:
+      <<: *gateway-env
+      HUB_CONTEXT: personal
+      HUB_PUBLIC_URL: https://hub-personal.${TS_TAILNET:-SIN-TAILNET}.ts.net
+      GITHUB_CLIENT_ID: ${GH_OAUTH_PERSONAL_ID:-}
+      GITHUB_CLIENT_SECRET: ${GH_OAUTH_PERSONAL_SECRET:-}
+      HUB_JWT_SIGNING_KEY: ${HUB_JWT_SIGNING_KEY_PERSONAL:?}
+      HUB_STORAGE_ENCRYPTION_KEY: ${HUB_STORAGE_KEY_PERSONAL:?}
+      COGNEE_API_KEY: ${COGNEE_KEY_PERSONAL:-}
+      INFISICAL_CLIENT_ID: ${INF_MI_PERSONAL_ID:-}
+      INFISICAL_CLIENT_SECRET: ${INF_MI_PERSONAL_SECRET:-}
+    volumes:
+      - skills_repo:/skills:ro
+      - ./config:/config:ro
+      - gw_personal:/data
+
+  # ---------------------------------------------------------------- capa pública: side
+  ts-side:
+    <<: *ts
+    hostname: hub-side
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY_PUBLIC:-}
+      TS_HOSTNAME: hub-side
+      TS_EXTRA_ARGS: --advertise-tags=tag:hub-public
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_ACCEPT_DNS: "false"
+    volumes:
+      - ts_side:/var/lib/tailscale
+      - ./config/tailscale/side:/config:ro
+
+  gateway-side:
+    <<: *gateway
+    network_mode: service:ts-side
+    environment:
+      <<: *gateway-env
+      HUB_CONTEXT: side
+      HUB_PUBLIC_URL: https://hub-side.${TS_TAILNET:-SIN-TAILNET}.ts.net
+      GITHUB_CLIENT_ID: ${GH_OAUTH_SIDE_ID:-}
+      GITHUB_CLIENT_SECRET: ${GH_OAUTH_SIDE_SECRET:-}
+      HUB_JWT_SIGNING_KEY: ${HUB_JWT_SIGNING_KEY_SIDE:?}
+      HUB_STORAGE_ENCRYPTION_KEY: ${HUB_STORAGE_KEY_SIDE:?}
+      COGNEE_API_KEY: ${COGNEE_KEY_SIDE:-}
+      INFISICAL_CLIENT_ID: ${INF_MI_SIDE_ID:-}
+      INFISICAL_CLIENT_SECRET: ${INF_MI_SIDE_SECRET:-}
+    volumes:
+      - skills_repo:/skills:ro
+      - ./config:/config:ro
+      - gw_side:/data
+
+networks:
+  internal: {}
+
+volumes:
+  infisical_pg: {}
+  infisical_redis: {}
+  cognee_system: {}
+  cognee_data: {}
+  skills_repo: {}
+  ts_work: {}
+  ts_personal: {}
+  ts_side: {}
+  gw_work: {}
+  gw_personal: {}
+  gw_side: {}

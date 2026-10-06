@@ -1,0 +1,30 @@
+[project]
+name = "hub-gateway"
+version = "0.1.0"
+description = "Gateway MCP por contexto del hub personal de IA (Cognee + skills + secretos por inyección)"
+requires-python = ">=3.11"
+dependencies = [
+  "fastmcp>=4.0.10,<4.1",
+  "httpx>=0.28,<0.29",
+  "pyyaml>=6.0",
+  "infisicalsdk>=1.0.17,<2",
+  "cryptography>=44",
+  "uvicorn>=0.30",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "respx>=0.22"]
+
+[project.scripts]
+hub-gateway = "hub_gateway.app:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

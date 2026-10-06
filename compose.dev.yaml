@@ -1,0 +1,75 @@
+# Stack de desarrollo/smoke test: Cognee + LLM falso + los 3 gateways SIN auth y SIN Tailscale.
+# Es un archivo independiente (no un override) para no requerir las variables de producción.
+#   docker compose -f compose.dev.yaml up -d --build
+#   python scripts/bootstrap_cognee.py --url http://127.0.0.1:18000 \
+#          --datasets-out dev/state/cognee-datasets.json --dev-keys-dir dev/state
+#   docker compose -f compose.dev.yaml up -d --force-recreate gateway-dev-work gateway-dev-personal gateway-dev-side
+#   python scripts/smoke_test.py --dev
+# Los gateways escuchan solo en 127.0.0.1 y el modo HUB_DEV_NO_AUTH se niega a arrancar con URL pública.
+name: mnemos-dev
+
+x-gw: &gw
+  build: ./gateway
+  image: mnemos/gateway:local
+  depends_on: [cognee]
+  volumes:
+    - ./dev/skills-fixture:/skills:ro
+    - ./config/secret-policy.example.yaml:/config/secret-policy.yaml:ro
+    - ./config/contexts.example.yaml:/config/contexts.yaml:ro
+    - ./dev/state:/state:ro
+
+services:
+  mock-llm:
+    build: ./dev/mock-llm
+
+  cognee:
+    image: cognee/cognee:1.6.1
+    env_file: [./dev/cognee.dev.env]
+    depends_on: [mock-llm]
+    volumes:
+      - dev_cognee_system:/cognee-storage/system
+      - dev_cognee_data:/cognee-storage/data
+    ports: ["127.0.0.1:18000:8000"]
+
+  gateway-dev-work:
+    <<: *gw
+    env_file:                       # COGNEE_API_KEY del usuario ctx-work (lo escribe el bootstrap)
+      - path: ./dev/state/work.env
+        required: false
+    environment:
+      HUB_CONTEXT: work
+      HUB_DEV_NO_AUTH: "1"
+      HUB_PUBLIC_URL: http://localhost:18101
+      COGNEE_URL: http://cognee:8000
+      HUB_DATASETS_FILE: /state/cognee-datasets.json
+    ports: ["127.0.0.1:18101:8000"]
+
+  gateway-dev-personal:
+    <<: *gw
+    env_file:                       # COGNEE_API_KEY del usuario ctx-personal (lo escribe el bootstrap)
+      - path: ./dev/state/personal.env
+        required: false
+    environment:
+      HUB_CONTEXT: personal
+      HUB_DEV_NO_AUTH: "1"
+      HUB_PUBLIC_URL: http://localhost:18102
+      COGNEE_URL: http://cognee:8000
+      HUB_DATASETS_FILE: /state/cognee-datasets.json
+    ports: ["127.0.0.1:18102:8000"]
+
+  gateway-dev-side:
+    <<: *gw
+    env_file:                       # COGNEE_API_KEY del usuario ctx-side (lo escribe el bootstrap)
+      - path: ./dev/state/side.env
+        required: false
+    environment:
+      HUB_CONTEXT: side
+      HUB_DEV_NO_AUTH: "1"
+      HUB_PUBLIC_URL: http://localhost:18103
+      COGNEE_URL: http://cognee:8000
+      HUB_DATASETS_FILE: /state/cognee-datasets.json
+    ports: ["127.0.0.1:18103:8000"]
+
+volumes:
+  dev_cognee_system: {}
+  dev_cognee_data: {}

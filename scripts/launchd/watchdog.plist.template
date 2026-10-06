@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Plantilla: la instala scripts/install_watchdog_agent.sh reemplazando __HUB_DIR__, __HOME__, __PYTHON__.
+     Corre cada 15 min (StartInterval 900). KeepAlive false: no loop si el script falla.
+     El propio hub_watchdog.py tiene cooldown de 30 min por hub tras un recreate. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>__LABEL__.watchdog</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PYTHON__</string>
+    <string>__HUB_DIR__/scripts/hub_watchdog.py</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__HUB_DIR__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>AIHUB_LABEL_PREFIX</key>
+    <string>__LABEL__</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>900</integer>
+  <key>KeepAlive</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/mnemos-watchdog.launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/mnemos-watchdog.launchd.log</string>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>LowPriorityIO</key>
+  <true/>
+</dict>
+</plist>

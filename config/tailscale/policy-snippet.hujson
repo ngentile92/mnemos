@@ -1,0 +1,15 @@
+// Fragmento para pegar en Access controls (admin de Tailscale). Mezclalo con lo que ya tengas.
+{
+  "tagOwners": {
+    "tag:hub-public": ["autogroup:admin"],
+  },
+  // Solo los sidecars del hub pueden usar Funnel.
+  "nodeAttrs": [
+    { "target": ["tag:hub-public"], "attr": ["funnel"] },
+  ],
+  // Tus dispositivos se ven entre sí. NO hay ninguna regla con src tag:hub-public:
+  // los sidecars públicos no pueden iniciar conexiones hacia tu tailnet.
+  "grants": [
+    { "src": ["autogroup:member"], "dst": ["autogroup:self"], "ip": ["*"] },
+  ],
+}

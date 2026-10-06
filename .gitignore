@@ -1,0 +1,22 @@
+# secretos y estado local: NUNCA al repo
+.env
+cognee.env
+secrets/
+data/
+backups/
+dev/state/
+*.pem
+*.key
+# python
+__pycache__/
+*.egg-info/
+.venv/
+.pytest_cache/
+
+# selección local del import (rutas de tu disco, sin valores)
+secret-import.selection*.yaml
+
+# configuración de tu instancia (se crean desde los *.example.* con scripts/bootstrap.sh)
+config/contexts.yaml
+config/secret-policy.yaml
+config/cognee-datasets.json

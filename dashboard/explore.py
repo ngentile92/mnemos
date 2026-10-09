@@ -40,7 +40,8 @@ def policy_path() -> Path:
 
 VIEWS = (*CONTEXTS, "todos")
 ADMIN_EMAIL = "hub-admin@example.com"
-SKILLS_CONTAINER = "mnemos-skills-sync-1"
+# skills-sync se resuelve con `docker compose` desde la raíz del repo (respeta COMPOSE_PROJECT_NAME/COMPOSE_FILE de .env)
+SKILLS_EXEC = ["docker", "compose", "exec", "-T", "skills-sync"]
 MAX_TEXT = 6000
 MAX_NODES = 2500
 # tipos de nodo de Cognee que son "conceptos" (los que conectan memorias entre sí)
@@ -123,8 +124,8 @@ class SkillsMirror:
         with self._lock:
             if time.time() - self._at < 60 and (self.root / "skills").is_dir():
                 return self.root
-            r = subprocess.run(["docker", "exec", SKILLS_CONTAINER, "tar", "-C", "/skills", "-cf", "-", "skills"],
-                               capture_output=True, timeout=30, check=False)
+            r = subprocess.run([*SKILLS_EXEC, "tar", "-C", "/skills", "-cf", "-", "skills"],
+                               capture_output=True, timeout=30, check=False, cwd=ROOT)
             if r.returncode != 0:
                 raise RuntimeError(f"skills-sync exit {r.returncode}")
             tmp = self.root.with_name(self.root.name + ".tmp")

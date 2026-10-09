@@ -25,8 +25,20 @@ from pathlib import Path
 import httpx
 
 ROOT = Path(__file__).resolve().parent.parent
-CONTEXTS = ["work", "personal", "side"]
+# --dev: el stack de compose.dev.yaml siempre trae work / personal / side.
+DEV_CONTEXTS = ["work", "personal", "side"]
 DEV_PORTS = {"work": 18101, "personal": 18102, "side": 18103}
+CONTEXTS = DEV_CONTEXTS
+
+
+def _prod_contexts() -> list[str]:
+    """--quick: los contextos de TU instancia (config/contexts.yaml, vía hub_gateway.contexts)."""
+    sys.path.insert(0, str(ROOT / "gateway" / "src"))
+    try:
+        from hub_gateway.contexts import CONTEXTS as ctxs
+    except ImportError:  # sin pyyaml: leer contexts.yaml a mano no vale la pena; usar los default
+        return DEV_CONTEXTS
+    return list(ctxs)
 
 failures: list[str] = []
 
@@ -223,6 +235,8 @@ def main() -> None:
     if args.dev:
         asyncio.run(dev(args.cognee_url or "http://127.0.0.1:18000", Path(args.state_dir), args.wait))
     else:
+        global CONTEXTS
+        CONTEXTS = _prod_contexts()
         asyncio.run(quick(args.cognee_url or "http://127.0.0.1:8010", os.environ.get("TS_TAILNET") or _tailnet_from_env()))
     print()
     if failures:

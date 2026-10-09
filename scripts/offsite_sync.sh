@@ -2,19 +2,19 @@
 # Copia offsite del repo restic local (RESTIC_REPOSITORY) a Google Drive con rclone.
 # La corre backup.sh al final (03:17 diario) y también se puede correr a mano: scripts/offsite_sync.sh
 # El repo restic ya está cifrado: a Drive sólo suben blobs cifrados (sin password no se puede leer nada).
-# Remote: AIHUB_OFFSITE_REMOTE (default gdrive:mnemos-backups). Crear una vez con:
+# Remote: AIHUB_OFFSITE_REMOTE (env o .env; default gdrive:mnemos-backups). Crear una vez con:
 #   rclone config create gdrive drive scope=drive.file     # abre el browser para OAuth; sólo ve lo que rclone crea
 # rclone.conf (token OAuth) vive en ~/.config/rclone/rclone.conf: NUNCA al repo.
 # Log: ~/Library/Logs/mnemos-offsite.log (el dashboard lee "== Inicio offsite" / "Offsite OK").
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
-REMOTE="${AIHUB_OFFSITE_REMOTE:-gdrive:mnemos-backups}"
 if [[ -d "$HOME/Library/Logs" ]]; then LOG="$HOME/Library/Logs/mnemos-offsite.log"; else LOG="dev/state/offsite.log"; fi
 LOCK="dev/state/offsite-sync.lock"
 mkdir -p dev/state "$(dirname "$LOG")"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
 envval() { grep -E "^$1=" .env | tail -1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//'; }
+REMOTE="${AIHUB_OFFSITE_REMOTE:-$(envval AIHUB_OFFSITE_REMOTE)}"; REMOTE="${REMOTE:-gdrive:mnemos-backups}"
 REPO="${RESTIC_REPOSITORY:-$(envval RESTIC_REPOSITORY)}"
 
 log() { echo "$*" | tee -a "$LOG"; }

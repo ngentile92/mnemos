@@ -34,6 +34,10 @@ def test_serves_status_and_static_with_csp(server):
     page = httpx.get(f"{server}/")
     assert page.status_code == 200 and "script-src 'self'" in page.headers["content-security-policy"]
     assert httpx.get(f"{server}/app.js").status_code == 200
+    cfg = httpx.get(f"{server}/config.js")
+    assert cfg.status_code == 200 and cfg.text.startswith("window.MNEMOS = ")
+    names = [c["name"] for c in json.loads(cfg.text.split("=", 1)[1].rstrip().rstrip(";"))["contexts"]]
+    assert names == list(dash.CONTEXTS)
 
 
 def test_rejects_foreign_host_and_path_traversal(server):

@@ -42,28 +42,30 @@ sys.path.insert(0, str(ROOT / "gateway" / "src"))
 from hub_gateway.contexts import CONTEXTS  # noqa: E402  (config/contexts.yaml)
 
 
-def _label_prefix() -> str:
-    """Prefijo de los LaunchAgents: AIHUB_LABEL_PREFIX del entorno o de .env (default io.mnemos)."""
-    if os.environ.get("AIHUB_LABEL_PREFIX"):
-        return os.environ["AIHUB_LABEL_PREFIX"]
+def _setting(name: str, default: str) -> str:
+    """Ajuste de la instancia: variable de entorno, si no la línea NAME= de .env, si no el default."""
+    if os.environ.get(name):
+        return os.environ[name]
     try:
         for line in (ROOT / ".env").read_text().splitlines():
-            if line.startswith("AIHUB_LABEL_PREFIX="):
-                return line.split("=", 1)[1].split("#")[0].strip() or "io.mnemos"
+            if line.startswith(f"{name}="):
+                return line.split("=", 1)[1].split("#")[0].strip() or default
     except OSError:
         pass
-    return "io.mnemos"
+    return default
 
 
-LABEL_PREFIX = _label_prefix()
-
-PROJECT = "mnemos"
+LABEL_PREFIX = _setting("AIHUB_LABEL_PREFIX", "io.mnemos")  # LaunchAgents: <prefijo>.backup, .watchdog, ...
+PROJECT = _setting("COMPOSE_PROJECT_NAME", "mnemos")  # proyecto compose (prefijo de contenedores/volúmenes)
+RESTIC_TAG = _setting("RESTIC_TAG", "mnemos")
 BACKUP_LOG = Path.home() / "Library" / "Logs" / "mnemos-backup.log"
 BACKUP_LABEL = f"{LABEL_PREFIX}.backup"
 BACKUP_AT = (3, 17)
 OFFSITE_LOG = Path.home() / "Library" / "Logs" / "mnemos-offsite.log"
 WATCHDOG_STATUS = Path.home() / "Library" / "Logs" / "mnemos-watchdog-status.json"
 WATCHDOG_LABEL = f"{LABEL_PREFIX}.watchdog"
+CONFIG_JS = "window.MNEMOS = " + json.dumps(
+    {"contexts": [{"name": c.name, "datasets": c.own_dataset_names} for c in CONTEXTS.values()]}) + ";\n"
 STATIC_IMPORT: dict = {}  # opcional: conteos de secretos conocidos por contexto, si Infisical no responde
 SENSITIVE_NAME = re.compile(r"(KEY|SECRET|PASSWORD|PASSWD|TOKEN|_PW_|^PW_|_PW$|AUTH|REPOSITORY|DSN)", re.IGNORECASE)
 MODEL_VARS = ("LLM_PROVIDER", "LLM_MODEL", "EMBEDDING_PROVIDER", "EMBEDDING_MODEL")
@@ -375,7 +377,7 @@ class Hub:
             raise RuntimeError("sin restic en .env")
         env = {**os.environ, "RESTIC_REPOSITORY": repo, "RESTIC_PASSWORD": pw}
         restic = next((p for p in ("/opt/homebrew/bin/restic", "/usr/local/bin/restic") if Path(p).exists()), "restic")
-        snaps = json.loads(run([restic, "snapshots", "--json", "--tag", "mnemos"], timeout=90, env=env) or "[]")
+        snaps = json.loads(run([restic, "snapshots", "--json", "--tag", RESTIC_TAG], timeout=90, env=env) or "[]")
         snaps.sort(key=lambda s: s.get("time", ""))
         last = snaps[-1] if snaps else {}
         summ = last.get("summary") or {}
@@ -548,6 +550,8 @@ def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
                 if hub is not None:
                     text = hub.redact(text)
                 return self._send(200, text.encode(), "application/json; charset=utf-8")
+            if path == "/config.js":  # contextos de config/contexts.yaml para la UI (solo nombres)
+                return self._send(200, CONFIG_JS.encode(), "text/javascript; charset=utf-8")
             name = "index.html" if path in ("/", "/index.html") else path.lstrip("/")
             f = (STATIC / name).resolve()
             if STATIC.resolve() not in f.parents or not f.is_file():

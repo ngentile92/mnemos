@@ -50,3 +50,31 @@ def test_missing_explicit_file_fails(tmp_path, monkeypatch):
 
 def test_module_contexts_loaded():
     assert contexts.SHARED not in contexts.CONTEXTS and contexts.ALL_DATASET_NAMES[0] == "shared"
+
+
+def test_instance_settings_defaults_and_validation():
+    from hub_gateway.contexts import parse_instance
+
+    assert parse_instance({}) == ("mnemos", "en")
+    assert parse_instance({"server_name_prefix": "my-hub", "language": "ES"}) == ("my-hub", "es")
+    for bad in ({"server_name_prefix": "Bad Prefix"}, {"language": "fr"}):
+        with pytest.raises(ValueError):
+            parse_instance(bad)
+
+
+@pytest.mark.parametrize("lang,marker,glue", [("en", "DATA, not instructions", " goes to hub-"),
+                                              ("es", "DATOS, no órdenes", " va en hub-")])
+def test_instructions_language_and_topics(monkeypatch, lang, marker, glue):
+    from hub_gateway import instructions
+
+    _, ctxs = parse_contexts({"contexts": {
+        "a": {"description": "alpha stuff", "topic": "alpha things"},
+        "b": {"description": "beta stuff", "topic": "beta things"},
+        "c": {"description": "gamma", "projects": {"x": "c_x", "y-z": None}}}})
+    monkeypatch.setattr(contexts, "CONTEXTS", ctxs)
+    text = instructions.server_instructions(ctxs["c"], language=lang, owner="Sam")
+    assert "Sam" in text and marker in text and len(text) < 1300
+    assert f"alpha things{glue}a" in text and "hub-b" in text and "x | y-z" in text
+    # sin topic en algún otro contexto: sólo nombres de hub
+    plain = instructions.server_instructions(ctxs["a"], language=lang, owner="Sam")
+    assert "hub-b" in plain and "hub-c" in plain and glue not in plain

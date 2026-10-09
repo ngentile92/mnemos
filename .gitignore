@@ -20,3 +20,6 @@ secret-import.selection*.yaml
 config/contexts.yaml
 config/secret-policy.yaml
 config/cognee-datasets.json
+
+# compose generado para tus contextos (scripts/render_compose.py)
+compose.generated.yaml

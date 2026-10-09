@@ -43,6 +43,8 @@ class ContextSpec:
     # Si True, memory_save exige `project` (contextos con subproyectos).
     project_required: bool = False
     description: str = ""
+    # Frase corta para las instrucciones de los OTROS contextos ("personal stuff goes to hub-personal").
+    topic: str = ""
 
     @property
     def projects(self) -> list[str]:
@@ -94,11 +96,28 @@ def parse_contexts(data: dict[str, Any]) -> tuple[str, dict[str, ContextSpec]]:
             datasets=datasets,
             project_required=bool(spec.get("project_required", bool(projects))),
             description=str(spec.get("description") or name).strip(),
+            topic=str(spec.get("topic") or "").strip(),
         )
     return owner, out
 
 
-OWNER, CONTEXTS = parse_contexts(load_config())
+LANGUAGES = ("en", "es")
+
+
+def parse_instance(data: dict[str, Any]) -> tuple[str, str]:
+    """(server_name_prefix, language) de la instancia. El prefijo es el nombre MCP visible ("<prefix>-<ctx>")."""
+    prefix = str(data.get("server_name_prefix") or "mnemos").strip()
+    if not _NAME_RE.match(prefix):
+        raise ValueError(f"contexts.yaml: server_name_prefix inválido: {prefix!r}")
+    lang = str(data.get("language") or "en").strip().lower()
+    if lang not in LANGUAGES:
+        raise ValueError(f"contexts.yaml: language debe ser uno de {LANGUAGES}, no {lang!r}")
+    return prefix, lang
+
+
+_CONFIG = load_config()
+OWNER, CONTEXTS = parse_contexts(_CONFIG)
+SERVER_NAME_PREFIX, LANGUAGE = parse_instance(_CONFIG)
 
 ALL_DATASET_NAMES = [SHARED] + [d for c in CONTEXTS.values() for d in c.own_dataset_names]
 if len(set(ALL_DATASET_NAMES)) != len(ALL_DATASET_NAMES):

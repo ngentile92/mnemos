@@ -93,7 +93,7 @@ footer{color:var(--muted);text-align:center;font-size:12px;padding:10px 20px 26p
 .seg button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px 16px;font:600 13px/1 inherit;cursor:pointer}
 .seg button small{color:var(--muted);font-weight:500}
 .seg button.on.cb{border-color:var(--cb);box-shadow:0 0 0 1px var(--cb) inset}.seg button.on.pe{border-color:var(--pe);box-shadow:0 0 0 1px var(--pe) inset}
-.seg button.on.si{border-color:var(--si);box-shadow:0 0 0 1px var(--si) inset}.seg button.on.all{border-color:var(--sh);box-shadow:0 0 0 1px var(--sh) inset}
+.seg button.on.si{border-color:var(--si);box-shadow:0 0 0 1px var(--si) inset}.seg button.on.ctx{border-color:var(--c);box-shadow:0 0 0 1px var(--c) inset}.seg button.on.all{border-color:var(--sh);box-shadow:0 0 0 1px var(--sh) inset}
 .ctxinfo{display:flex;gap:10px;align-items:center}
 .btn{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:6px 12px;font:600 12px/1 inherit;cursor:pointer}
 .btn:hover,.seg button:hover{border-color:rgba(148,163,209,.4)}

@@ -2,13 +2,21 @@
 // Pestaña Explorar: grafo de memoria, memorias, skills y nombres de secretos del contexto elegido.
 // Todo viene de /api/explore (el servidor usa la credencial de ESE contexto; "todos" = hub-admin).
 (() => {
-  const DS_COLOR = { work: "#38bdf8", shared: "#fbbf24", personal: "#a78bfa", side_shop: "#f472b6", side_blog: "#fb923c", side_mnemos: "#2dd4bf" };
-  const CTX_COLOR = { work: "#38bdf8", personal: "#a78bfa", side: "#f472b6", shared: "#fbbf24" };
-  const VIEWS = ["work", "personal", "side", "todos"];
+  // contextos y datasets de config/contexts.yaml (/config.js); colores por posición
+  const CFG = window.MNEMOS || { contexts: ["work", "personal", "side"].map((name) => ({ name, datasets: [name] })) };
+  const PALETTE = ["#38bdf8", "#a78bfa", "#f472b6", "#34d399", "#fb923c", "#2dd4bf", "#e879f9"];
+  const EXTRA = ["#fb923c", "#2dd4bf", "#e879f9", "#a3e635", "#f87171"];  // 2º, 3º... dataset de un contexto
+  const CTX_COLOR = { shared: "#fbbf24" }, DS_COLOR = { shared: "#fbbf24" };
+  CFG.contexts.forEach((c, i) => {
+    CTX_COLOR[c.name] = PALETTE[i % PALETTE.length];
+    (c.datasets || [c.name]).forEach((d, j) => { DS_COLOR[d] = j ? EXTRA[(j - 1) % EXTRA.length] : CTX_COLOR[c.name]; });
+  });
+  const VIEWS = [...CFG.contexts.map((c) => c.name), "todos"];
   const $ = (id) => document.getElementById(id);
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fmt = (iso) => iso ? new Date(iso.endsWith("Z") || /[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z").toLocaleString("es-ES", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
-  let view = localStorage.getItem("mnemos.view") || "work";
+  let view = localStorage.getItem("mnemos.view");
+  if (!VIEWS.includes(view)) view = VIEWS[0];
   let data = null, cy = null, inflight = null;
 
   // ---------------------------------------------------------------- pestañas
@@ -185,6 +193,9 @@
   }
 
   // ---------------------------------------------------------------- controles
+  // un botón por contexto, antes de "Todos"
+  $("ctx-seg").insertAdjacentHTML("afterbegin", CFG.contexts.map((c) =>
+    `<button data-view="${esc(c.name)}" class="ctx" style="--c:${CTX_COLOR[c.name]}">${esc(c.name.charAt(0).toUpperCase() + c.name.slice(1))}</button>`).join(""));
   $("ctx-seg").addEventListener("click", (ev) => {
     const b = ev.target.closest("button"); if (!b || b.dataset.view === view) return;
     view = b.dataset.view; data = null;

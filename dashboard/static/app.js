@@ -1,8 +1,12 @@
 "use strict";
 // Dashboard del Mnemos — solo lee /api/status (nombres, estados y conteos).
 const REFRESH_MS = 20000;
-const CTX = ["work", "personal", "side"];
-const COLOR = { work: "var(--cb)", personal: "var(--pe)", side: "var(--si)", shared: "var(--sh)" };
+// Contextos de config/contexts.yaml (los inyecta el servidor en /config.js).
+const CFG = window.MNEMOS || { contexts: ["work", "personal", "side"].map((name) => ({ name, datasets: [name] })) };
+const CTX = CFG.contexts.map((c) => c.name);
+const PALETTE = ["var(--cb)", "var(--pe)", "var(--si)", "#34d399", "#fb923c", "#2dd4bf", "#e879f9"];
+const COLOR = Object.fromEntries(CTX.map((c, i) => [c, PALETTE[i % PALETTE.length]]));
+COLOR.shared = "var(--sh)";
 const $ = (id) => document.getElementById(id);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 let last = null, lastAt = 0;
@@ -73,15 +77,19 @@ const NODES = {
   cursor: { x: 20, y: 360, w: 150, h: 56, t: "Cursor", s: "mcp.json" },
   funnel: { x: 265, y: 110, w: 165, h: 72, t: "Tailscale Funnel", s: "HTTPS público" },
   oauth: { x: 265, y: 285, w: 165, h: 72, t: "GitHub OAuth", s: "solo tu usuario" },
-  gw_work: { x: 515, y: 60, w: 190, h: 86, t: "hub-work", s: "", big: 1 },
-  gw_personal: { x: 515, y: 192, w: 190, h: 86, t: "hub-personal", s: "", big: 1 },
-  gw_side: { x: 515, y: 324, w: 190, h: 86, t: "hub-side", s: "", big: 1 },
   cognee: { x: 840, y: 42, w: 215, h: 64, t: "Cognee · memoria", s: "" },
   skills: { x: 840, y: 126, w: 215, h: 64, t: "Skills (git)", s: "" },
   infisical: { x: 840, y: 210, w: 215, h: 64, t: "Infisical · secretos", s: "" },
   vaultwarden: { x: 840, y: 294, w: 215, h: 64, t: "Vaultwarden", s: "contraseñas humanas" },
   ollama: { x: 840, y: 378, w: 215, h: 64, t: "Ollama · LLM local", s: "" },
 };
+// una caja por gateway, repartidas en la columna (3 contextos → y = 60 / 192 / 324, alto 86)
+(() => {
+  const n = CTX.length, h = Math.min(86, 350 / n - (n > 1 ? 16 : 0)), step = n > 1 ? (350 - h) / (n - 1) : 0;
+  CTX.forEach((c, i) => {
+    NODES["gw_" + c] = { x: 515, y: Math.round(n > 1 ? 60 + i * step : 192), w: 190, h: Math.round(h), t: "hub-" + c, s: "", big: 1 };
+  });
+})();
 const EDGES = [
   ...["claude", "chatgpt", "grok", "cursor"].map((a) => [a, "funnel"]),
   ["funnel", "oauth", "v"],
@@ -194,7 +202,7 @@ function renderSecrets(d) {
   if (inf.shared && inf.shared.ok) {
     html += `<div class="row" style="--c:${COLOR.shared}"><div><b>shared</b></div><div class="bar"><i style="width:${(100 * inf.shared.count) / max}%"></i></div><div class="num">${inf.shared.count} <span class="muted small">Infisical</span></div></div>`;
   }
-  html += `<div class="note">Barra de color: secretos guardados en Infisical (conteo con la identity <i>Viewer</i> de cada gateway, sin leer valores). Línea blanca: los que el gateway puede inyectar según <span class="mono">config/secret-policy.yaml</span>. Chips: dominios permitidos. Import del ${esc(si.date)}: ${si.work}/${si.personal}/${si.side}.</div>`;
+  html += `<div class="note">Barra de color: secretos guardados en Infisical (conteo con la identity <i>Viewer</i> de cada gateway, sin leer valores). Línea blanca: los que el gateway puede inyectar según <span class="mono">config/secret-policy.yaml</span>. Chips: dominios permitidos. Import del ${esc(si.date)}: ${CTX.map((c) => esc(si[c] ?? "—")).join("/")}.</div>`;
   $("secrets").innerHTML = html;
 }
 

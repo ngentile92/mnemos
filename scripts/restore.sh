@@ -6,15 +6,16 @@
 # (de Vaultwarden o del papel) y corré este script. Después: docker compose up -d.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-PROJECT="${COMPOSE_PROJECT_NAME:-mnemos}"
 envval() { [ -f .env ] && grep -E "^$1=" .env | tail -1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//'; }
+PROJECT="${COMPOSE_PROJECT_NAME:-$(envval COMPOSE_PROJECT_NAME || true)}"; PROJECT="${PROJECT:-mnemos}"
+TAG="${RESTIC_TAG:-$(envval RESTIC_TAG || true)}"; TAG="${TAG:-mnemos}"
 RESTIC_REPOSITORY="${RESTIC_REPOSITORY:-$(envval RESTIC_REPOSITORY || true)}"
 RESTIC_PASSWORD="${RESTIC_PASSWORD:-$(envval RESTIC_PASSWORD || true)}"
 export RESTIC_REPOSITORY RESTIC_PASSWORD
 : "${RESTIC_REPOSITORY:?exportá RESTIC_REPOSITORY}" "${RESTIC_PASSWORD:?exportá RESTIC_PASSWORD}"
 
 if [ "${1:-}" = "--check" ]; then
-  restic check && restic snapshots --tag mnemos
+  restic check && restic snapshots --tag "$TAG"
   exit 0
 fi
 SNAP="${1:-latest}"
@@ -22,7 +23,7 @@ read -r -p "Esto reemplaza Vaultwarden, Infisical, Cognee y el estado OAuth con 
 [ "$ok" = "SI" ] || { echo "Cancelado."; exit 1; }
 
 TMP="$(mktemp -d)"
-restic restore "$SNAP" --tag mnemos --target "$TMP"
+restic restore "$SNAP" --tag "$TAG" --target "$TMP"
 # restic guarda rutas absolutas de la máquina original: se ubica la raíz por el dump de Infisical.
 DUMP="$(find "$TMP" -path '*backups/stage/infisical.sql.gz' | head -1)"
 [ -n "$DUMP" ] || { echo "El snapshot no tiene backups/stage/infisical.sql.gz"; exit 1; }
@@ -38,9 +39,9 @@ cp "$SRC/backups/stage/vaultwarden-db.sqlite3" data/vaultwarden/db.sqlite3
 rm -f data/vaultwarden/db.sqlite3-wal data/vaultwarden/db.sqlite3-shm
 
 echo "== volúmenes"
-for vol in cognee_system cognee_data gw_work gw_personal gw_side; do
-  f="$SRC/backups/stage/${vol}.tgz"
+for f in "$SRC"/backups/stage/cognee_*.tgz "$SRC"/backups/stage/gw_*.tgz; do
   [ -f "$f" ] || continue
+  vol="$(basename "$f" .tgz)"
   docker volume rm "${PROJECT}_${vol}" >/dev/null 2>&1 || true
   docker volume create "${PROJECT}_${vol}" >/dev/null
   docker run --rm -v "${PROJECT}_${vol}:/v" -v "$(dirname "$f"):/b:ro" alpine:3.22 tar xzf "/b/${vol}.tgz" -C /v

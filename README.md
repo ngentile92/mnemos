@@ -156,19 +156,34 @@ find it from another.
 ### Adding or renaming a context
 
 Renaming descriptions or projects only needs `config/contexts.yaml`, `scripts/bootstrap_cognee.py` and
-`scripts/bootstrap_infisical.py` (both read it). The three default contexts are also wired into a few places that
-you must edit to **add or remove** one (copy the `side` blocks):
+`scripts/bootstrap_infisical.py` (all read it). To **add, remove or rename** contexts:
 
-1. `compose.yaml`: a `ts-<ctx>` sidecar, a `gateway-<ctx>` service and their volumes; `config/tailscale/<ctx>/serve.json`.
-2. `.env.example` / `.env`: `GH_OAUTH_<CTX>_ID/_SECRET`, `HUB_JWT_SIGNING_KEY_<CTX>`, `HUB_STORAGE_KEY_<CTX>`,
-   `COGNEE_PW_<CTX>`, `COGNEE_KEY_<CTX>`, `INF_MI_<CTX>_ID/_SECRET` (mark generated ones `__GENERAR__`; `init_env.py`
-   fills them).
+1. Edit `config/contexts.yaml`, then `python scripts/render_compose.py`: it writes `compose.generated.yaml`
+   (gitignored) with one `ts-<ctx>` sidecar, `gateway-<ctx>` service and `ts_<ctx>` / `gw_<ctx>` volumes per
+   context, using the `work` blocks of `compose.yaml` as the template. Set `COMPOSE_FILE=compose.generated.yaml`
+   in `.env` so every `docker compose` call (and the scripts) use it. `scripts/update.sh` re-renders on update.
+2. `.env`: `GH_OAUTH_<CTX>_ID/_SECRET`, `HUB_JWT_SIGNING_KEY_<CTX>`, `HUB_STORAGE_KEY_<CTX>`, `COGNEE_PW_<CTX>`,
+   `COGNEE_KEY_<CTX>`, `INF_MI_<CTX>_ID/_SECRET` (`<CTX>` = upper case, `-` → `_`; mark generated ones
+   `__GENERAR__`; `init_env.py` fills them).
 3. A GitHub OAuth App and a folder `skills/<ctx>/` in your skills repo.
-4. Optional: `compose.dev.yaml` and `scripts/smoke_test.py` (dev stack), and the dashboard UI
-   (`dashboard/static/*.js`, `index.html`), which has buttons for the three default contexts.
+4. Optional: `compose.dev.yaml` and `scripts/smoke_test.py --dev` keep the three default contexts.
 
-The gateway, memory scoping, skills visibility, secret policy, dashboard backend and watchdog all read the context
-list from `config/contexts.yaml`.
+All sidecars share `config/tailscale/funnel/serve.json`. Volumes are named `<project>_<volume>`: keep
+`COMPOSE_PROJECT_NAME` stable or Docker creates new, empty volumes.
+
+The gateway, memory scoping, skills visibility, secret policy, dashboard (backend and UI), smoke test and watchdog
+all read the context list from `config/contexts.yaml`.
+
+## Updating
+
+```bash
+scripts/update.sh --dry-run      # what would change
+scripts/update.sh                # latest v* tag (or: scripts/update.sh v0.2.0)
+```
+
+It fetches, checks out the ref, re-renders the compose file, rebuilds, `up -d`, runs `scripts/smoke_test.py
+--quick` and, if anything fails, goes back to the previous ref automatically. It never runs `down` or touches
+volumes or your gitignored config.
 
 ## Security
 
@@ -211,9 +226,9 @@ host. The dashboard runs with `scripts/dashboard.sh start` (or a systemd user se
 |---|---|
 | `gateway/` | MCP server (FastMCP): OAuth + allow-list, per-context tools, secret broker, tests |
 | `dashboard/` | Read-only live dashboard (`127.0.0.1` only) |
-| `scripts/` | Bootstrap, smoke test, backups/restore, nightly cognify, hygiene, watchdog, admin tools (+ `launchd/` templates) |
+| `scripts/` | Bootstrap, update (`update.sh`), compose render, smoke test, backups/restore, nightly cognify, hygiene, watchdog, admin tools (+ `launchd/` templates) |
 | `skills-sync/` | Container that keeps `/skills` in sync with your skills repo |
-| `config/` | Example contexts and secret policy, Tailscale `serve.json` per context, ACL snippet |
+| `config/` | Example contexts and secret policy, shared Tailscale `serve.json`, ACL snippet |
 | `dev/` | Fake OpenAI-compatible LLM, skill fixtures, Infisical e2e |
 | `examples/skills/` | Starter skills repo (`review-pr`, `debug-error`, `status-report`, `technical-docs`) + validator |
 | `docs/` | Setup and operations guides (Spanish), client instructions (English) |

@@ -62,6 +62,19 @@ El modo sin auth se niega a arrancar si `HUB_PUBLIC_URL` no es localhost.
 cd gateway && python3 -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]" && pytest -q
 ```
 
+## Actualizar (`scripts/update.sh`)
+
+```bash
+scripts/update.sh --dry-run        # qué cambiaría
+scripts/update.sh                  # último tag v* (o un ref: scripts/update.sh v0.2.0)
+```
+
+fetch → checkout del ref → `scripts/render_compose.py` (si `.env` tiene `COMPOSE_FILE=compose.generated.yaml`) →
+`pip install` del gateway en `.venv` → `docker compose build` → `up -d` → `scripts/smoke_test.py --quick` (3 intentos).
+Si algo falla vuelve solo al ref anterior (rebuild + up + smoke) y sale con 1. Nunca corre `down` ni toca volúmenes
+ni la config gitignored (`.env`, `cognee.env`, `config/*.yaml`, `secrets/`, `data/`). Historial en
+`dev/state/updates.log`. Volver a mano: `scripts/update.sh <ref-anterior>`.
+
 ## Ver el grafo completo (solo vos, solo en el host)
 
 `scripts/visualize.py` entra a Cognee como `hub-admin` (por `127.0.0.1:8010`, nada del tailnet ni de los gateways),

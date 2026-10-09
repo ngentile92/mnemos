@@ -8,10 +8,16 @@
 #                 Keep descriptions short: the whole instruction block must stay under 1,300 chars.
 #   projects:     optional sub-projects -> Cognee dataset name. With projects, memory_save requires `project`.
 #   dataset:      optional dataset name for contexts without projects (default: the context name).
+#   topic:        optional short phrase used in the OTHER contexts' instructions
+#                 ("personal stuff goes to hub-personal"); without it they just list the hub names.
 #
-# The compose file ships three contexts (work / personal / side). Renaming descriptions or projects only
-# needs this file + scripts/bootstrap_cognee.py. Adding or removing a context also needs compose/.env
-# changes: see "Adding a context" in README.md.
+# Instance-wide (optional):
+#   server_name_prefix: MCP server name shown to clients, "<prefix>-<ctx>" (default: mnemos)
+#   language:           en | es, language of the server instructions (default: en)
+#
+# compose.yaml ships three contexts (work / personal / side). Renaming descriptions or projects only
+# needs this file + scripts/bootstrap_cognee.py. Other context names: scripts/render_compose.py generates
+# compose.generated.yaml from this file (see "Adding or renaming a context" in README.md).
 owner: Alex
 
 contexts:

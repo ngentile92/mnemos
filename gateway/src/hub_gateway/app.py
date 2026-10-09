@@ -17,7 +17,7 @@ from starlette.responses import JSONResponse
 from .audit import Audit
 from .concurrency import DuplicateRequestIdGuard
 from .config import Settings
-from .contexts import get_context
+from .contexts import SERVER_NAME_PREFIX, get_context
 from .instructions import server_instructions
 from .memory import CogneeClient, DatasetMap, MemoryError_, MemoryScope, item_summary, simplify_results
 from .secrets import InfisicalFetcher, SecretBroker, SecretPolicyError, load_policy
@@ -120,7 +120,7 @@ def build_server(
         log.warning("HUB_DEV_NO_AUTH=1: auth DESACTIVADA (solo desarrollo local)")
 
     mcp = FastMCP(
-        f"mnemos-{ctx.name}",
+        f"{SERVER_NAME_PREFIX}-{ctx.name}",
         instructions=server_instructions(ctx),
         auth=auth,
         middleware=middleware,

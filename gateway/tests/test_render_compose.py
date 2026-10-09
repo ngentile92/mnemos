@@ -1,0 +1,57 @@
+"""Tests de scripts/render_compose.py (compose por contextos de contexts.yaml)."""
+
+import importlib.util
+import subprocess
+import sys
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[2]
+SCRIPT = ROOT / "scripts" / "render_compose.py"
+spec = importlib.util.spec_from_file_location("render_compose", SCRIPT)
+rc = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(rc)
+
+BASE = yaml.safe_load((ROOT / "compose.yaml").read_text())
+
+
+def _strip(d):
+    return {k: v for k, v in d.items() if not k.startswith("x-")}
+
+
+def test_default_contexts_render_equals_compose_yaml():
+    out = yaml.safe_load(rc.dump(rc.render(BASE, ["work", "personal", "side"])))
+    assert out == _strip(BASE)
+
+
+def test_custom_contexts():
+    out = rc.render(BASE, ["acme", "home", "lab-x"])
+    s, v = out["services"], out["volumes"]
+    assert not any(k.endswith(("-work", "-personal", "-side")) for k in s)
+    assert {"ts-acme", "gateway-acme", "ts-lab-x", "gateway-lab-x"} <= set(s)
+    assert {"ts_acme", "gw_acme", "ts_home", "gw_home", "cognee_data"} <= set(v)
+    g = s["gateway-lab-x"]
+    assert g["network_mode"] == "service:ts-lab-x"
+    env = g["environment"]
+    assert env["HUB_CONTEXT"] == "lab-x"
+    assert env["GITHUB_CLIENT_ID"] == "${GH_OAUTH_LAB_X_ID:-}"
+    assert env["HUB_PUBLIC_URL"].startswith("https://hub-lab-x.")
+    assert "gw_lab-x:/data" in g["volumes"] and "./config:/config:ro" in g["volumes"]
+    assert s["ts-acme"]["environment"]["TS_HOSTNAME"] == "hub-acme"
+    assert s["ts-acme"]["volumes"][0] == "ts_acme:/var/lib/tailscale"
+    # servicios compartidos intactos (y "network" no se reemplaza)
+    assert s["cognee"] == BASE["services"]["cognee"] and out["networks"] == BASE["networks"]
+
+
+def test_cli_write_and_check(tmp_path):
+    ctx = tmp_path / "contexts.yaml"
+    ctx.write_text("contexts:\n  a: {}\n  b: {}\n")
+    out = tmp_path / "compose.generated.yaml"
+    run = lambda *a: subprocess.run([sys.executable, str(SCRIPT), "--contexts", str(ctx), "--out", str(out), *a],  # noqa: E731
+                                    capture_output=True, text=True)
+    assert run("--check").returncode == 1
+    assert run().returncode == 0 and out.read_text().startswith("# GENERADO")
+    assert run("--check").returncode == 0
+    ctx.write_text("contexts:\n  a: {}\n")
+    assert run("--check").returncode == 1

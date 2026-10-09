@@ -118,7 +118,7 @@ services:
       TS_ACCEPT_DNS: "false"          # que el DNS de Docker resuelva cognee/infisical
     volumes:
       - ts_work:/var/lib/tailscale
-      - ./config/tailscale/work:/config:ro
+      - ./config/tailscale/funnel:/config:ro   # mismo serve.json en todos los sidecars
 
   gateway-work:
     <<: *gateway
@@ -153,7 +153,7 @@ services:
       TS_ACCEPT_DNS: "false"
     volumes:
       - ts_personal:/var/lib/tailscale
-      - ./config/tailscale/personal:/config:ro
+      - ./config/tailscale/funnel:/config:ro   # mismo serve.json en todos los sidecars
 
   gateway-personal:
     <<: *gateway
@@ -188,7 +188,7 @@ services:
       TS_ACCEPT_DNS: "false"
     volumes:
       - ts_side:/var/lib/tailscale
-      - ./config/tailscale/side:/config:ro
+      - ./config/tailscale/funnel:/config:ro   # mismo serve.json en todos los sidecars
 
   gateway-side:
     <<: *gateway

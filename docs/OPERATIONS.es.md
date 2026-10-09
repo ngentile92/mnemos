@@ -217,3 +217,21 @@ IPs. No alerta en `--dry-run`, en `--no-notify` ni cuando la Mac está sin red.
   Log `~/Library/Logs/mnemos-offsite.log`; el dashboard muestra la última copia. El token OAuth vive en
   `~/.config/rclone/rclone.conf` (fuera del repo; anotarlo en Vaultwarden). Restore desde Drive sin la Mac:
   `restic -r rclone:gdrive:mnemos-backups snapshots` (o bajar la carpeta y usarla como repo local).
+
+## Exportar / importar memoria en Markdown (compatible con gbrain)
+
+`scripts/memory_markdown.py` (en el host, como hub-admin) pasa la memoria a una carpeta de archivos `.md` con el
+formato de páginas de gbrain (frontmatter `type`, `title`, `date`, `tags` + un bloque `mnemos:` con id, dataset y app
+de origen) y la vuelve a cargar:
+
+```bash
+.venv/bin/python3 scripts/memory_markdown.py export ~/mnemos-export                 # todos los datasets
+.venv/bin/python3 scripts/memory_markdown.py export ~/mnemos-export --dataset personal
+.venv/bin/python3 scripts/memory_markdown.py import ~/gbrain-export --dataset personal   # muestra el plan
+.venv/bin/python3 scripts/memory_markdown.py import ~/gbrain-export --dataset personal --yes
+```
+
+- La carpeta exportada se puede importar en gbrain (`gbrain import <dir>`) y una exportación de gbrain
+  (`gbrain export --dir`) se puede importar acá. La sección de timeline de gbrain se conserva como texto.
+- El import va a UN dataset, saltea textos que ya están y archivos ocultos, y sin `--yes` no guarda nada.
+- El export queda con tu memoria en texto plano: guardalo como cualquier backup privado.

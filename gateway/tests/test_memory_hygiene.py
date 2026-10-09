@@ -113,3 +113,34 @@ def test_classify_pairs_parses_ollama_json():
         "message": {"content": json.dumps({"verdict": "superada", "reason": "c3 es la ronda más nueva"})}}))
     out = mh.classify_pairs(NOTES, [{"a": "c1", "b": "c3"}], "llama3.1:8b")
     assert out == {"c1|c3": {"verdict": "superada", "reason": "c3 es la ronda más nueva"}}
+
+
+# ---------------------------------------------------------------- consolidación ("dream")
+
+def test_entities_group_wikilinks_per_dataset():
+    ns = [note("e1", "personal", "Café con [[Ana Pérez]] y [[Acme]].", day="2026-10-01"),
+          note("e2", "personal", "[[ana  pérez]] cambió de trabajo.", day="2026-10-03"),
+          note("e3", "work", "Reunión con [[Ana Pérez]].")]
+    ents = mh.entities(ns)
+    assert ents[0] == {"dataset": "personal", "entity": "Ana Pérez", "notes": ["e2", "e1"]}
+    assert {(g["dataset"], g["entity"]) for g in ents} == {("personal", "Ana Pérez"), ("personal", "Acme"),
+                                                             ("work", "Ana Pérez")}
+
+
+def test_merge_proposal_keeps_newer_and_adds_missing_sentences():
+    newer = "Alex vive en Málaga. Usa una bici urbana."
+    older = "Alex vive en Malaga. Trabaja remoto.\nUsa una bici urbana."
+    assert mh.merge_proposal(newer, older) == newer + "\n\nTrabaja remoto."
+    assert mh.merge_proposal(newer, newer) == newer
+
+
+def test_analyze_proposes_merges_and_stale_without_deleting():
+    ns = [note("m1", "personal", "Alex vive en Málaga y usa una bici urbana todos los días.", day="2026-01-02"),
+          note("m2", "personal", "Alex vive en Málaga y usa una bici urbana todos los días ya.", day="2026-10-02"),
+          note("m3", "personal", "Nota reciente sobre otra cosa distinta.", day="2026-10-04")]
+    res = mh.analyze(ns, today=dt.date(2026, 10, 9), stale_days=180)
+    assert res["merge_proposals"] and res["merge_proposals"][0]["keep"] == "m2"
+    assert res["merge_proposals"][0]["delete"] == "m1"
+    assert res["stale"] == ["m1"]
+    md = mh.render(ns, res, today=dt.date(2026, 10, 9))
+    assert "Fusión propuesta" in md and "Posiblemente viejas" in md and "Entidades" in md

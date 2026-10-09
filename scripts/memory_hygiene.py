@@ -10,6 +10,9 @@ Qué detecta:
   - series: notas del mismo dataset que comparten un ancla (URL de PR/issue, "PR #N", tarea de ClickUp) → las
     viejas probablemente quedaron superadas por la más nueva (se proponen, nunca se borran solas);
   - notas sin tags o sin app de origen, y textos con forma de secreto (solo se marca el id, nunca el valor);
+  - consolidación ("dream"): entidades ([[Nombre]]) con todas sus notas, fusión propuesta para cada casi
+    duplicado (texto de la más nueva + las frases de la vieja que no estén) y notas viejas (--stale-days);
+    todo como propuesta: se aplica a mano con memory_update/memory_delete, que quedan en el historial;
   - opcional --llm MODELO: Ollama local clasifica cada par relacionado (duplicado / contradicción / complementarias).
 
   .venv/bin/python3 scripts/memory_hygiene.py                    # reporte, no toca nada
@@ -99,7 +102,42 @@ def anchors(text: str) -> set[str]:
     return out
 
 
-def analyze(notes: list[dict[str, Any]], near: float = 0.9, related: float = 0.22) -> dict[str, Any]:
+LINK_RE = re.compile(r"\[\[([^\[\]\n|]{1,60})(?:\|[^\[\]\n]{0,60})?\]\]")
+SENT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def entities(notes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """[[Nombre]] → notas que lo enlazan, por dataset (base de una página por entidad)."""
+    groups: dict[tuple[str, str], dict[str, Any]] = {}
+    for n in notes:
+        for m in LINK_RE.finditer(n["text"]):
+            name = " ".join(m.group(1).split())
+            g = groups.setdefault((n["dataset"], name.lower()), {"dataset": n["dataset"], "entity": name, "notes": []})
+            if n["id"] not in g["notes"]:
+                g["notes"].append(n["id"])
+    idx = {n["id"]: n for n in notes}
+    out = []
+    for g in groups.values():
+        g["notes"].sort(key=lambda i: str(idx[i].get("created_at")), reverse=True)
+        out.append(g)
+    return sorted(out, key=lambda g: (-len(g["notes"]), g["dataset"], g["entity"].lower()))
+
+
+def merge_proposal(newer: str, older: str) -> str:
+    """Texto de la nota más nueva + las frases de la vieja que no aparecen en ella (sin LLM)."""
+    have = normalize(newer)
+    extra = [s.strip() for s in SENT_RE.split(older) if s.strip() and normalize(s) and normalize(s) not in have]
+    return newer.rstrip() + ("\n\n" + " ".join(extra) if extra else "")
+
+
+def stale(notes: list[dict[str, Any]], today: dt.date, days: int, skip: set[str]) -> list[str]:
+    cutoff = (today - dt.timedelta(days=days)).isoformat()
+    return [n["id"] for n in sorted(notes, key=lambda n: str(n.get("created_at")))
+            if str(n.get("created_at") or "9")[:10] < cutoff and n["id"] not in skip]
+
+
+def analyze(notes: list[dict[str, Any]], near: float = 0.9, related: float = 0.22,
+            today: dt.date | None = None, stale_days: int = 180) -> dict[str, Any]:
     """notes: [{id, dataset, created_at, tags, source_app, text}] → hallazgos (sin efectos)."""
     by_norm: dict[tuple[str, str], list[dict]] = {}
     for n in notes:
@@ -146,7 +184,19 @@ def analyze(notes: list[dict[str, Any]], near: float = 0.9, related: float = 0.2
         elif cos >= related:
             rel.append(pair)
 
+    idx = {n["id"]: n for n in notes}
+    merges = []
+    for p in near_dups:
+        a, b = sorted((idx[p["a"]], idx[p["b"]]), key=lambda n: str(n.get("created_at")))
+        if a["dataset"] != b["dataset"]:
+            continue  # entre datasets no se fusiona: se decide a mano
+        merges.append({"dataset": a["dataset"], "keep": b["id"], "delete": a["id"],
+                       "text": merge_proposal(b["text"], a["text"])})
+    superseded = {i for s_ in series for i in s_["older"]}
     return {
+        "entities": entities(notes),
+        "merge_proposals": merges,
+        "stale": stale(notes, today or dt.date.today(), stale_days, superseded | exact_ids),
         "exact_duplicates": exact,
         "near_duplicates": sorted(near_dups, key=lambda p: -p["ratio"]),
         "related": sorted(rel, key=lambda p: -p["cosine"]),
@@ -181,6 +231,11 @@ def render(notes: list[dict[str, Any]], res: dict[str, Any], llm: dict[str, dict
         L.append(f"- ratio {p['ratio']}: {label(p['a'])}\n  - vs {label(p['b'])}")
     if not res["near_duplicates"]:
         L.append("- ninguno")
+    if res.get("merge_proposals"):
+        L += ["", "### Fusión propuesta (aplicar con memory_update en la que queda + memory_delete en la otra)", ""]
+        for m in res["merge_proposals"]:
+            L.append(f"- {m['dataset']}: queda `{m['keep'][:8]}`, se borra `{m['delete'][:8]}`. Texto:\n\n  > "
+                     + m["text"].replace("\n", "\n  > ")[:1500])
     L += ["", "## Series (mismo ancla; las viejas probablemente quedaron superadas)", ""]
     for s in res["series"]:
         L.append(f"- {s['dataset']} · {s['anchor']}: más nueva {label(s['newest'])}; {len(s['older'])} anteriores: "
@@ -196,6 +251,14 @@ def render(notes: list[dict[str, Any]], res: dict[str, Any], llm: dict[str, dict
         L.append(f"- coseno {p['cosine']}{v}: {label(p['a'])}\n  - vs {label(p['b'])}")
     if not res["related"]:
         L.append("- ninguna")
+    L += ["", "## Entidades ([[Nombre]] → notas; candidatas a una nota canónica por entidad)", ""]
+    for g in res.get("entities", [])[:40]:
+        L.append(f"- {g['dataset']} · **{g['entity']}** ({len(g['notes'])}): "
+                 + ", ".join(f"`{i[:8]}`" for i in g["notes"]))
+    if not res.get("entities"):
+        L.append("- ninguna (enlazá con [[Nombre]] al guardar)")
+    L += ["", "## Posiblemente viejas (revisar si siguen vigentes)", ""]
+    L += [f"- {label(i)}" for i in res.get("stale", [])[:40]] or ["- ninguna"]
     L += ["", "## Metadatos", "",
           f"- sin tags ({len(res['untagged'])}): " + (", ".join(f"`{i[:8]}`" for i in res["untagged"]) or "—"),
           f"- sin app de origen ({len(res['no_source_app'])}): "
@@ -325,6 +388,7 @@ def main() -> None:
     ap.add_argument("--ollama-url", default=OLLAMA)
     ap.add_argument("--keep", type=int, default=30, help="reportes a conservar en --out")
     ap.add_argument("--apply", action="store_true", help="borrar SOLO duplicados exactos dentro de un dataset")
+    ap.add_argument("--stale-days", type=int, default=180, help="marcar como posiblemente viejas las notas con más días")
     args = ap.parse_args()
     base = args.url.rstrip("/")
     ensure_local(base)
@@ -337,7 +401,7 @@ def main() -> None:
     env = read_env(ROOT / ".env")
     datasets = json.loads((ROOT / "config" / "cognee-datasets.json").read_text())["datasets"]
     notes = fetch_notes(login(base, "hub-admin", env), datasets)
-    res = analyze(notes, near=args.near, related=args.related)
+    res = analyze(notes, near=args.near, related=args.related, today=dt.date.today(), stale_days=args.stale_days)
     applied = apply_exact(base, env, datasets, res["exact_duplicates"]) if args.apply and res["exact_duplicates"] else []
     llm = classify_pairs(notes, res["near_duplicates"] + res["related"], args.llm, args.ollama_url) if args.llm else None
 
@@ -352,7 +416,8 @@ def main() -> None:
         old.unlink(missing_ok=True)
     print(f"{len(notes)} notas; duplicados exactos {len(res['exact_duplicates'])}, casi duplicados "
           f"{len(res['near_duplicates'])}, series {len(res['series'])}, relacionadas {len(res['related'])}, "
-          f"sin tags {len(res['untagged'])}, forma de secreto {len(res['secret_like'])}; borradas {len(applied)}")
+          f"entidades {len(res['entities'])}, fusiones propuestas {len(res['merge_proposals'])}, "
+          f"viejas {len(res['stale'])}, sin tags {len(res['untagged'])}, forma de secreto {len(res['secret_like'])}; borradas {len(applied)}")
     print(f"reporte: {out.with_suffix('.md')}")
 
 

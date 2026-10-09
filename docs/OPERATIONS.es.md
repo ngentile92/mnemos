@@ -249,3 +249,12 @@ de origen) y la vuelve a cargar:
 Las variables de la instancia se llaman `MNEMOS_*` (`MNEMOS_LABEL_PREFIX`, `MNEMOS_OFFSITE_REMOTE`,
 `MNEMOS_HYGIENE`, `MNEMOS_DASHBOARD_PORT`, ...). Los nombres viejos `AIHUB_*` se siguen leyendo como
 alternativa: si existen las dos, gana `MNEMOS_*`. No hace falta tocar un `.env` ni LaunchAgents existentes.
+
+### Contradicciones y notas desactualizadas (higiene, LLM local)
+
+Sin LLM el reporte lista además las notas **atadas a una fecha** ("mañana", "en curso", un plazo que era futuro al
+guardarla y ya pasó). Con `--llm llama3.1:8b` (o `MNEMOS_HYGIENE=llm` en la corrida nocturna) el modelo local revisa
+además (hasta `--llm-limit` = 25 de cada uno): **contradicciones** entre notas del mismo dataset que se parecen o
+enlazan la misma `[[entidad]]` (vieja vs nueva, con propuesta) y notas **desactualizadas** entre las atadas a fecha
+(el 8B solo clasifica temporal o permanente; los días los cuenta el código). Solo propone: no edita ni borra nada. Medilo con el corpus fijo:
+`.venv/bin/python3 scripts/memory_hygiene.py --eval eval/hygiene.json [--llm llama3.1:8b]` (resultados en `eval/results.md`).

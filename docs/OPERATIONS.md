@@ -246,3 +246,12 @@ back:
 Instance settings are named `MNEMOS_*` (`MNEMOS_LABEL_PREFIX`, `MNEMOS_OFFSITE_REMOTE`, `MNEMOS_HYGIENE`,
 `MNEMOS_DASHBOARD_PORT`, ...). The old `AIHUB_*` names are still read as a fallback; if both exist, `MNEMOS_*` wins.
 Existing `.env` files and LaunchAgents keep working unchanged.
+
+### Contradictions and outdated notes (hygiene, local LLM)
+
+Without an LLM the report also lists **time-bound** notes ("tomorrow", "in progress", a deadline that was in the
+future when saved and has passed). With `--llm llama3.1:8b` (or `MNEMOS_HYGIENE=llm` in the nightly run) the local
+model additionally checks (at most `--llm-limit` = 25 each): **contradictions** between notes of the same dataset
+that are similar or link the same `[[entity]]` (older vs newer, with a proposed fix) and **outdated** notes among the
+time-bound ones (the 8B model only classifies temporal vs permanent; the day count is done in code). Report-only: nothing is edited or deleted. Measure it on the fixed corpus with
+`.venv/bin/python3 scripts/memory_hygiene.py --eval eval/hygiene.json [--llm llama3.1:8b]` (results in `eval/results.md`).

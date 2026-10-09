@@ -38,3 +38,19 @@ The one miss ("¿Tomo café con azúcar?") is a strict-match miss: the model ans
 
 5 entities (`eval/entities.jsonl`), notes gathered by `[[link]]` or exact name: recall 1.00, precision 1.00, p50 2 ms
 (without summary; the optional summary uses `memory_answer`'s local model, ~2 s).
+
+## Hygiene: contradictions and outdated notes (2026-10-09)
+
+`scripts/memory_hygiene.py --eval eval/hygiene.json --llm llama3.1:8b` — 15 fictional notes, 3 labelled
+contradictions, 3 labelled outdated notes. Report-only checks.
+
+| Check | Precision | Recall | Found / expected |
+|---|---|---|---|
+| Contradiction candidates (no LLM: similar or same `[[entity]]`, same dataset) | 0.23 | 1.00 | 13 / 3 |
+| Contradictions (candidates + llama3.1:8b) | 0.75 | 1.00 | 4 / 3 |
+| Time-bound notes (no LLM) | 0.75 | 1.00 | 4 / 3 |
+| Old by age only (> 180 days, previous behaviour) | 0.22 | 0.67 | 9 / 3 |
+| Outdated (time-bound + llama3.1:8b temporal/permanent) | 1.00 | 1.00 | 3 / 3 |
+
+36 s on the Mac for 13 pairs + 4 notes. A first prompt asking the 8B model to reason about dates directly found
+0 / 3 outdated notes; asking it only to classify temporal vs permanent and counting days in code fixed it.

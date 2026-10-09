@@ -98,7 +98,7 @@ async def test_tool_surface_has_no_shell(make_server):
     async with Client(server) as c:
         tools = {t.name: t for t in await c.list_tools()}
     assert set(tools) == {"hub_whoami", "memory_search", "memory_save", "memory_list", "memory_update",
-                          "memory_delete", "memory_history", "memory_undo", "memory_answer", "memory_entity", "skills_list", "skills_get", "secrets_list", "secret_http_request"}
+                          "memory_delete", "memory_history", "memory_undo", "memory_answer", "memory_entity", "memory_promote", "skills_list", "skills_get", "secrets_list", "secret_http_request"}
     for name in tools:
         assert not any(w in name for w in ("forget", "shell", "exec", "prune"))
     for ro in ("hub_whoami", "memory_search", "memory_list", "memory_history", "memory_answer", "memory_entity", "skills_list", "skills_get", "secrets_list"):
@@ -494,3 +494,25 @@ async def test_skills_list_and_get_expose_gbrain_fields(make_server, skills_repo
     assert "triggers" not in listed["revisar-pr"]
     assert got["tool_equivalents"] == {"search": "memory_search", "exec": None}
     assert "tool_equivalents" not in plain
+
+
+async def test_memory_promote_needs_confirm_then_copies_with_origin(make_server):
+    server, rec = make_server("personal")
+    pid = NOTE_IDS["personal"]
+    async with Client(server) as c:
+        pre = data(await c.call_tool("memory_promote", {"id": pid}))
+        assert pre["preview"] is True and pre["text"] == "nota de personal sobre orion"
+        assert rec.remembers == []
+        out = data(await c.call_tool("memory_promote", {"id": pid, "confirm": True}))
+    assert out["from"] == "personal" and out["to"] == "shared"
+    assert len(rec.remembers) == 1 and DATASETS["shared"] in rec.remembers[0]
+    assert '"promoted_from"' in rec.remembers[0] and pid in rec.remembers[0]
+    assert rec.texts[pid] == "nota de personal sobre orion" and rec.deletes == []
+
+
+async def test_memory_promote_rejects_foreign_and_shared_ids(make_server):
+    server, rec = make_server("personal")
+    async with Client(server) as c:
+        with pytest.raises(ToolError):
+            await c.call_tool("memory_promote", {"id": NOTE_IDS["work"], "confirm": True})
+    assert rec.remembers == []

@@ -58,6 +58,7 @@ per context, each in front of its gateway, each requiring OAuth with an allow-li
 | `memory_list` | Lists notes with id, dataset, date, source app and text | Context datasets (+ read-only `shared`) |
 | `memory_update` / `memory_delete` | Fix (in place, same id) or remove one of the context's own notes | Never `shared`; marked destructive so clients ask first |
 | `memory_history` / `memory_undo` | Previous versions of a note; undo the last fix or restore a removed note | Own notes only; history kept in the gateway's `ledger.sqlite` |
+| `memory_promote` | Copies one of the context's own notes to `shared`, recording where it came from | Preview unless `confirm=true`; the original stays; shared copies are removed only by hub-admin |
 | `skills_list` / `skills_get` | Skills visible to the context (own folder + `shared` + `hub-share`) | No traversal, no symlinks |
 | `secrets_list` | Secret **names** and allowed hosts | Never values |
 | `secret_http_request` | Makes the HTTPS request with the secret injected | Exact host from the policy, port 443, no private IPs, no redirects, response redacted |

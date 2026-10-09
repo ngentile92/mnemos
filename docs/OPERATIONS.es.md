@@ -24,6 +24,7 @@ watchdog, backups. El setup inicial paso a paso está en [`SETUP.es.md`](SETUP.e
 | `memory_update` | Corrige una nota propia en el lugar (`PATCH` de Cognee: mismo id y fecha; la versión anterior queda en el historial) | Solo datasets **propios** del contexto; nunca `shared` |
 | `memory_delete` | Retira una nota propia (y lo que el grafo sacó solo de ella); guarda copia para deshacer | Solo datasets **propios**; el id se verifica contra el listado del contexto antes de borrar |
 | `memory_history` / `memory_undo` | Ver versiones anteriores de una nota / deshacer la última corrección o restaurar una borrada | Solo datasets **propios**; historial en `ledger.sqlite` del gateway |
+| `memory_promote` | Copia una nota propia a `shared` (la ven todos los contextos) con su origen (dataset, id, contexto, app) en la metadata y en el ledger (`provenance.promoted_from`) | Sin `confirm=true` solo muestra una vista previa; la original no se toca; sacarla de shared es solo hub-admin |
 | `skills_list` / `skills_get` | Skills visibles para el contexto (carpeta propia + `shared` + `hub-share`) | Sin traversal ni symlinks |
 | `secrets_list` | Nombres y hosts permitidos, **nunca valores** | – |
 | `secret_http_request` | Hace el request HTTPS inyectando el secreto; la respuesta vuelve redactada | Host exacto de la policy, puerto 443, sin IPs privadas, sin redirects |

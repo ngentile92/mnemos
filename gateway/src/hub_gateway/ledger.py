@@ -74,6 +74,8 @@ class Ledger:
             c.execute("ALTER TABLE notes ADD COLUMN deleted_at TEXT")
         if "prev_ids" not in cols:
             c.execute("ALTER TABLE notes ADD COLUMN prev_ids TEXT NOT NULL DEFAULT ''")
+        if "origin" not in cols:
+            c.execute("ALTER TABLE notes ADD COLUMN origin TEXT")  # JSON: where a promoted note came from
         c.executescript(HISTORY_SCHEMA)
 
     def _conn(self) -> sqlite3.Connection:
@@ -83,16 +85,18 @@ class Ledger:
 
     # ------------------------------------------------------------------ provenance
     def record_save(self, *, dataset: str, text: str, context: str, source_app: str | None,
-                    login: str | None, tags: list[str], data_id: str | None = None) -> None:
+                    login: str | None, tags: list[str], data_id: str | None = None,
+                    origin: dict[str, Any] | None = None) -> None:
         ts = now()
         with self._lock, self._conn() as c:
             if data_id and c.execute("SELECT 1 FROM notes WHERE data_id=?", (data_id,)).fetchone():
                 return  # Cognee deduplicated: same text, same note; keep the original provenance
             c.execute(
-                "INSERT INTO notes(data_id, dataset, text_hash, context, source_app, login, tags, created_at, updated_at)"
-                " VALUES (?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO notes(data_id, dataset, text_hash, context, source_app, login, tags, created_at, updated_at,"
+                " origin) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (data_id, dataset, text_hash(text), context, source_app, login,
-                 json.dumps(tags, ensure_ascii=False), ts, ts),
+                 json.dumps(tags, ensure_ascii=False), ts, ts,
+                 json.dumps(origin, ensure_ascii=False) if origin else None),
             )
 
     def provenance(self, data_id: str, dataset: str, text: str | None = None) -> dict[str, Any] | None:
@@ -201,6 +205,7 @@ def _public(row: sqlite3.Row) -> dict[str, Any]:
         "saved_at": row["created_at"],
         "updated_at": row["updated_at"] if row["updated_at"] != row["created_at"] else None,
         "updated_by": row["updated_by"],
+        **({"promoted_from": json.loads(row["origin"])} if "origin" in row.keys() and row["origin"] else {}),
     }
 
 

@@ -9,3 +9,16 @@ Corpus: 20 notes (~1,900 characters in total), 18 answerable queries, context `p
 
 Note: with a corpus this small the graph search returns almost the whole memory on every query (1,885 of ~1,900
 characters), so it always "hits". `avg_chars` is the number to watch as memory grows.
+
+### 2026-10-09 — local search (`memory_search` mode, PR "local search")
+
+| Mode | hit@1 | hit@5 | MRR | p50 ms | avg chars |
+|---|---|---|---|---|---|
+| graph (before) | 1.00 | 1.00 | 1.00 | 113 | 1,885 |
+| keyword (SQLite FTS5/BM25, no keys) | 0.94 | 1.00 | 0.97 | 1 | 222 |
+| semantic (Ollama `paraphrase-multilingual`) | 0.89 | 1.00 | 0.94 | 82 | 441 |
+| hybrid (keyword + semantic, RRF) | 1.00 | 1.00 | 1.00 | 84 | 439 |
+| **auto** (new default: hybrid, graph only if nothing local) | 1.00 | 1.00 | 1.00 | 83 | 439 |
+| auto without embeddings (keyword only) | 0.94 | 1.00 | 0.97 | 1 | 222 |
+
+Same answers found while returning ~4x less text, with note ids, and without calling Cognee.

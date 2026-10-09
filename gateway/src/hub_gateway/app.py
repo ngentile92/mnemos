@@ -20,6 +20,7 @@ from .config import Settings
 from .contexts import SERVER_NAME_PREFIX, get_context
 from .instructions import server_instructions
 from .ledger import Ledger, safe
+from .local_search import LocalIndex, OllamaEmbedder
 from .memory import CogneeClient, DatasetMap, MemoryError_, MemoryScope, item_summary, simplify_results
 from .secrets import InfisicalFetcher, SecretBroker, SecretPolicyError, load_policy
 from .skills import SkillError, SkillIndex, tool_equivalents
@@ -106,10 +107,12 @@ def build_server(
     broker: SecretBroker | None = None,
     audit: Audit | None = None,
     ledger: Ledger | None = None,
+    index: LocalIndex | None = None,
 ) -> FastMCP:
     ctx = get_context(settings.context)
     audit = audit or Audit(settings.context, os.path.join(settings.data_dir, "audit.log"))
     ledger = ledger or Ledger(os.path.join(settings.data_dir, "ledger.sqlite"))
+    index = index or LocalIndex(os.path.join(settings.data_dir, "search.sqlite"), OllamaEmbedder.from_env())
     skills = skills or SkillIndex(settings.skills_root, settings.context)
     cognee = cognee or CogneeClient(
         settings.cognee_url,
@@ -182,30 +185,52 @@ def build_server(
         }
 
     # ------------------------------------------------------------------ memoria
+    async def _local_search(sc: MemoryScope, query: str, include_shared: bool, project: str | None,
+                            top_k: int, mode: str) -> list[dict[str, Any]]:
+        pairs = sc.listable(include_shared=include_shared, project=project)
+        for name, ds_id in pairs:
+            await index.sync(name, lambda ds_id=ds_id: cognee.list_data(ds_id),
+                             lambda did, ds_id=ds_id: cognee.raw_text(ds_id, did))
+        return await index.search(query, [n for n, _ in pairs], top_k, mode)
+
     @mcp.tool(annotations={**READ_ONLY, "title": "Buscar en memoria"})
     async def memory_search(
         query: Annotated[str, Field(description="Qué buscar, en lenguaje natural", min_length=2, max_length=2000)],
         include_shared: Annotated[bool, Field(description="Incluir la memoria compartida entre contextos")] = True,
         project: Annotated[str | None, Field(description="Solo contexto side: limitar a un proyecto")] = None,
         top_k: Annotated[int, Field(ge=1, le=30)] = 10,
+        mode: Annotated[Literal["auto", "graph", "keyword", "semantic", "hybrid"], Field(
+            description="auto (default): búsqueda local híbrida y, si no encuentra nada, el grafo. graph: grafo de "
+                        "Cognee. keyword/semantic/hybrid: solo local (notas completas con id)")] = "auto",
     ) -> dict[str, Any]:
         """Busca en la memoria de largo plazo del contexto activo (y en la compartida si include_shared).
-        Devuelve fragmentos de contexto; no inventa respuestas. Para ver ids de notas (y poder
-        corregirlas o borrarlas) usá memory_list."""
+        Devuelve fragmentos de contexto; no inventa respuestas. Los modos locales devuelven notas con id
+        (sirven para memory_update/memory_history)."""
         login = _current_login(settings)
         try:
             sc = scope()
-            ids = sc.read_ids(include_shared=include_shared, project=project)
-            raw = await cognee.recall(query, ids, top_k=top_k)
+            results: list[dict[str, Any]] = []
+            if mode == "auto":
+                try:  # local index is a shortcut: if it fails, the graph still answers
+                    results = await _local_search(sc, query, include_shared, project, top_k, "hybrid")
+                except MemoryError_:
+                    raise
+                except Exception:  # noqa: BLE001
+                    log.warning("local search failed; falling back to graph", exc_info=True)
+            elif mode != "graph":
+                results = await _local_search(sc, query, include_shared, project, top_k, mode)
+            if mode == "graph" or (mode == "auto" and not results):
+                ids = sc.read_ids(include_shared=include_shared, project=project)
+                raw = await cognee.recall(query, ids, top_k=top_k)
+                results = simplify_results(raw, sc.allowed_ids())
         except MemoryError_ as exc:
             audit.log("memory_search", login, "rejected", reason=str(exc))
             raise ToolError(str(exc)) from exc
         except Exception as exc:  # errores de red/Cognee: mensaje genérico al modelo
             audit.log("memory_search", login, "error", error=type(exc).__name__)
             raise ToolError("la memoria (Cognee) no respondió; probá de nuevo más tarde") from exc
-        results = simplify_results(raw, sc.allowed_ids())
-        audit.log("memory_search", login, "ok", datasets=len(ids), results=len(results))
-        return {"context": ctx.name, "results": results}
+        audit.log("memory_search", login, "ok", mode=mode, results=len(results))
+        return {"context": ctx.name, "mode": mode, "results": results}
 
     @mcp.tool(annotations={"title": "Guardar en memoria", "readOnlyHint": False,
                            "destructiveHint": False, "openWorldHint": False})
@@ -236,6 +261,7 @@ def build_server(
         except Exception as exc:
             audit.log("memory_save", login, "error", error=type(exc).__name__)
             raise ToolError("no pude guardar en la memoria (Cognee no respondió)") from exc
+        index.invalidate(name)
         status = res.get("status") if isinstance(res, dict) else None
         safe(ledger.record_save, dataset=name, text=text, context=ctx.name, source_app=app, login=login,
              tags=clean_tags, data_id=_returned_id(res))
@@ -317,6 +343,7 @@ def build_server(
                 safe(ledger.snapshot, data_id=id, dataset=name, context=ctx.name, text=text, tags=old["tags"],
                      action="delete", by=app, created_at=old["created_at"], source_app=old["source_app"])
             await cognee.delete_data(ds_id, id)
+            safe(index.remove, id)
         except MemoryError_ as exc:
             audit.log("memory_delete", login, "rejected", data_id=id, reason=str(exc))
             raise ToolError(str(exc)) from exc
@@ -357,6 +384,7 @@ def build_server(
             audit.log("memory_update", login, "error", data_id=id, error=type(exc).__name__)
             raise ToolError("no pude corregir la nota (Cognee no respondió); revisá con memory_list") from exc
         safe(ledger.record_change, id, text=text, by=app, tags=clean_tags)
+        safe(index.put, id, name, text, old["created_at"])
         status = res.get("status") if isinstance(res, dict) else None
         audit.log("memory_update", login, "ok", data_id=id, dataset=name, chars=len(text), app=app, status=status)
         return {"updated": id, "dataset": name, "status": status or "accepted",
@@ -425,6 +453,8 @@ def build_server(
         except Exception as exc:
             audit.log("memory_undo", login, "error", data_id=id, error=type(exc).__name__)
             raise ToolError("no pude deshacer el cambio (Cognee o el historial no respondieron)") from exc
+        index.invalidate(last["dataset"])
+        safe(index.remove, id) if action == "restored" else safe(index.put, id, last["dataset"], last["text"], None)
         audit.log("memory_undo", login, "ok", data_id=id, action=action, app=app)
         return {"id": id, "action": action, "dataset": last["dataset"], "text": last["text"][:1500]}
 

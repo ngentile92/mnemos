@@ -15,6 +15,7 @@ watchdog, backups. El setup inicial paso a paso está en [`SETUP.es.md`](SETUP.e
 | `hub_whoami` | Contexto, datasets y proyectos visibles | – |
 | `memory_search` | Busca en la memoria del contexto (+ `shared` si `include_shared`) | Solo datasets del contexto; no usa LLM |
 | `memory_save` | Guarda un hecho en el dataset del contexto o en `shared` | En `side` exige `project` |
+| `memory_search` `mode` | `auto` (default): búsqueda local híbrida en `search.sqlite` (BM25 + embeddings de Ollama si `HUB_EMBED_URL`/`HUB_EMBED_MODEL`), y el grafo de Cognee solo si no encuentra nada; `graph`, `keyword`, `semantic`, `hybrid` para forzar | Índice local por gateway, sincronizado desde Cognee (solo baja notas nuevas, cada ≤60 s); nunca mezcla datasets de otros contextos |
 | `memory_list` | Lista notas con **id**, dataset, fecha, app de origen y texto (filtro `contains`, `project`) | Datasets del contexto (+ `shared` solo lectura con `include_shared`) |
 | `memory_update` | Corrige una nota propia en el lugar (`PATCH` de Cognee: mismo id y fecha; la versión anterior queda en el historial) | Solo datasets **propios** del contexto; nunca `shared` |
 | `memory_delete` | Retira una nota propia (y lo que el grafo sacó solo de ella); guarda copia para deshacer | Solo datasets **propios**; el id se verifica contra el listado del contexto antes de borrar |

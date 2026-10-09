@@ -516,3 +516,45 @@ async def test_memory_promote_rejects_foreign_and_shared_ids(make_server):
         with pytest.raises(ToolError):
             await c.call_tool("memory_promote", {"id": NOTE_IDS["work"], "confirm": True})
     assert rec.remembers == []
+
+
+# ---------------------------------------------------------------- bridges (opt-in, read-only)
+
+@pytest.fixture
+def work_bridged_to_personal(monkeypatch):
+    from hub_gateway import app as app_mod
+    from hub_gateway import memory as memory_mod
+    from hub_gateway.contexts import Bridge
+    bridges = [Bridge("work", "personal", ("work",))]
+    monkeypatch.setattr(memory_mod, "BRIDGES", bridges)
+    monkeypatch.setattr(app_mod, "BRIDGES", bridges)
+
+
+async def test_bridge_lets_reader_list_but_not_edit(make_server, work_bridged_to_personal):
+    server, rec = make_server("personal")
+    async with Client(server) as c:
+        who = data(await c.call_tool("hub_whoami", {}))
+        listed = data(await c.call_tool("memory_list", {}))
+        with pytest.raises(ToolError, match="solo puede leer"):
+            await c.call_tool("memory_update", {"id": NOTE_IDS["work"], "text": "pisada desde personal"})
+        with pytest.raises(ToolError, match="solo puede leer"):
+            await c.call_tool("memory_delete", {"id": NOTE_IDS["work"]})
+    assert who["bridged_datasets"] == ["work"]
+    assert {i["dataset"]: i["editable"] for i in listed["items"]} == {"personal": True, "work": False}
+    assert rec.deletes == [] and rec.patches == []
+
+
+async def test_no_bridge_means_no_cross_context_reads(make_server):
+    server, rec = make_server("personal")
+    async with Client(server) as c:
+        who = data(await c.call_tool("hub_whoami", {}))
+        listed = data(await c.call_tool("memory_list", {}))
+    assert "bridged_datasets" not in who
+    assert {i["dataset"] for i in listed["items"]} == {"personal"}
+
+
+async def test_bridge_is_one_way(make_server, work_bridged_to_personal):
+    server, rec = make_server("work")
+    async with Client(server) as c:
+        listed = data(await c.call_tool("memory_list", {}))
+    assert {i["dataset"] for i in listed["items"]} == {"work"}

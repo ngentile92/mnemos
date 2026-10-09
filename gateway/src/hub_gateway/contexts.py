@@ -115,9 +115,56 @@ def parse_instance(data: dict[str, Any]) -> tuple[str, str]:
     return prefix, lang
 
 
+@dataclass(frozen=True)
+class Bridge:
+    """Opt-in: el contexto `reader` puede LEER (nunca escribir, corregir ni borrar) datasets de `source`."""
+    source: str
+    reader: str
+    datasets: tuple[str, ...]
+
+
+def parse_bridges(data: dict[str, Any], contexts: dict[str, ContextSpec]) -> list[Bridge]:
+    """Sección opcional `bridges:` de contexts.yaml:
+
+        bridges:
+          - from: side            # contexto dueño de los datos
+            to: work              # contexto que los puede leer
+            datasets: [side_mnemos]   # opcional; por defecto todos los de `from`
+    """
+    raw = data.get("bridges") or []
+    if not isinstance(raw, list):
+        raise ValueError("contexts.yaml: `bridges` debe ser una lista")
+    out: list[Bridge] = []
+    for b in raw:
+        if not isinstance(b, dict):
+            raise ValueError("contexts.yaml: cada bridge necesita `from` y `to`")
+        src, dst = str(b.get("from") or ""), str(b.get("to") or "")
+        if src not in contexts or dst not in contexts:
+            raise ValueError(f"contexts.yaml: bridge con contexto desconocido: {src!r} → {dst!r}")
+        if src == dst:
+            raise ValueError(f"contexts.yaml: bridge de {src!r} a sí mismo")
+        own = contexts[src].own_dataset_names
+        names = b.get("datasets")
+        if names is None:
+            names = own
+        if not isinstance(names, list) or not names:
+            raise ValueError(f"contexts.yaml: bridge {src}→{dst}: `datasets` debe ser una lista no vacía")
+        for d in names:
+            if d not in own:
+                raise ValueError(f"contexts.yaml: bridge {src}→{dst}: {d!r} no es un dataset de {src!r}")
+        out.append(Bridge(src, dst, tuple(dict.fromkeys(str(d) for d in names))))
+    return out
+
+
+def bridged_for(reader: str, bridges: list[Bridge]) -> list[str]:
+    """Datasets de OTROS contextos que `reader` puede leer por bridges (en orden, sin repetir)."""
+    return list(dict.fromkeys(d for b in bridges if b.reader == reader for d in b.datasets))
+
+
 _CONFIG = load_config()
 OWNER, CONTEXTS = parse_contexts(_CONFIG)
 SERVER_NAME_PREFIX, LANGUAGE = parse_instance(_CONFIG)
+BRIDGES = parse_bridges(_CONFIG, CONTEXTS)
 
 ALL_DATASET_NAMES = [SHARED] + [d for c in CONTEXTS.values() for d in c.own_dataset_names]
 if len(set(ALL_DATASET_NAMES)) != len(ALL_DATASET_NAMES):

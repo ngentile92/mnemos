@@ -14,7 +14,7 @@ from typing import Any
 
 import httpx
 
-from .contexts import SHARED, ContextSpec
+from .contexts import BRIDGES, SHARED, ContextSpec, bridged_for
 
 MAX_TEXT_CHARS = 20_000
 
@@ -46,15 +46,17 @@ class DatasetMap:
 class MemoryScope:
     """Traduce los argumentos de los tools a datasets permitidos para el contexto."""
 
-    def __init__(self, ctx: ContextSpec, datasets: DatasetMap) -> None:
+    def __init__(self, ctx: ContextSpec, datasets: DatasetMap, bridged: list[str] | None = None) -> None:
         self.ctx = ctx
         self.datasets = datasets
+        # datasets de otros contextos que este puede LEER (bridges opt-in de contexts.yaml)
+        self.bridged = list(bridged) if bridged is not None else bridged_for(ctx.name, BRIDGES)
 
     def read_ids(self, include_shared: bool = True, project: str | None = None) -> list[str]:
         if project:
             names = [self._dataset_for_project(project)]
         else:
-            names = list(self.ctx.own_dataset_names)
+            names = list(self.ctx.own_dataset_names) + self.bridged
         if include_shared:
             names.append(SHARED)
         return [self.datasets.id_of(n) for n in names]
@@ -83,11 +85,11 @@ class MemoryScope:
         return self.ctx.datasets[project]
 
     def allowed_ids(self) -> set[str]:
-        return {self.datasets.id_of(n) for n in [*self.ctx.own_dataset_names, SHARED]}
+        return {self.datasets.id_of(n) for n in [*self.ctx.own_dataset_names, *self.bridged, SHARED]}
 
     def listable(self, include_shared: bool = False, project: str | None = None) -> list[tuple[str, str]]:
         """(nombre, UUID) de los datasets que el contexto puede listar."""
-        names = [self._dataset_for_project(project)] if project else list(self.ctx.own_dataset_names)
+        names = [self._dataset_for_project(project)] if project else list(self.ctx.own_dataset_names) + self.bridged
         if include_shared:
             names.append(SHARED)
         return [(n, self.datasets.id_of(n)) for n in names]

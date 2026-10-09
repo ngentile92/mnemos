@@ -255,3 +255,24 @@ model additionally checks (at most `--llm-limit` = 25 each): **contradictions** 
 that are similar or link the same `[[entity]]` (older vs newer, with a proposed fix) and **outdated** notes among the
 time-bound ones (the 8B model only classifies temporal vs permanent; the day count is done in code). Report-only: nothing is edited or deleted. Measure it on the fixed corpus with
 `.venv/bin/python3 scripts/memory_hygiene.py --eval eval/hygiene.json [--llm llama3.1:8b]` (results in `eval/results.md`).
+
+## Bridges between contexts (opt-in, read-only)
+
+By default no context sees another's memory. A `bridges:` entry in `config/contexts.yaml` lets one context **read**
+chosen datasets of another (see `config/contexts.example.yaml`):
+
+```yaml
+bridges:
+  - from: side
+    to: work
+    datasets: [side_mnemos]   # optional; default every dataset of `from`
+```
+
+- One-way: `work` can search/list/answer from `side_mnemos`; `side` still sees nothing of `work`.
+- Read-only: `memory_update` / `memory_delete` / `memory_promote` on a bridged note are refused; fix it from its own
+  context's connector. `hub_whoami` lists `bridged_datasets`.
+- Apply: `python3 scripts/bootstrap_cognee.py` (the owner context grants Cognee `read` to the reader) and restart the
+  gateways (`docker compose up -d --force-recreate gateway-<reader>`).
+- Remove: delete the entry and restart the gateway; the gateway stops reading at once. The Cognee `read` grant stays
+  until you revoke it (`DELETE /api/v1/permissions/datasets/<principal>` as the owner), but the gateway never queries
+  datasets outside its scope.

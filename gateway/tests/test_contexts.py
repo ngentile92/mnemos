@@ -78,3 +78,18 @@ def test_instructions_language_and_topics(monkeypatch, lang, marker, glue):
     # sin topic en algún otro contexto: sólo nombres de hub
     plain = instructions.server_instructions(ctxs["a"], language=lang, owner="Sam")
     assert "hub-b" in plain and "hub-c" in plain and glue not in plain
+
+
+def test_bridges_parse_and_validate():
+    from hub_gateway.contexts import Bridge, bridged_for, parse_bridges
+    _, ctxs = parse_contexts(DEFAULT_CONFIG)
+    assert parse_bridges({}, ctxs) == []
+    b = parse_bridges({"bridges": [{"from": "side", "to": "work", "datasets": ["side_mnemos"]},
+                                   {"from": "personal", "to": "work"}]}, ctxs)
+    assert b == [Bridge("side", "work", ("side_mnemos",)), Bridge("personal", "work", ("personal",))]
+    assert bridged_for("work", b) == ["side_mnemos", "personal"] and bridged_for("side", b) == []
+    for bad in ([{"from": "side", "to": "side"}], [{"from": "side", "to": "nope"}],
+                [{"from": "side", "to": "work", "datasets": ["work"]}], [{"from": "side", "to": "work", "datasets": []}],
+                {"from": "side"}, ["side"]):
+        with pytest.raises(ValueError):
+            parse_bridges({"bridges": bad}, ctxs)

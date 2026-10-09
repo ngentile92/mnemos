@@ -9,11 +9,18 @@ Cada corrida (LaunchAgent cada 15 min):
   4. Chequea Cognee en 127.0.0.1:8010 y el dashboard en :8787 (reinicia el LaunchAgent si cae).
   5. Escribe ~/Library/Logs/mnemos-watchdog-status.json (el dashboard lo muestra) y loggea a
      ~/Library/Logs/mnemos-watchdog.log. Notificación macOS opcional en fallo/recuperación.
+  6. Alertas externas opcionales (apagadas por defecto), configurables en .env:
+       MNEMOS_ALERT_WEBHOOK_URL   POST JSON genérico (Slack/Discord incoming webhook, etc.)
+       MNEMOS_ALERT_NTFY_TOPIC    topic de ntfy (MNEMOS_ALERT_NTFY_SERVER, default https://ntfy.sh)
+       MNEMOS_ALERT_COOLDOWN_S    anti-flapping (default 1800): no repite "caído" del mismo componente antes
+     1 alerta por caída y 1 por recuperación por componente (estado en watchdog-state.json). El mensaje
+     solo lleva el nombre del componente (hub-<ctx>, cognee, dashboard): sin hostnames, tailnet, IPs ni errores.
 
 Uso:
   scripts/hub_watchdog.py              # corrida completa
   scripts/hub_watchdog.py --dry-run    # chequea sin recrear ni reiniciar
-  scripts/hub_watchdog.py --no-notify  # sin osascript
+  scripts/hub_watchdog.py --no-notify  # sin osascript ni alertas externas
+  scripts/hub_watchdog.py --test-alert # manda una alerta de prueba por los canales configurados y sale
 """
 from __future__ import annotations
 
@@ -281,6 +288,112 @@ def notify_macos(title: str, body: str) -> None:
         pass
 
 
+# --- Alertas externas (opcionales) ---------------------------------------------------------------
+
+ALERT_COOLDOWN_S = 30 * 60
+
+
+def alert_config() -> dict[str, Any]:
+    """Canales configurados (entorno > .env). Vacío = alertas apagadas."""
+    env = read_env(ROOT / ".env")
+
+    def get(key: str, default: str = "") -> str:
+        return (os.environ.get(key) or env.get(key) or default).strip()
+
+    try:
+        cooldown = int(get("MNEMOS_ALERT_COOLDOWN_S", str(ALERT_COOLDOWN_S)))
+    except ValueError:
+        cooldown = ALERT_COOLDOWN_S
+    return {
+        "webhook_url": get("MNEMOS_ALERT_WEBHOOK_URL"),
+        "ntfy_topic": get("MNEMOS_ALERT_NTFY_TOPIC"),
+        "ntfy_server": get("MNEMOS_ALERT_NTFY_SERVER", "https://ntfy.sh").rstrip("/"),
+        "name": get("MNEMOS_ALERT_NAME", "Mnemos"),
+        "cooldown_s": max(cooldown, 0),
+    }
+
+
+def alerts_enabled(cfg: dict[str, Any]) -> bool:
+    return bool(cfg.get("webhook_url") or cfg.get("ntfy_topic"))
+
+
+def alert_text(cfg: dict[str, Any], component: str, down: bool) -> tuple[str, str]:
+    """(título, cuerpo) sin datos sensibles: solo nombre de instancia y componente."""
+    name = cfg.get("name") or "Mnemos"
+    if down:
+        return f"{name}: {component} caído", f"{component} no responde; el watchdog lo está atendiendo."
+    return f"{name}: {component} recuperado", f"{component} volvió a responder."
+
+
+def send_alert(cfg: dict[str, Any], title: str, body: str, down: bool) -> dict[str, bool]:
+    """Manda por cada canal configurado. Nunca lanza; no loggea URLs ni topics (son secretos)."""
+    results: dict[str, bool] = {}
+    text = f"{title}\n{body}"
+    if cfg.get("webhook_url"):
+        try:
+            r = httpx.post(cfg["webhook_url"], timeout=10, json={
+                "text": text,       # Slack / Mattermost / Google Chat
+                "content": text,    # Discord
+                "title": title, "message": body, "status": "down" if down else "up",
+            })
+            results["webhook"] = r.status_code < 300
+            if r.status_code >= 300:
+                log(f"alerta webhook: HTTP {r.status_code}")
+        except Exception as exc:  # noqa: BLE001
+            results["webhook"] = False
+            log(f"alerta webhook: {type(exc).__name__}")
+    if cfg.get("ntfy_topic"):
+        try:
+            r = httpx.post(f"{cfg['ntfy_server']}/{cfg['ntfy_topic']}", timeout=10, content=body.encode(),
+                           headers={"Title": title, "Priority": "high" if down else "default",
+                                    "Tags": "rotating_light" if down else "white_check_mark"})
+            results["ntfy"] = r.status_code < 300
+            if r.status_code >= 300:
+                log(f"alerta ntfy: HTTP {r.status_code}")
+        except Exception as exc:  # noqa: BLE001
+            results["ntfy"] = False
+            log(f"alerta ntfy: {type(exc).__name__}")
+    return results
+
+
+def process_alerts(state: dict, components: dict[str, bool], cfg: dict[str, Any], now: float,
+                   sender=send_alert) -> list[dict[str, Any]]:
+    """1 alerta por caída y 1 por recuperación por componente, con anti-flapping.
+
+    state["alerts"][comp] = {"down": bool (hay una alerta de caída enviada sin recuperar), "down_at": epoch}.
+    - caído y sin alerta abierta → manda "caído", salvo que la última caída se haya avisado hace < cooldown
+      (flapping: tampoco se avisa la recuperación de esa caída silenciada).
+    - OK con alerta abierta → manda "recuperado" y la cierra.
+    Si ningún canal acepta el envío, no se marca y se reintenta en la próxima corrida.
+    """
+    if not alerts_enabled(cfg):
+        return []
+    alerts = state.setdefault("alerts", {})
+    sent: list[dict[str, Any]] = []
+    for comp, ok in components.items():
+        cur = alerts.setdefault(comp, {"down": False})
+        if not ok and not cur.get("down"):
+            last = cur.get("down_at")
+            if isinstance(last, (int, float)) and now - float(last) < cfg.get("cooldown_s", ALERT_COOLDOWN_S):
+                continue
+            title, body = alert_text(cfg, comp, down=True)
+            res = sender(cfg, title, body, True)
+            if res and not any(res.values()):
+                continue  # ningún canal la recibió: reintenta en la próxima corrida
+            cur.update(down=True, down_at=now)
+            sent.append({"component": comp, "status": "down", "channels": res})
+        elif ok and cur.get("down"):
+            title, body = alert_text(cfg, comp, down=False)
+            res = sender(cfg, title, body, False)
+            if res and not any(res.values()):
+                continue
+            cur.update(down=False, up_at=now)
+            sent.append({"component": comp, "status": "up", "channels": res})
+    for item in sent:
+        log(f"alerta externa: {item['component']} {item['status']} {item['channels']}")
+    return sent
+
+
 def hub_ok(dns: dict, mcp: dict) -> bool:
     return bool(dns.get("ok") and mcp.get("ok"))
 
@@ -427,6 +540,15 @@ def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S
             notify_macos("AI Hub · Dashboard OK", "8787 recuperado")
     prev["dashboard"] = bool(status["dashboard"].get("ok"))
 
+    if notify and not dry_run:
+        # Sin red (Mac recién despierta): no es una caída del hub, no alertar.
+        components = {f"hub-{c}": bool(h.get("ok")) for c, h in status["hubs"].items() if not h.get("no_network")}
+        components["cognee"] = bool(status["cognee"].get("ok"))
+        components["dashboard"] = bool(status["dashboard"].get("ok"))
+        sent = process_alerts(state, components, alert_config(), time.time())
+        if sent:
+            status["alerts"] = [{k: a[k] for k in ("component", "status")} for a in sent]
+
     state["prev"] = prev
     state["last_run"] = started
     if not dry_run:
@@ -461,11 +583,19 @@ def acquire_lock() -> Any:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dry-run", action="store_true", help="chequear sin recrear ni reiniciar")
-    ap.add_argument("--no-notify", action="store_true", help="sin notificación macOS")
+    ap.add_argument("--no-notify", action="store_true", help="sin notificación macOS ni alertas externas")
+    ap.add_argument("--test-alert", action="store_true", help="mandar una alerta de prueba y salir")
     ap.add_argument("--cooldown", type=int, default=COOLDOWN_S, help="segundos de cooldown por hub tras recreate")
     ap.add_argument("--wait-after-recreate", type=float, default=25.0,
                     help="segundos a esperar antes del recheck tras recreate")
     args = ap.parse_args()
+    if args.test_alert:
+        cfg = alert_config()
+        if not alerts_enabled(cfg):
+            raise SystemExit("alertas apagadas: configurá MNEMOS_ALERT_WEBHOOK_URL o MNEMOS_ALERT_NTFY_TOPIC en .env")
+        res = send_alert(cfg, f"{cfg['name']}: alerta de prueba", "Si ves esto, las alertas del watchdog funcionan.", False)
+        print(res)
+        sys.exit(0 if res and all(res.values()) else 1)
     lock = acquire_lock()
     try:
         status = run(dry_run=args.dry_run, notify=not args.no_notify, cooldown_s=args.cooldown,

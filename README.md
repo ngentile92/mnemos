@@ -207,6 +207,21 @@ The Docker stack is portable. These helpers are macOS-specific and **optional**:
   and `scripts/dashboard.sh install-agent` (labels `${AIHUB_LABEL_PREFIX:-io.mnemos}.<job>`; logs in `~/Library/Logs`).
 - Desktop notifications from the watchdog (`osascript`), `plutil`, `pmset`, and `host.docker.internal` for Ollama.
 
+### Watchdog alerts off the machine (optional)
+
+Desktop notifications only help if you are at the machine. To get alerts elsewhere, set one or both in `.env`
+(both are off when empty):
+
+- `MNEMOS_ALERT_WEBHOOK_URL`: POSTs JSON `{text, content, title, message, status}`, so a Slack or Discord incoming
+  webhook works as is.
+- `MNEMOS_ALERT_NTFY_TOPIC`: publishes to [ntfy](https://ntfy.sh) (`MNEMOS_ALERT_NTFY_SERVER` for self-hosted). Use a
+  long random topic: anyone who knows it can read it.
+
+You get one alert when a component goes down (`hub-<ctx>`, `cognee`, `dashboard`) and one when it recovers. A component
+that flaps inside `MNEMOS_ALERT_COOLDOWN_S` (default 1800 s) doesn't alert again. Messages carry only the component name:
+no hostnames, tailnet, IPs or error details. Runs with `--dry-run` or `--no-notify` never alert, and neither do runs where
+the machine has no network. Test with `./scripts/hub_watchdog.py --test-alert`.
+
 ### Scheduling on Linux
 
 Use cron or systemd timers that call the same scripts:

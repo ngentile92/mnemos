@@ -190,6 +190,19 @@ Desinstalar: `./scripts/install_watchdog_agent.sh --uninstall`
 Estado y cooldown: `~/Library/Application Support/mnemos/watchdog-state.json`. El dashboard tiene una tarjeta
 "Watchdog Funnel/DNS" con última corrida, DNS/MCP por hub y último recreate.
 
+### Alertas fuera de la Mac (opcional)
+
+Apagadas por defecto. Para activarlas, agregá en `.env` una o las dos:
+
+- `MNEMOS_ALERT_WEBHOOK_URL=`: incoming webhook de Slack o Discord (POST JSON con `text` y `content`).
+- `MNEMOS_ALERT_NTFY_TOPIC=`: topic de [ntfy](https://ntfy.sh). Suscribite desde la app del celular. Usá un topic
+  largo y aleatorio, porque quien lo conozca puede leerlo.
+
+Después probá con `./scripts/hub_watchdog.py --test-alert`. No hace falta reinstalar el LaunchAgent: lee `.env` en cada
+corrida. Llega 1 alerta cuando un componente cae (`hub-<ctx>`, `cognee`, `dashboard`) y 1 cuando se recupera. Si
+flapea dentro de `MNEMOS_ALERT_COOLDOWN_S` (default 30 min), no se repite. El mensaje no incluye hostnames, tailnet ni
+IPs. No alerta en `--dry-run`, en `--no-notify` ni cuando la Mac está sin red.
+
 ## Seguridad (lo mínimo que hay que saber)
 
 - Nunca se commitean `.env`, `cognee.env`, `secrets/`, `data/` ni `backups/` (están en `.gitignore`).

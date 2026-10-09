@@ -139,3 +139,127 @@ def test_run_does_not_recreate_when_offline(tmp_path, monkeypatch):
     st = wd.run(dry_run=False, notify=False, wait_after_recreate=0)
     assert called == [] and st["ok"] is False
     assert all(h.get("no_network") for h in st["hubs"].values())
+
+
+# --- alertas externas -------------------------------------------------------------------------
+
+ALERT_CFG = {"webhook_url": "https://hooks.example/x", "ntfy_topic": "", "ntfy_server": "https://ntfy.sh",
+             "name": "Mnemos", "cooldown_s": 1800}
+
+
+def _recorder():
+    calls = []
+
+    def sender(cfg, title, body, down):
+        calls.append((title, down))
+        return {"webhook": True}
+
+    return calls, sender
+
+
+def test_alerts_off_by_default(tmp_path, monkeypatch):
+    monkeypatch.setattr(wd, "ROOT", tmp_path)
+    for k in ("MNEMOS_ALERT_WEBHOOK_URL", "MNEMOS_ALERT_NTFY_TOPIC"):
+        monkeypatch.delenv(k, raising=False)
+    (tmp_path / ".env").write_text("TS_TAILNET=x\n")
+    cfg = wd.alert_config()
+    assert not wd.alerts_enabled(cfg)
+    calls, sender = _recorder()
+    assert wd.process_alerts({}, {"cognee": False}, cfg, 0, sender=sender) == [] and calls == []
+
+
+def test_alert_config_from_env_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(wd, "ROOT", tmp_path)
+    monkeypatch.delenv("MNEMOS_ALERT_WEBHOOK_URL", raising=False)
+    monkeypatch.delenv("MNEMOS_ALERT_NTFY_TOPIC", raising=False)
+    (tmp_path / ".env").write_text("MNEMOS_ALERT_NTFY_TOPIC=abc\nMNEMOS_ALERT_COOLDOWN_S=60\n")
+    cfg = wd.alert_config()
+    assert wd.alerts_enabled(cfg) and cfg["ntfy_topic"] == "abc" and cfg["cooldown_s"] == 60
+
+
+def test_one_alert_per_outage_and_one_per_recovery():
+    state: dict = {}
+    calls, sender = _recorder()
+    for t in (0, 900, 1800, 2700):  # caído 4 corridas seguidas
+        wd.process_alerts(state, {"hub-work": False, "cognee": True}, ALERT_CFG, t, sender=sender)
+    assert calls == [("Mnemos: hub-work caído", True)]
+    wd.process_alerts(state, {"hub-work": True, "cognee": True}, ALERT_CFG, 3600, sender=sender)
+    wd.process_alerts(state, {"hub-work": True, "cognee": True}, ALERT_CFG, 4500, sender=sender)
+    assert calls[1:] == [("Mnemos: hub-work recuperado", False)]
+
+
+def test_flapping_suppressed_within_cooldown():
+    state: dict = {}
+    calls, sender = _recorder()
+    wd.process_alerts(state, {"cognee": False}, ALERT_CFG, 0, sender=sender)
+    wd.process_alerts(state, {"cognee": True}, ALERT_CFG, 900, sender=sender)
+    wd.process_alerts(state, {"cognee": False}, ALERT_CFG, 1000, sender=sender)  # < cooldown: silencio
+    wd.process_alerts(state, {"cognee": True}, ALERT_CFG, 1100, sender=sender)   # sin recuperación de la silenciada
+    assert [d for _, d in calls] == [True, False]
+    wd.process_alerts(state, {"cognee": False}, ALERT_CFG, 5000, sender=sender)  # pasó el cooldown
+    assert [d for _, d in calls] == [True, False, True]
+
+
+def test_failed_send_retries_next_run():
+    state: dict = {}
+    calls = []
+
+    def failing(cfg, title, body, down):
+        calls.append(title)
+        return {"webhook": False}
+
+    wd.process_alerts(state, {"dashboard": False}, ALERT_CFG, 0, sender=failing)
+    wd.process_alerts(state, {"dashboard": False}, ALERT_CFG, 900, sender=failing)
+    assert len(calls) == 2 and state["alerts"]["dashboard"]["down"] is False
+
+
+def test_alert_text_has_no_sensitive_data():
+    title, body = wd.alert_text(ALERT_CFG, "hub-work", down=True)
+    for bad in ("ts.net", "http", "127.0.0.1", "tail"):
+        assert bad not in title + body
+
+
+def test_send_alert_payloads(monkeypatch):
+    sent = []
+
+    class R:
+        status_code = 200
+
+    def fake_post(url, **kw):
+        sent.append((url, kw))
+        return R()
+
+    monkeypatch.setattr(wd.httpx, "post", fake_post)
+    cfg = dict(ALERT_CFG, ntfy_topic="topic1")
+    res = wd.send_alert(cfg, "Mnemos: cognee caído", "cuerpo", True)
+    assert res == {"webhook": True, "ntfy": True}
+    (u1, k1), (u2, k2) = sent
+    assert u1 == "https://hooks.example/x" and k1["json"]["text"].startswith("Mnemos") and k1["json"]["content"]
+    assert u2 == "https://ntfy.sh/topic1" and k2["headers"]["Title"] == "Mnemos: cognee caído"
+
+
+def test_run_sends_alerts_only_when_not_dry_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(wd, "ROOT", tmp_path)
+    monkeypatch.setattr(wd, "STATUS_PATH", tmp_path / "status.json")
+    monkeypatch.setattr(wd, "STATE_PATH", tmp_path / "state.json")
+    monkeypatch.setattr(wd, "LOG_PATH", tmp_path / "log.txt")
+    monkeypatch.setattr(wd, "LOG_DIR", tmp_path)
+    monkeypatch.setattr(wd, "notify_macos", lambda *a: None)
+    (tmp_path / ".env").write_text("TS_TAILNET=tailtest\nMNEMOS_ALERT_WEBHOOK_URL=https://hooks.example/x\n")
+    monkeypatch.setattr(wd, "resolve_public_dns", lambda name, timeout=8.0: {"name": name, "ok": True, "addrs": ["9.9.9.9"], "resolvers": {}})
+    monkeypatch.setattr(wd, "check_mcp", lambda base, timeout=15.0: {"url": base, "ok": True, "http": 401})
+    monkeypatch.setattr(wd, "check_cognee", lambda: {"ok": False, "error": "ConnectError"})
+    monkeypatch.setattr(wd, "check_dashboard", lambda: {"ok": True, "http": 200})
+    posts = []
+
+    class R:
+        status_code = 204
+
+    monkeypatch.setattr(wd.httpx, "post", lambda url, **kw: posts.append(kw["json"]["status"]) or R())
+    wd.run(dry_run=True, wait_after_recreate=0)
+    assert posts == []  # dry-run nunca alerta
+    wd.run(dry_run=False, wait_after_recreate=0)
+    wd.run(dry_run=False, wait_after_recreate=0)
+    assert posts == ["down"]  # una sola alerta aunque siga caído
+    state = json.loads((tmp_path / "state.json").read_text())
+    assert state["alerts"]["cognee"]["down"] is True

@@ -276,3 +276,13 @@ bridges:
 - Remove: delete the entry and restart the gateway; the gateway stops reading at once. The Cognee `read` grant stays
   until you revoke it (`DELETE /api/v1/permissions/datasets/<principal>` as the owner), but the gateway never queries
   datasets outside its scope.
+
+
+## Adding or removing a context (CLI)
+
+`python3 scripts/mnemos_context.py add <name> [--description ...] [--project p ...]` / `remove <name> [--yes]` /
+`list`. Only files change: `config/contexts.yaml` (backup kept, bridges that mention a removed context are dropped),
+`.env` (new variables appended with generated keys and `__COMPLETAR__` for the OAuth app; existing lines are never
+modified; backup kept) and `compose.generated.yaml`. No containers are started or stopped and no data is deleted.
+After `add`: create the GitHub OAuth app, `skills/<name>/` in the skills repo, `scripts/bootstrap_cognee.py`,
+`docker compose up -d`. After `remove`: `docker compose up -d --remove-orphans`.

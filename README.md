@@ -160,7 +160,18 @@ find it from another.
 ### Adding or renaming a context
 
 Renaming descriptions or projects only needs `config/contexts.yaml`, `scripts/bootstrap_cognee.py` and
-`scripts/bootstrap_infisical.py` (all read it). To **add, remove or rename** contexts:
+`scripts/bootstrap_infisical.py` (all read it). To **add or remove** a context, use the CLI (it edits
+`config/contexts.yaml`, appends the context's `.env` variables with generated keys, sets `COMPOSE_FILE` and
+re-renders `compose.generated.yaml`; it never starts/stops containers or deletes data, and prints the steps that
+need your accounts):
+
+```bash
+python3 scripts/mnemos_context.py list
+python3 scripts/mnemos_context.py add research --description "papers and reading notes"   # --project x to add projects
+python3 scripts/mnemos_context.py remove research --yes                                     # keeps .env lines, datasets and volumes
+```
+
+What it does, by hand (also for renames):
 
 1. Edit `config/contexts.yaml`, then `python scripts/render_compose.py`: it writes `compose.generated.yaml`
    (gitignored) with one `ts-<ctx>` sidecar, `gateway-<ctx>` service and `ts_<ctx>` / `gw_<ctx>` volumes per

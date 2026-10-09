@@ -23,6 +23,7 @@ initial step-by-step setup is in [`SETUP.md`](SETUP.md).
 | `memory_update` | Fixes one of the context's own notes in place (Cognee `PATCH`: same id and date; the previous version goes to history) | **Own** datasets only; never `shared` |
 | `memory_delete` | Removes an own note (and what the graph extracted only from it); keeps a copy for undo | **Own** datasets only; the id is checked against the context's listing first |
 | `memory_history` / `memory_undo` | Show previous versions of a note / undo the last fix or restore a deleted note | **Own** datasets only; history in the gateway's `ledger.sqlite` |
+| `memory_promote` | Copies an own note to `shared` (visible to every context) with its origin (dataset, id, context, app) in the metadata and the ledger (`provenance.promoted_from`) | Without `confirm=true` it only returns a preview; the original is untouched; removing it from shared is hub-admin only |
 | `skills_list` / `skills_get` | Skills visible to the context (own folder + `shared` + `hub-share`) | No traversal or symlinks |
 | `secrets_list` | Names and allowed hosts, **never values** | – |
 | `secret_http_request` | Makes the HTTPS request injecting the secret; the response comes back redacted | Exact policy host, port 443, no private IPs, no redirects |

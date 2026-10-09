@@ -457,6 +457,52 @@ def build_server(
         return {"updated": id, "dataset": name, "status": status or "accepted",
                 "note": "mismo id; la versión anterior quedó en memory_history"}
 
+    @mcp.tool(annotations={"title": "Promover nota a shared", "readOnlyHint": False,
+                           "destructiveHint": False, "openWorldHint": False})
+    async def memory_promote(
+        id: Annotated[str, Field(description="id (UUID) de una nota propia del contexto, sacado de memory_list")],
+        confirm: Annotated[bool, Field(description="false (default): solo muestra qué se copiaría. true: copia a shared")] = False,
+    ) -> dict[str, Any]:
+        """Copia una nota propia del contexto a shared (la ven TODOS los contextos), con su origen
+        (dataset, id, contexto, app) registrado. La nota original no se toca. Sin confirm=true no guarda
+        nada: mostrá el texto al usuario y pedí confirmación antes. Shared no se puede editar ni borrar
+        desde un conector, así que revisá que no tenga nada privado del contexto."""
+        login = _current_login(settings)
+        app = _client_app()
+        try:
+            sc = scope()
+            name, ds_id, item = await _locate(sc, id)
+            old = item_summary(item, name)
+            text = await cognee.raw_text(ds_id, id)
+            if not text:
+                raise MemoryError_("no pude leer el texto de la nota; probá de nuevo")
+            if not confirm:
+                audit.log("memory_promote", login, "preview", data_id=id, dataset=name)
+                return {"preview": True, "from": {"dataset": name, "id": id}, "to": "shared", "text": text,
+                        "tags": old["tags"],
+                        "next": "si el usuario confirma, llamá memory_promote con confirm=true"}
+            shared_name, shared_id = sc.write_id(target="shared", project=None)
+            origin = {"dataset": name, "data_id": id, "context": ctx.name,
+                      "source_app": old["source_app"], "created_at": old["created_at"]}
+            meta = {"source_app": app, "hub_context": ctx.name, "tags": old["tags"],
+                    "saved_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"), "promoted_from": origin}
+            links = wikilinks(text)
+            if links:
+                meta["links"] = links
+            res = await cognee.remember(text, shared_id, node_set=_node_sets(old["tags"], text), metadata=meta)
+        except MemoryError_ as exc:
+            audit.log("memory_promote", login, "rejected", data_id=id, reason=str(exc))
+            raise ToolError(str(exc)) from exc
+        except Exception as exc:
+            audit.log("memory_promote", login, "error", data_id=id, error=type(exc).__name__)
+            raise ToolError("no pude copiar la nota a shared (Cognee no respondió)") from exc
+        index.invalidate(shared_name)
+        safe(ledger.record_save, dataset=shared_name, text=text, context=ctx.name, source_app=app, login=login,
+             tags=old["tags"], data_id=_returned_id(res), origin=origin)
+        audit.log("memory_promote", login, "ok", data_id=id, dataset=name, to=shared_name, app=app)
+        return {"promoted": id, "from": name, "to": shared_name, "status": (res.get("status") if isinstance(res, dict) else None) or "accepted",
+                "note": "copiada a shared con su origen; la original sigue en el contexto. Para sacarla de shared: hub-admin con scripts/memory_admin.py"}
+
     @mcp.tool(annotations={**READ_ONLY, "title": "Historial de una nota"})
     async def memory_history(
         id: Annotated[str, Field(description="id (UUID) de la nota (también sirve el de una nota borrada)")],

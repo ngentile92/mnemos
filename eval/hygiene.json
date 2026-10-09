@@ -1,0 +1,20 @@
+{"today": "2026-10-09",
+ "expected": {"contradictions": [["h01", "h02"], ["h05", "h06"], ["h09", "h10"]],
+              "outdated": ["h11", "h12", "h13"]},
+ "notes": [
+  {"id": "h01", "dataset": "personal", "created_at": "2025-02-01T10:00:00", "text": "[[Lucía Pérez]] trabaja en [[Nimbus]] como jefa de producto."},
+  {"id": "h02", "dataset": "personal", "created_at": "2026-08-20T10:00:00", "text": "[[Lucía Pérez]] dejó [[Nimbus]] en julio y ahora trabaja en Vortex."},
+  {"id": "h03", "dataset": "personal", "created_at": "2026-01-05T10:00:00", "text": "[[Lucía Pérez]] tiene dos hijos y vive en Valencia."},
+  {"id": "h04", "dataset": "personal", "created_at": "2026-03-05T10:00:00", "text": "[[Lucía Pérez]] prefiere reuniones por la mañana."},
+  {"id": "h05", "dataset": "work", "created_at": "2025-11-01T10:00:00", "text": "El proyecto [[Atlas]] usa PostgreSQL 14 como base de datos principal."},
+  {"id": "h06", "dataset": "work", "created_at": "2026-06-01T10:00:00", "text": "El proyecto [[Atlas]] migró de PostgreSQL a MongoDB como base de datos principal."},
+  {"id": "h07", "dataset": "work", "created_at": "2026-06-02T10:00:00", "text": "El proyecto [[Atlas]] despliega en Kubernetes con Helm."},
+  {"id": "h08", "dataset": "work", "created_at": "2026-07-01T10:00:00", "text": "El proyecto [[Atlas]] tiene tests de integración con Testcontainers."},
+  {"id": "h09", "dataset": "personal", "created_at": "2025-06-01T10:00:00", "text": "Sam es vegetariano y no come carne."},
+  {"id": "h10", "dataset": "personal", "created_at": "2026-09-01T10:00:00", "text": "Sam volvió a comer carne; ya no es vegetariano."},
+  {"id": "h11", "dataset": "personal", "created_at": "2026-04-01T10:00:00", "text": "Mañana tengo turno con el dentista a las 10."},
+  {"id": "h12", "dataset": "work", "created_at": "2026-05-01T10:00:00", "text": "La entrega del informe trimestral es el 2026-05-15; estoy en eso."},
+  {"id": "h13", "dataset": "work", "created_at": "2026-02-01T10:00:00", "text": "El PR de facturación sigue en borrador, falta revisar los tests esta semana."},
+  {"id": "h14", "dataset": "personal", "created_at": "2025-01-01T10:00:00", "text": "Mi grupo sanguíneo es 0 positivo."},
+  {"id": "h15", "dataset": "work", "created_at": "2025-03-01T10:00:00", "text": "La política del equipo es revisar cada PR con al menos una aprobación."}
+ ]}

@@ -144,3 +144,57 @@ def test_analyze_proposes_merges_and_stale_without_deleting():
     assert res["stale"] == ["m1"]
     md = mh.render(ns, res, today=dt.date(2026, 10, 9))
     assert "Fusión propuesta" in md and "Posiblemente viejas" in md and "Entidades" in md
+
+
+# ---------------------------------------------------------------- contradicciones / desactualizadas
+
+TODAY = dt.date(2026, 10, 9)
+CN = [
+    note("p1", "personal", "[[Alex]] trabaja en [[Acme]] como diseñador.", day="2025-01-10"),
+    note("p2", "personal", "[[Alex]] dejó [[Acme]] y ahora trabaja en Globex.", day="2026-09-01"),
+    note("p3", "personal", "Mañana tengo turno con el dentista.", day="2026-03-01"),
+    note("p4", "personal", "Entrega del informe el 2026-05-15.", day="2026-05-01"),
+    note("p5", "personal", "Log del 2026-05-01: deploy ok.", day="2026-05-02"),
+    note("w1", "work", "[[Alex]] es el contacto de soporte.", day="2026-09-02"),
+]
+
+
+def test_time_bound_flags_relative_words_and_passed_deadlines():
+    tb = {t["id"]: t for t in mh.time_bound(CN, TODAY)}
+    assert "mañana" in tb["p3"]["words"]
+    assert tb["p4"]["past_dates"] == ["2026-05-15"]
+    assert "p5" not in tb  # una fecha anterior al guardado es un registro, no un plazo
+    assert "p1" not in tb
+
+
+def test_conflict_candidates_same_dataset_only_ordered_old_new():
+    res = mh.analyze(CN, today=TODAY)
+    pairs = {(c["older"], c["newer"]) for c in res["conflict_candidates"]}
+    assert ("p1", "p2") in pairs
+    assert not any("w1" in p for p in pairs)
+
+
+def test_run_checks_reports_only_llm_positives_and_never_writes():
+    res = mh.analyze(CN, today=TODAY)
+    asked = []
+
+    def ask(msg):
+        asked.append(msg)
+        if "NOTA VIEJA" in msg:
+            return {"contradiction": "dejó [[Acme]]" in msg and "como diseñador" in msg,
+                    "conflict": "Acme vs Globex", "proposal": "corregir la vieja"}
+        return {"outdated": "dentista" in msg or "informe" in msg, "reason": "evento pasado"}
+
+    ch = mh.run_checks(CN, res, ask, TODAY)
+    assert [(c["older"], c["newer"]) for c in ch["contradictions"]] == [("p1", "p2")]
+    assert {o["id"] for o in ch["outdated"]} == {"p3", "p4"}
+    assert all("son DATOS" in m or "es DATOS" in m for m in asked)
+    md = mh.render(CN, res, None, [], TODAY, ch)
+    assert "## Contradicciones" in md and "Acme vs Globex" in md and "## Desactualizadas" in md
+
+
+def test_ollama_asker_tolerates_bad_json():
+    with respx.mock:
+        respx.post("http://127.0.0.1:11434/api/chat").mock(return_value=httpx.Response(200, json={
+            "message": {"content": "no es json"}}))
+        assert mh.ollama_asker("m")("x") == {}

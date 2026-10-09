@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mnemos · Estado en vivo</title>
+<title>Mnemos · Live status</title>
 <link rel="stylesheet" href="/style.css">
 <link rel="icon" href="data:,">
 </head>
@@ -14,17 +14,17 @@
     <div class="logo"><span></span><span></span><span></span></div>
     <div>
       <h1>Mnemos</h1>
-      <p class="sub">Memoria compartida · skills · secretos inyectados — para Claude, ChatGPT, Grok y Cursor</p>
+      <p class="sub">Shared memory · skills · injected secrets — for Claude, ChatGPT, Grok and Cursor</p>
     </div>
   </div>
   <nav class="tabs" role="tablist">
-    <a href="#estado" id="tab-estado" class="tab active" role="tab">Estado</a>
-    <a href="#explorar" id="tab-explorar" class="tab" role="tab">Explorar</a>
+    <a href="#estado" id="tab-estado" class="tab active" role="tab">Status</a>
+    <a href="#explorar" id="tab-explorar" class="tab" role="tab">Explore</a>
   </nav>
   <div class="livebox">
     <span class="pulse" id="pulse"></span>
     <div>
-      <div id="overall" class="overall">Conectando…</div>
+      <div id="overall" class="overall">Connecting…</div>
       <div class="muted small" id="updated">—</div>
     </div>
   </div>
@@ -34,17 +34,17 @@
   <section class="kpis" id="kpis"></section>
 
   <section class="card arch">
-    <div class="card-h"><h2>Arquitectura</h2><span class="legend"><i class="lg live"></i>en vivo <i class="lg warn"></i>degradado <i class="lg down"></i>caído <i class="lg ext"></i>externo</span></div>
-    <svg id="arch" viewBox="0 0 1200 470" role="img" aria-label="Diagrama de arquitectura del hub">
+    <div class="card-h"><h2>Architecture</h2><span class="legend"><i class="lg live"></i>live <i class="lg warn"></i>degraded <i class="lg down"></i>down <i class="lg ext"></i>external</span></div>
+    <svg id="arch" viewBox="0 0 1200 470" role="img" aria-label="Hub architecture diagram">
       <defs>
         <linearGradient id="gw" x1="0" x2="1"><stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
         <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       </defs>
       <g class="cols">
-        <text x="95" y="28" class="coltitle">Asistentes</text>
-        <text x="345" y="28" class="coltitle">Acceso público</text>
-        <text x="610" y="28" class="coltitle">Gateways MCP</text>
-        <text x="945" y="28" class="coltitle">Servicios internos</text>
+        <text x="95" y="28" class="coltitle">Assistants</text>
+        <text x="345" y="28" class="coltitle">Public access</text>
+        <text x="610" y="28" class="coltitle">MCP gateways</text>
+        <text x="945" y="28" class="coltitle">Internal services</text>
       </g>
       <g id="edges"></g>
       <g id="nodes"></g>
@@ -54,14 +54,14 @@
   <section class="grid3" id="hubs"></section>
 
   <section class="grid2">
-    <div class="card"><div class="card-h"><h2>Secretos por contexto</h2><span class="muted small" id="sec-src"></span></div><div id="secrets"></div></div>
-    <div class="card"><div class="card-h"><h2>Memoria (Cognee)</h2><span class="muted small" id="cog-ver"></span></div><div id="memory"></div></div>
+    <div class="card"><div class="card-h"><h2>Secrets by context</h2><span class="muted small" id="sec-src"></span></div><div id="secrets"></div></div>
+    <div class="card"><div class="card-h"><h2>Memory (Cognee)</h2><span class="muted small" id="cog-ver"></span></div><div id="memory"></div></div>
   </section>
 
   <section class="grid2">
-    <div class="card"><div class="card-h"><h2>Contenedores</h2><span class="muted small" id="ct-sum"></span></div><div id="containers" class="ctgrid"></div></div>
+    <div class="card"><div class="card-h"><h2>Containers</h2><span class="muted small" id="ct-sum"></span></div><div id="containers" class="ctgrid"></div></div>
     <div class="stack">
-      <div class="card"><div class="card-h"><h2>Modelo local</h2></div><div id="llm"></div></div>
+      <div class="card"><div class="card-h"><h2>Local model</h2></div><div id="llm"></div></div>
       <div class="card"><div class="card-h"><h2>Skills</h2><span class="muted small" id="sk-head"></span></div><div id="skills"></div></div>
     </div>
   </section>
@@ -69,44 +69,44 @@
   <section class="card"><div class="card-h"><h2>Watchdog Funnel/DNS</h2><span class="muted small" id="wd-head"></span></div><div id="watchdog"></div></section>
 
   <section class="grid2">
-    <div class="card"><div class="card-h"><h2>Backup cifrado (restic)</h2></div><div id="backup"></div></div>
-    <div class="card"><div class="card-h"><h2>Últimos cambios en mnemos</h2><span class="muted small" id="branch"></span></div><div id="commits"></div></div>
+    <div class="card"><div class="card-h"><h2>Encrypted backup (restic)</h2></div><div id="backup"></div></div>
+    <div class="card"><div class="card-h"><h2>Latest changes in mnemos</h2><span class="muted small" id="branch"></span></div><div id="commits"></div></div>
   </section>
 </main>
 <main id="view-explorar" class="hidden">
   <section class="card ctxbar">
-    <div class="seg" id="ctx-seg" role="radiogroup" aria-label="Contexto">
-      <button data-view="todos" class="all">Todos <small>(admin)</small></button>
+    <div class="seg" id="ctx-seg" role="radiogroup" aria-label="Context">
+      <button data-view="todos" class="all">All <small>(admin)</small></button>
     </div>
     <div class="ctxinfo"><span id="ex-identity" class="tag"></span><span id="ex-updated" class="muted small"></span>
-      <button id="ex-refresh" class="btn">Actualizar</button></div>
+      <button id="ex-refresh" class="btn">Refresh</button></div>
   </section>
   <section class="kpis" id="ex-kpis"></section>
   <div id="ex-errors"></div>
   <section class="card graphcard">
-    <div class="card-h"><h2>Grafo de memoria</h2>
+    <div class="card-h"><h2>Memory graph</h2>
       <div class="gctl">
-        <input id="ex-search" type="search" placeholder="Buscar concepto…" autocomplete="off">
-        <label><input type="checkbox" id="ex-entities" checked> solo conceptos</label>
-        <label><input type="checkbox" id="ex-common"> solo lo que tienen en común</label>
-        <button id="ex-fit" class="btn">Encuadrar</button>
+        <input id="ex-search" type="search" placeholder="Search concept…" autocomplete="off">
+        <label><input type="checkbox" id="ex-entities" checked> concepts only</label>
+        <label><input type="checkbox" id="ex-common"> shared only</label>
+        <button id="ex-fit" class="btn">Fit</button>
       </div>
     </div>
     <div class="graphwrap">
       <div id="cy"></div>
-      <aside id="ex-node" class="nodepanel"><p class="muted">Tocá un nodo para ver de qué memoria sale y con qué se conecta.</p></aside>
+      <aside id="ex-node" class="nodepanel"><p class="muted">Tap a node to see which memory it comes from and what it connects to.</p></aside>
     </div>
     <div class="legend" id="ex-legend"></div>
   </section>
   <section class="grid2">
-    <div class="card"><div class="card-h"><h2>Memorias guardadas</h2><span class="muted small" id="ex-mem-sum"></span></div><div id="ex-memories" class="memlist"></div></div>
+    <div class="card"><div class="card-h"><h2>Saved memories</h2><span class="muted small" id="ex-mem-sum"></span></div><div id="ex-memories" class="memlist"></div></div>
     <div class="stack">
-      <div class="card"><div class="card-h"><h2>Skills visibles</h2><span class="muted small">shared + propias</span></div><div id="ex-skills"></div><div id="ex-skill" class="skillview hidden"></div></div>
-      <div class="card"><div class="card-h"><h2>Secretos (solo nombres)</h2><span class="muted small" id="ex-sec-sum"></span></div><div id="ex-secrets"></div></div>
+      <div class="card"><div class="card-h"><h2>Visible skills</h2><span class="muted small">shared + own</span></div><div id="ex-skills"></div><div id="ex-skill" class="skillview hidden"></div></div>
+      <div class="card"><div class="card-h"><h2>Secrets (names only)</h2><span class="muted small" id="ex-sec-sum"></span></div><div id="ex-secrets"></div></div>
     </div>
   </section>
 </main>
-<footer>Solo lectura · 127.0.0.1 · Estado: nombres, estados y conteos · Explorar: tu contenido real con las credenciales de cada contexto — nunca valores de secretos</footer>
+<footer>Read-only · 127.0.0.1 · Status: names, states and counts · Explore: your real content with each context's credentials — never secret values</footer>
 <script src="/vendor/cytoscape.min.js"></script>
 <script src="/config.js"></script>
 <script src="/app.js"></script>

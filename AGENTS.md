@@ -16,7 +16,7 @@ secrets live in Infisical; public access only through Tailscale Funnel + GitHub 
 
 ## Installing for a human (macOS or Linux)
 
-Follow `README.md` → *Quickstart*; the long version is `docs/SETUP.es.md`. In order:
+Follow `README.md` → *Quickstart*; the long version is `docs/SETUP.md`. In order:
 
 1. Check requirements: Docker + Compose v2 (8 GB RAM for Docker), Python 3.11+, git, a Tailscale account
    (MagicDNS, HTTPS, Funnel), a private GitHub repo for skills, and either Ollama (`ollama pull llama3.1:8b`)

@@ -18,7 +18,7 @@ Tailscale Funnel, behind GitHub OAuth that only lets *you* in.
 
 > Status: personal project, used daily by its author. The reference host is a Mac with Docker Desktop; Linux works
 > for the Docker stack (see [macOS-only bits](#macos-only-bits-optional)). Code comments, some scripts' output and
-> the detailed setup/ops guides are in Spanish; this README is the English entry point.
+> the dashboard and the setup/ops guides are in English (Spanish versions in `docs/*.es.md`).
 
 ## Architecture
 
@@ -114,7 +114,7 @@ docker compose up -d                                          # Funnel sidecars 
 ```
 
 The full step-by-step guide (Tailscale ACLs, OAuth apps, Infisical, Vaultwarden, backups) is in
-[`docs/SETUP.es.md`](docs/SETUP.es.md); day-to-day operations in [`docs/OPERATIONS.es.md`](docs/OPERATIONS.es.md).
+[`docs/SETUP.md`](docs/SETUP.md); day-to-day operations in [`docs/OPERATIONS.md`](docs/OPERATIONS.md) (Spanish: `SETUP.es.md`, `OPERATIONS.es.md`).
 
 **Try it locally without any account** (fake LLM, no Tailscale, no OAuth):
 
@@ -249,7 +249,7 @@ host. The dashboard runs with `scripts/dashboard.sh start` (or a systemd user se
 | `config/` | Example contexts and secret policy, shared Tailscale `serve.json`, ACL snippet |
 | `dev/` | Fake OpenAI-compatible LLM, skill fixtures, Infisical e2e |
 | `examples/skills/` | Starter skills repo (`review-pr`, `debug-error`, `status-report`, `technical-docs`) + validator |
-| `docs/` | Setup and operations guides (Spanish), client instructions, memory editing, trust boundaries and gbrain skills (English) |
+| `docs/` | Setup and operations guides (English + Spanish `.es.md`), client instructions, memory editing, trust boundaries and gbrain skills (English) |
 | `AGENTS.md`, `llms.txt` | Install checklist and doc index for AI agents |
 
 ## Contributing & license

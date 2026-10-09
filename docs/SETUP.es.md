@@ -1,5 +1,7 @@
 # Mnemos — setup paso a paso (español)
 
+> English version: [`SETUP.md`](SETUP.md).
+
 Todo lo que se podía automatizar ya está en el repo (compose, gateway, scripts, tests). Lo que queda
 necesita tus cuentas, tu máquina o tu criterio. Cada paso dice **qué valor exacto** poner y **cómo verificar**.
 Está escrito para macOS con Docker Desktop (el host de referencia); en Linux los pasos son los mismos salvo

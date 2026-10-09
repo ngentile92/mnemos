@@ -54,7 +54,7 @@
       render();
     } catch (e) {
       if (req !== inflight || e.name === "AbortError") return;
-      $("ex-errors").innerHTML = `<div class="alert">No pude cargar la vista: ${esc(e.message)}</div>`;
+      $("ex-errors").innerHTML = `<div class="alert">Could not load the view: ${esc(e.message)}</div>`;
       $("ex-updated").textContent = "";
     } finally { if (req === inflight) inflight = null; }
   }
@@ -62,16 +62,16 @@
   function render() {
     const d = data;
     $("ex-identity").textContent = `credencial: ${d.identity}`;
-    $("ex-updated").textContent = "actualizado " + new Date().toLocaleTimeString("es-ES");
+    $("ex-updated").textContent = "updated " + new Date().toLocaleTimeString();
     $("ex-errors").innerHTML = (d.errors || []).map((e) => `<div class="alert">${esc(e)}</div>`).join("");
     const nodes = d.graph.nodes, common = nodes.filter((n) => n.common);
     const k = [
-      ["Memorias", d.memories.length, `${d.memories.filter((m) => m.in_graph === false).length} pendientes de procesar`],
-      ["Conceptos", nodes.filter((n) => n.type === "Entity").length, `${nodes.length} nodos en total`],
-      ["Relaciones", d.graph.edges.length, `${d.datasets.length} datasets`],
-      ["En común", common.length, view === "todos" ? "entre contextos" : "entre sus datasets"],
-      ["Skills", d.skills.length, "shared + propias"],
-      ["Secretos", d.secrets.length, "solo nombres"],
+      ["Memories", d.memories.length, `${d.memories.filter((m) => m.in_graph === false).length} pending processing`],
+      ["Concepts", nodes.filter((n) => n.type === "Entity").length, `${nodes.length} nodes in total`],
+      ["Relations", d.graph.edges.length, `${d.datasets.length} datasets`],
+      ["Shared", common.length, view === "todos" ? "across contexts" : "across its datasets"],
+      ["Skills", d.skills.length, "shared + own"],
+      ["Secrets", d.secrets.length, "names only"],
     ];
     $("ex-kpis").innerHTML = k.map(([l, v, s]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d muted">${esc(s)}</div></div>`).join("");
     renderGraph();
@@ -99,7 +99,7 @@
       if (keep.has(e.source) && keep.has(e.target)) els.push({ data: { id: `${e.source}→${e.target}→${e.label}`, source: e.source, target: e.target, label: e.label.replace(/_/g, " ") } });
     }
     if (cy) cy.destroy();
-    if (!window.cytoscape) { $("cy").innerHTML = '<p class="muted">No cargó la librería del grafo.</p>'; return; }
+    if (!window.cytoscape) { $("cy").innerHTML = '<p class="muted">The graph library did not load.</p>'; return; }
     cy = window.cytoscape({
       container: $("cy"), elements: els, wheelSensitivity: 0.25, minZoom: 0.15, maxZoom: 3,
       style: [
@@ -119,8 +119,8 @@
     const present = [...new Set(d.graph.nodes.flatMap((n) => n.datasets))];
     $("ex-legend").className = "legend dsleg";
     $("ex-legend").innerHTML = present.map((ds) => `<span class="lgi"><i style="background:${DS_COLOR[ds] || "#94a3b8"}"></i>${esc(ds)}</span>`).join("") +
-      `<span class="lgi"><i class="ring"></i>en común (${view === "todos" ? "entre contextos" : "entre datasets"})</span><span class="lgi muted">tamaño = cantidad de conexiones</span>`;
-    if (!els.length) $("ex-node").innerHTML = `<p class="muted">${d.graph.nodes.length ? "Nada con estos filtros." : "Todavía no hay grafo para este contexto (las memorias pendientes se procesan en segundo plano)."}</p>`;
+      `<span class="lgi"><i class="ring"></i>shared (${view === "todos" ? "across contexts" : "across datasets"})</span><span class="lgi muted">size = number of connections</span>`;
+    if (!els.length) $("ex-node").innerHTML = `<p class="muted">${d.graph.nodes.length ? "Nothing matches these filters." : "No graph for this context yet (pending memories are processed in the background)."}</p>`;
   }
 
   function select(node) {
@@ -134,9 +134,9 @@
       const out = e.source().id() === node.id();
       return `<li>${out ? "→" : "←"} <i>${esc(e.data("label"))}</i> <b>${esc(other.data("label"))}</b></li>`;
     }).slice(0, 25).join("");
-    $("ex-node").innerHTML = `<h4>${esc(n.label)}</h4><div class="tags">${n.datasets.map((ds) => `<span class="tag" style="border-color:${DS_COLOR[ds] || "#94a3b8"}">${esc(ds)}</span>`).join("")}${n.common ? '<span class="tag wn">en común</span>' : ""}</div>
-      <p class="muted small">${esc(n.type)}${n.contexts.length > 1 ? " · contextos: " + esc(n.contexts.join(", ")) : ""}</p>
-      ${n.desc ? `<p>${esc(n.desc)}</p>` : ""}${neigh ? `<p class="muted small">Conexiones</p><ul class="nlist">${neigh}</ul>` : ""}`;
+    $("ex-node").innerHTML = `<h4>${esc(n.label)}</h4><div class="tags">${n.datasets.map((ds) => `<span class="tag" style="border-color:${DS_COLOR[ds] || "#94a3b8"}">${esc(ds)}</span>`).join("")}${n.common ? '<span class="tag wn">shared</span>' : ""}</div>
+      <p class="muted small">${esc(n.type)}${n.contexts.length > 1 ? " · contexts: " + esc(n.contexts.join(", ")) : ""}</p>
+      ${n.desc ? `<p>${esc(n.desc)}</p>` : ""}${neigh ? `<p class="muted small">Connections</p><ul class="nlist">${neigh}</ul>` : ""}`;
   }
 
   function search(q) {
@@ -155,22 +155,22 @@
     $("ex-mem-sum").textContent = `${ms.length} en ${data.datasets.length} datasets`;
     $("ex-memories").innerHTML = ms.length ? ms.map((m, i) => `<div class="mem" style="--c:${DS_COLOR[m.dataset] || "#94a3b8"}" data-i="${i}">
       <div class="mh"><span class="tag">${esc(m.dataset)}</span><span class="muted small">${esc(fmt(m.created_at))}</span>
-        ${m.source_app ? `<span class="tag">app: ${esc(m.source_app)}</span>` : '<span class="tag muted">app: sin registro</span>'}
-        ${m.in_graph === true ? '<span class="tag ok">en el grafo</span>' : m.in_graph === false ? '<span class="tag wn">pendiente de procesar</span>' : ""}
+        ${m.source_app ? `<span class="tag">app: ${esc(m.source_app)}</span>` : '<span class="tag muted">app: unknown</span>'}
+        ${m.in_graph === true ? '<span class="tag ok">in graph</span>' : m.in_graph === false ? '<span class="tag wn">pending processing</span>' : ""}
         ${(m.tags || []).map((t) => `<span class="chip">#${esc(t)}</span>`).join("")}</div>
-      <div class="mt">${m.text != null ? esc(m.text) + (m.truncated ? "…" : "") : `<span class="muted">(sin texto: ${esc(m.text_error || "no es texto")})</span>`}</div>
-      ${m.text && m.text.length > 380 ? '<button class="more">ver completo</button>' : ""}</div>`).join("") : '<p class="muted">Sin memorias en este contexto.</p>';
+      <div class="mt">${m.text != null ? esc(m.text) + (m.truncated ? "…" : "") : `<span class="muted">(no text: ${esc(m.text_error || "not text")})</span>`}</div>
+      ${m.text && m.text.length > 380 ? '<button class="more">show all</button>' : ""}</div>`).join("") : '<p class="muted">No memories in this context.</p>';
   }
   $("ex-memories").addEventListener("click", (ev) => {
     const b = ev.target.closest(".more"); if (!b) return;
     const card = b.closest(".mem"); card.classList.toggle("open");
-    b.textContent = card.classList.contains("open") ? "ver menos" : "ver completo";
+    b.textContent = card.classList.contains("open") ? "show less" : "show all";
   });
 
   function renderSkills() {
     const sk = data.skills;
     $("ex-skill").classList.add("hidden");
-    $("ex-skills").innerHTML = sk.length ? sk.map((s) => `<div class="sk" data-name="${esc(s.name)}"><div><b>${esc(s.name)}</b><p>${esc(s.description)}</p></div><span class="tag" style="border-color:${CTX_COLOR[s.owner] || "#94a3b8"}">${esc(s.owner)}</span></div>`).join("") : '<p class="muted">No hay skills visibles.</p>';
+    $("ex-skills").innerHTML = sk.length ? sk.map((s) => `<div class="sk" data-name="${esc(s.name)}"><div><b>${esc(s.name)}</b><p>${esc(s.description)}</p></div><span class="tag" style="border-color:${CTX_COLOR[s.owner] || "#94a3b8"}">${esc(s.owner)}</span></div>`).join("") : '<p class="muted">No visible skills.</p>';
   }
   $("ex-skills").addEventListener("click", async (ev) => {
     const el = ev.target.closest(".sk"); if (!el) return;
@@ -181,15 +181,15 @@
       const r = await fetch(`/api/skill?view=${encodeURIComponent(view)}&name=${encodeURIComponent(el.dataset.name)}`, { cache: "no-store" });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || r.status);
-      box.innerHTML = `<div class="card-h"><b>${esc(j.owner)}/${esc(j.name)}/SKILL.md</b><span class="muted small">${j.files.length} archivo(s)</span></div><pre>${esc(j.content)}</pre>`;
+      box.innerHTML = `<div class="card-h"><b>${esc(j.owner)}/${esc(j.name)}/SKILL.md</b><span class="muted small">${j.files.length} file(s)</span></div><pre>${esc(j.content)}</pre>`;
     } catch (e) { box.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
   });
 
   function renderSecrets() {
     const s = data.secrets;
-    $("ex-sec-sum").textContent = `${s.length} · policy de inyección`;
+    $("ex-sec-sum").textContent = `${s.length} · injection policy`;
     $("ex-secrets").innerHTML = s.length ? s.map((x) => `<div class="sec"><div><b>${esc(x.name)}</b>${view === "todos" ? `<div class="muted small">${esc(x.context)}</div>` : ""}</div>
-      <div>${x.hosts.map((h) => `<span class="chip">${esc(h)}</span>`).join(" ")}${x.description ? `<div class="muted small">${esc(x.description)}</div>` : ""}</div></div>`).join("") : '<p class="muted">Sin secretos en la policy.</p>';
+      <div>${x.hosts.map((h) => `<span class="chip">${esc(h)}</span>`).join(" ")}${x.description ? `<div class="muted small">${esc(x.description)}</div>` : ""}</div></div>`).join("") : '<p class="muted">No secrets in the policy.</p>';
   }
 
   // ---------------------------------------------------------------- controles

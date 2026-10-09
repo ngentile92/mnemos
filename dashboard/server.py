@@ -35,7 +35,7 @@ try:
 except ModuleNotFoundError:  # python del sistema sin deps → re-ejecutar con el .venv del repo
     if (VENV / "bin" / "python3").exists() and Path(sys.prefix).resolve() != VENV.resolve():
         os.execv(str(VENV / "bin" / "python3"), [str(VENV / "bin" / "python3"), __file__, *sys.argv[1:]])
-    raise SystemExit("faltan httpx/pyyaml: creá el venv del repo (.venv) con el gateway instalado")
+    raise SystemExit("missing httpx/pyyaml: create the repo venv (.venv) with the gateway installed")
 
 STATIC = Path(__file__).resolve().parent / "static"
 sys.path.insert(0, str(ROOT / "gateway" / "src"))
@@ -259,7 +259,7 @@ class Hub:
         hr = httpx.get(f"{base}/health", timeout=8)
         info = hr.json() if hr.status_code == 200 else {}
         if hr.headers.get("server") != "uvicorn" or "version" not in info:
-            raise RuntimeError("no es Cognee")  # no mandar keys a otra cosa escuchando en :8010
+            raise RuntimeError("not Cognee")  # no mandar keys a otra cosa escuchando en :8010
         state = json.loads((ROOT / "config" / "cognee-datasets.json").read_text())
         ds_ids: dict[str, str] = state.get("datasets", {})
         want = {c: list(spec.own_dataset_names) for c, spec in CONTEXTS.items()}
@@ -325,7 +325,7 @@ class Hub:
 
     # -- backup (log del LaunchAgent + restic snapshots, cacheado largo)
     def backup(self) -> dict:
-        out: dict = {"schedule": f"{BACKUP_AT[0]:02d}:{BACKUP_AT[1]:02d} todos los días"}
+        out: dict = {"schedule": f"{BACKUP_AT[0]:02d}:{BACKUP_AT[1]:02d} daily"}
         now = dt.datetime.now().astimezone()
         nxt = now.replace(hour=BACKUP_AT[0], minute=BACKUP_AT[1], second=0, microsecond=0)
         if nxt <= now:
@@ -379,7 +379,7 @@ class Hub:
     def _restic(self) -> dict:
         repo, pw = self.env.get("RESTIC_REPOSITORY"), self.env.get("RESTIC_PASSWORD")
         if not repo or not pw:
-            raise RuntimeError("sin restic en .env")
+            raise RuntimeError("no restic settings in .env")
         env = {**os.environ, "RESTIC_REPOSITORY": repo, "RESTIC_PASSWORD": pw}
         restic = next((p for p in ("/opt/homebrew/bin/restic", "/usr/local/bin/restic") if Path(p).exists()), "restic")
         snaps = json.loads(run([restic, "snapshots", "--json", "--tag", RESTIC_TAG], timeout=90, env=env) or "[]")
@@ -530,7 +530,7 @@ def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
                     name = (q.get("name") or [""])[0]
                     sk = (demo.get("skills_content") or {}).get(name)
                     return self._json(200, sk) if sk else self._json(404, {"error": "no encontrada"})
-                return self._json(200, ex) if ex else self._json(404, {"error": "vista sin datos demo"})
+                return self._json(200, ex) if ex else self._json(404, {"error": "view has no demo data"})
             try:
                 if path == "/api/skill":
                     return self._json(200, hub.explorer.skill(view, (q.get("name") or [""])[0][:64]))
@@ -545,7 +545,7 @@ def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
 
         def do_GET(self):
             if self.headers.get("Host", "").lower() not in allowed_hosts:  # anti DNS-rebinding
-                return self._send(421, b"host no permitido", "text/plain; charset=utf-8")
+                return self._send(421, b"host not allowed", "text/plain; charset=utf-8")
             path, _, query = self.path.partition("?")
             if path in ("/api/explore", "/api/skill"):
                 return self._explore(path, parse_qs(query))
@@ -573,12 +573,12 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--host", default="127.0.0.1", help="solo loopback (o una IP del tailnet, nunca Funnel)")
     ap.add_argument("--port", type=int, default=int(os.environ.get("MNEMOS_DASHBOARD_PORT") or os.environ.get("AIHUB_DASHBOARD_PORT", "8787")))
-    ap.add_argument("--demo", metavar="JSON", help="servir datos de ejemplo (para capturas sin datos reales)")
+    ap.add_argument("--demo", metavar="JSON", help="serve sample data (for screenshots without real data)")
     ap.add_argument("--tailnet-port", type=int, default=int(os.environ.get("MNEMOS_DASHBOARD_TS_PORT") or os.environ.get("AIHUB_DASHBOARD_TS_PORT", "8444")),
-                    help="puerto HTTPS de `tailscale serve` (solo tailnet) que se acepta en el Host; 0 = solo loopback")
+                    help="HTTPS port of `tailscale serve` (tailnet only) accepted in Host; 0 = loopback only")
     args = ap.parse_args()
     if args.host in ("0.0.0.0", "::", ""):
-        raise SystemExit("no escucho en todas las interfaces: usá 127.0.0.1 (o una IP 100.x del tailnet)")
+        raise SystemExit("refusing to listen on all interfaces: use 127.0.0.1 (or a 100.x tailnet IP)")
     demo = json.loads(Path(args.demo).read_text()) if args.demo else None
     hub = None if demo is not None else Hub()
     if hub is not None:
@@ -591,9 +591,9 @@ def main() -> None:
                                   tailnet_dns_name() if args.tailnet_port else None)
     extra = sorted(allowed - {f"{args.host}:{args.port}", f"localhost:{args.port}", f"127.0.0.1:{args.port}"})
     if extra:
-        print(f"también acepto Host {', '.join(extra)} (tailscale serve, solo tailnet)", flush=True)
+        print(f"also accepting Host {', '.join(extra)} (tailscale serve, tailnet only)", flush=True)
     srv = ThreadingHTTPServer((args.host, args.port), make_handler(hub, allowed, demo))
-    print(f"dashboard en http://{args.host}:{args.port}  (Ctrl+C para cortar)", flush=True)
+    print(f"dashboard on http://{args.host}:{args.port}  (Ctrl+C to stop)", flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

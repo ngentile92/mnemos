@@ -154,13 +154,13 @@ class Explorer:
     def _check_cognee(self) -> None:
         hr = httpx.get(f"{COGNEE}/health", timeout=8)
         if hr.status_code != 200 or hr.headers.get("server") != "uvicorn" or "version" not in hr.json():
-            raise RuntimeError("no es Cognee")  # no mandar credenciales a otra cosa en :8010
+            raise RuntimeError("not Cognee")  # no mandar credenciales a otra cosa en :8010
 
     def _client(self, view: str) -> httpx.Client:
         if view in CONTEXTS:
             key = self.env.get(f"COGNEE_KEY_{view.upper()}")
             if not key:
-                raise RuntimeError(f"falta la key del contexto {view}")
+                raise RuntimeError(f"missing key for context {view}")
             return httpx.Client(base_url=COGNEE, timeout=60, headers={"X-Api-Key": key})
         with self._lock:
             if self._admin and time.time() - self._admin[0] < 600:
@@ -183,7 +183,7 @@ class Explorer:
     # ---------------------------------------------------------------- vista
     def explore(self, view: str, fresh: bool = False) -> dict:
         if view not in VIEWS:
-            raise ValueError("vista inválida")
+            raise ValueError("invalid view")
         hit = self._cache.get(view)
         if hit and not fresh and time.time() - hit[0] < 30:
             return hit[1]
@@ -273,13 +273,13 @@ class Explorer:
 
     def skill(self, view: str, name: str) -> dict:
         if view not in VIEWS:
-            raise ValueError("vista inválida")
+            raise ValueError("invalid view")
         s = next((s for s in self._visible_skills(view) if s.name == name), None)
         if s is None:
-            raise LookupError("skill no visible en este contexto")
+            raise LookupError("skill not visible in this context")
         md = s.path / "SKILL.md"
         if md.is_symlink() or md.stat().st_size > MAX_FILE_BYTES:
-            raise LookupError("SKILL.md no legible")
+            raise LookupError("SKILL.md not readable")
         files = sorted(str(p.relative_to(s.path)) for p in s.path.rglob("*") if p.is_file() and not p.is_symlink())
         return {"name": s.name, "owner": s.owner, "content": md.read_text(encoding="utf-8", errors="replace"),
                 "files": files[:50]}

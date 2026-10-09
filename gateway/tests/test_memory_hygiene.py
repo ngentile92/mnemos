@@ -183,12 +183,13 @@ def test_run_checks_reports_only_llm_positives_and_never_writes():
         if "NOTA VIEJA" in msg:
             return {"contradiction": "dejó [[Acme]]" in msg and "como diseñador" in msg,
                     "conflict": "Acme vs Globex", "proposal": "corregir la vieja"}
-        return {"outdated": "dentista" in msg or "informe" in msg, "reason": "evento pasado"}
+        return {"kind": "temporal" if ("dentista" in msg or "informe" in msg) else "permanente", "reason": "cita"}
 
     ch = mh.run_checks(CN, res, ask, TODAY)
     assert [(c["older"], c["newer"]) for c in ch["contradictions"]] == [("p1", "p2")]
     assert {o["id"] for o in ch["outdated"]} == {"p3", "p4"}
     assert all("son DATOS" in m or "es DATOS" in m for m in asked)
+    assert all("[[Alex]] trabaja en" not in m for m in asked if "NOTA:" in m)  # solo notas atadas a fecha
     md = mh.render(CN, res, None, [], TODAY, ch)
     assert "## Contradicciones" in md and "Acme vs Globex" in md and "## Desactualizadas" in md
 

@@ -64,6 +64,30 @@ def _client_app() -> str | None:
     return _APP_RE.sub("", label)[:60] or None
 
 
+_LINK_RE = re.compile(r"\[\[([^\[\]\n|]{1,60})(?:\|[^\[\]\n]{0,60})?\]\]")
+MAX_LINKS = 5
+
+
+def wikilinks(text: str) -> list[str]:
+    """[[Name]] / [[Name|alias]] references in a note, deduplicated (case-insensitive), in order.
+    They become Cognee node sets, so every note that links the same name shares one node: cheap,
+    deterministic linking with no LLM involved."""
+    seen: dict[str, str] = {}
+    for m in _LINK_RE.finditer(text):
+        name = " ".join(m.group(1).split())
+        if name and name.lower() not in seen:
+            seen[name.lower()] = name
+    return list(seen.values())[:MAX_LINKS]
+
+
+def _node_sets(tags: list[str], text: str) -> list[str] | None:
+    out = list(tags)
+    for link in wikilinks(text):
+        if all(link.lower() != t.lower() for t in out):
+            out.append(link)
+    return out or None
+
+
 def _returned_id(res: Any) -> str | None:
     """data id from a /remember response, when Cognee includes it."""
     if isinstance(res, dict):
@@ -193,7 +217,8 @@ def build_server(
         tags: Annotated[list[str] | None, Field(description="Etiquetas opcionales (node sets)", max_length=5)] = None,
     ) -> dict[str, Any]:
         """Guarda un hecho en la memoria de largo plazo. Por defecto va al contexto activo.
-        Usá target='shared' solo si el dato sirve en todos los contextos."""
+        Usá target='shared' solo si el dato sirve en todos los contextos. Escribí [[Nombre]] para
+        enlazar personas, empresas o proyectos: las notas con el mismo [[Nombre]] quedan conectadas."""
         login = _current_login(settings)
         try:
             name, ds_id = scope().write_id(target=target, project=project)
@@ -201,7 +226,10 @@ def build_server(
             app = _client_app()
             meta = {"source_app": app, "hub_context": ctx.name, "tags": clean_tags,
                     "saved_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds")}
-            res = await cognee.remember(text, ds_id, node_set=clean_tags or None, metadata=meta)
+            links = wikilinks(text)
+            if links:
+                meta["links"] = links
+            res = await cognee.remember(text, ds_id, node_set=_node_sets(clean_tags, text), metadata=meta)
         except MemoryError_ as exc:
             audit.log("memory_save", login, "rejected", reason=str(exc))
             raise ToolError(str(exc)) from exc
@@ -319,8 +347,9 @@ def build_server(
                 raise MemoryError_("no pude leer el texto actual de la nota; probá de nuevo")
             safe(ledger.snapshot, data_id=id, dataset=name, context=ctx.name, text=old_text, tags=old["tags"],
                  action="update", by=app, created_at=old["created_at"], source_app=old["source_app"])
-            tags_changed = sorted(clean_tags) != sorted(old["tags"])
-            res = await cognee.update(ds_id, id, text, node_set=clean_tags if tags_changed else None)
+            new_ns = _node_sets(clean_tags, text) or []
+            ns_changed = sorted(new_ns) != sorted(_node_sets(old["tags"], old_text) or [])
+            res = await cognee.update(ds_id, id, text, node_set=new_ns if ns_changed else None)
         except MemoryError_ as exc:
             audit.log("memory_update", login, "rejected", data_id=id, reason=str(exc))
             raise ToolError(str(exc)) from exc
@@ -371,7 +400,8 @@ def build_server(
             if last["deleted"]:
                 meta = {"source_app": app, "hub_context": ctx.name, "tags": last["tags"], "restored_from": id,
                         "saved_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds")}
-                res = await cognee.remember(last["text"], ds_id, node_set=last["tags"] or None, metadata=meta)
+                res = await cognee.remember(last["text"], ds_id, node_set=_node_sets(last["tags"], last["text"]),
+                                            metadata=meta)
                 ledger.drop_version(last["vid"])
                 ledger.restored(id, text=last["text"], by=app, new_data_id=_returned_id(res))
                 action = "restored"
@@ -383,8 +413,9 @@ def build_server(
                     raise MemoryError_("no pude leer el texto actual de la nota; probá de nuevo")
                 ledger.snapshot(data_id=id, dataset=name, context=ctx.name, text=cur_text, tags=cur["tags"],
                                 action="undone", by=app)
-                changed = sorted(last["tags"]) != sorted(cur["tags"])
-                await cognee.update(ds_id, id, last["text"], node_set=last["tags"] if changed else None)
+                back_ns = _node_sets(last["tags"], last["text"]) or []
+                changed = sorted(back_ns) != sorted(_node_sets(cur["tags"], cur_text) or [])
+                await cognee.update(ds_id, id, last["text"], node_set=back_ns if changed else None)
                 ledger.drop_version(last["vid"])
                 ledger.record_change(id, text=last["text"], by=app, tags=last["tags"])
                 action = "reverted"

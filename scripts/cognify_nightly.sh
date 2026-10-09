@@ -30,6 +30,6 @@ case "${MNEMOS_HYGIENE:-${AIHUB_HYGIENE:-report}}" in
   report) "$PY" -u scripts/memory_hygiene.py || echo "higiene: falló (no afecta al cognify)";;
   llm) "$PY" -u scripts/memory_hygiene.py --llm "${MNEMOS_HYGIENE_MODEL:-${AIHUB_HYGIENE_MODEL:-llama3.1:8b}}" || echo "higiene: falló";;
   apply) "$PY" -u scripts/memory_hygiene.py --apply || echo "higiene: falló";;
-  *) echo "AIHUB_HYGIENE desconocido: ${AIHUB_HYGIENE} (report|llm|apply|off)";;
+  *) echo "MNEMOS_HYGIENE desconocido: ${MNEMOS_HYGIENE:-${AIHUB_HYGIENE:-}} (report|llm|apply|off)";;
 esac
 exit $rc

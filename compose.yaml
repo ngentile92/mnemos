@@ -30,6 +30,8 @@ x-gateway-env: &gateway-env
   HUB_RECALL_SEARCH_TYPE: ${HUB_RECALL_SEARCH_TYPE:-GRAPH_COMPLETION}
   HUB_EMBED_URL: ${HUB_EMBED_URL:-}       # local search: Ollama for embeddings (empty = keyword only)
   HUB_EMBED_MODEL: ${HUB_EMBED_MODEL:-}
+  HUB_ANSWER_MODEL: ${HUB_ANSWER_MODEL:-}  # memory_answer with a local Ollama model (empty = tool disabled)
+  HUB_LLM_URL: ${HUB_LLM_URL:-}           # defaults to HUB_EMBED_URL
 
 services:
   # ---------------------------------------------------------------- credenciales

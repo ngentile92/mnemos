@@ -7,7 +7,7 @@
 Built on FastMCP (Python gateway, one per context), Cognee (knowledge-graph memory; Ollama or OpenAI for
 extraction), Infisical (secrets, never shown to the model), Vaultwarden, restic backups.
 MCP tools: hub_whoami, memory_search, memory_save, memory_list, memory_update, memory_delete,
-memory_history, memory_undo, memory_answer, skills_list, skills_get, secrets_list, secret_http_request.
+memory_history, memory_undo, memory_answer, memory_entity, skills_list, skills_get, secrets_list, secret_http_request.
 
 ## Install and operate
 

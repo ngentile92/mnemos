@@ -20,7 +20,7 @@ from .config import Settings
 from .contexts import SERVER_NAME_PREFIX, get_context
 from .instructions import server_instructions
 from .ledger import Ledger, safe
-from .local_search import LocalIndex, OllamaEmbedder
+from .local_search import LocalIndex, OllamaEmbedder, entity_docs, entity_list
 from .answer import Answerer
 from .memory import CogneeClient, DatasetMap, MemoryError_, MemoryScope, item_summary, simplify_results
 from .secrets import InfisicalFetcher, SecretBroker, SecretPolicyError, load_policy
@@ -258,6 +258,46 @@ def build_server(
             raise ToolError("no pude responder (modelo local o memoria sin respuesta); usá memory_search") from exc
         audit.log("memory_answer", login, "ok", known=out["known"], citations=len(out["citations"]))
         return {"context": ctx.name, **out}
+
+    @mcp.tool(annotations={**READ_ONLY, "title": "Página de una entidad"})
+    async def memory_entity(
+        name: Annotated[str | None, Field(description="Persona, empresa o proyecto; vacío = listar entidades "
+                                                      "enlazadas con [[Nombre]]", max_length=80)] = None,
+        include_shared: Annotated[bool, Field(description="Incluir la memoria compartida")] = True,
+        project: Annotated[str | None, Field(description="Solo contexto side: limitar a un proyecto")] = None,
+        summarize: Annotated[bool, Field(description="Agregar un resumen con citas (modelo local, si hay)")] = True,
+    ) -> dict[str, Any]:
+        """Página viva de una entidad en ESTE contexto: todas las notas que la mencionan ([[Nombre]] o el
+        nombre exacto), en orden cronológico, con id, y un resumen con citas si hay modelo local.
+        Sin name, lista las entidades enlazadas y cuántas notas tiene cada una."""
+        login = _current_login(settings)
+        try:
+            sc = scope()
+            pairs = sc.listable(include_shared=include_shared, project=project)
+            for n_, ds_id in pairs:
+                await index.sync(n_, lambda ds_id=ds_id: cognee.list_data(ds_id),
+                                 lambda did, ds_id=ds_id: cognee.raw_text(ds_id, did))
+            names = [n_ for n_, _ in pairs]
+            if not (name or "").strip():
+                out: dict[str, Any] = {"context": ctx.name, "entities": entity_list(index, names)[:100]}
+                audit.log("memory_entity", login, "ok", listed=len(out["entities"]))
+                return out
+            notes = entity_docs(index, name, names)
+            summary = None
+            if summarize and answerer is not None and notes:
+                try:
+                    summary = await answerer.answer(
+                        f"¿Qué dicen las notas sobre {name}? Resumí lo más reciente primero.", notes[-8:])
+                except Exception:  # noqa: BLE001 — the page is still useful without a summary
+                    log.warning("entity summary failed", exc_info=True)
+        except MemoryError_ as exc:
+            audit.log("memory_entity", login, "rejected", reason=str(exc))
+            raise ToolError(str(exc)) from exc
+        except Exception as exc:
+            audit.log("memory_entity", login, "error", error=type(exc).__name__)
+            raise ToolError("la memoria no respondió; probá de nuevo más tarde") from exc
+        audit.log("memory_entity", login, "ok", notes=len(notes))
+        return {"context": ctx.name, "entity": name, "notes": notes, "summary": summary}
 
     @mcp.tool(annotations={"title": "Guardar en memoria", "readOnlyHint": False,
                            "destructiveHint": False, "openWorldHint": False})

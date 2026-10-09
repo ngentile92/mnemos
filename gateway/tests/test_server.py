@@ -98,10 +98,10 @@ async def test_tool_surface_has_no_shell(make_server):
     async with Client(server) as c:
         tools = {t.name: t for t in await c.list_tools()}
     assert set(tools) == {"hub_whoami", "memory_search", "memory_save", "memory_list", "memory_update",
-                          "memory_delete", "memory_history", "memory_undo", "memory_answer", "skills_list", "skills_get", "secrets_list", "secret_http_request"}
+                          "memory_delete", "memory_history", "memory_undo", "memory_answer", "memory_entity", "skills_list", "skills_get", "secrets_list", "secret_http_request"}
     for name in tools:
         assert not any(w in name for w in ("forget", "shell", "exec", "prune"))
-    for ro in ("hub_whoami", "memory_search", "memory_list", "memory_history", "memory_answer", "skills_list", "skills_get", "secrets_list"):
+    for ro in ("hub_whoami", "memory_search", "memory_list", "memory_history", "memory_answer", "memory_entity", "skills_list", "skills_get", "secrets_list"):
         assert tools[ro].annotations.read_only_hint is True
     assert tools["memory_save"].annotations.read_only_hint is False
     for destructive in ("memory_delete", "memory_update", "memory_undo"):

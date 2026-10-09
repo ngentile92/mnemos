@@ -53,6 +53,7 @@ per context, each in front of its gateway, each requiring OAuth with an allow-li
 | `hub_whoami` | Context, datasets and projects visible to this connector | – |
 | `memory_search` | Searches the context's memory (+ `shared` with `include_shared`): local keyword + embeddings first (`mode=auto`), Cognee's graph as fallback or with `mode=graph` | Context datasets only; no LLM on reads; works without API keys |
 | `memory_answer` | Short answer from your notes with citations and "what I don't know", written by a local Ollama model | Optional (`HUB_ANSWER_MODEL`); uncited answers are reported as unknown |
+| `memory_entity` | Living page for a person/company/project: every note naming it, in order, plus a cited summary | Per context; computed on demand |
 | `memory_save` | Saves a fact to the context (or `shared`) | Contexts with projects require `project` |
 | `memory_list` | Lists notes with id, dataset, date, source app and text | Context datasets (+ read-only `shared`) |
 | `memory_update` / `memory_delete` | Fix (in place, same id) or remove one of the context's own notes | Never `shared`; marked destructive so clients ask first |

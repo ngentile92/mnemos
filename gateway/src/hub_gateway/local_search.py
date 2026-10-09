@@ -209,3 +209,49 @@ class LocalIndex:
         return [{"id": d, "dataset": rows[d]["dataset"], "created_at": rows[d]["created_at"],
                  "text": rows[d]["text"][:2000], "match": "+".join(
                      n for n, rk in (("keyword", kw), ("semantic", sem)) if d in rk)} for d in top if d in rows]
+
+
+LINK_RE = re.compile(r"\[\[([^\[\]\n|]{1,60})(?:\|[^\[\]\n]{0,60})?\]\]")
+
+
+def entity_names(text: str) -> list[str]:
+    return [" ".join(m.group(1).split()) for m in LINK_RE.finditer(text)]
+
+
+
+def _phrase(name: str) -> str | None:
+    terms = re.findall(r"[a-z0-9]+", fold(name))
+    return " ".join(terms) if terms else None
+
+
+def entity_docs(index: "LocalIndex", name: str, datasets: list[str]) -> list[dict[str, Any]]:
+    """Notes of these datasets that mention the entity: as [[Name]] or as the exact phrase (accent-insensitive)."""
+    phrase = _phrase(name)
+    if not phrase or not datasets:
+        return []
+    marks = ",".join("?" * len(datasets))
+    with index._lock, index._conn() as c:
+        rows = c.execute(f"SELECT data_id, dataset, text, created_at FROM docs WHERE dataset IN ({marks})",
+                         datasets).fetchall()
+    out = []
+    for r in rows:
+        folded = " ".join(re.findall(r"[a-z0-9]+", fold(r["text"])))
+        linked = any(fold(n) == fold(name) for n in entity_names(r["text"]))
+        if linked or f" {phrase} " in f" {folded} ":
+            out.append({"id": r["data_id"], "dataset": r["dataset"], "created_at": r["created_at"],
+                        "text": r["text"][:2000], "linked": linked})
+    return sorted(out, key=lambda d: str(d["created_at"] or ""))
+
+
+def entity_list(index: "LocalIndex", datasets: list[str]) -> list[dict[str, Any]]:
+    """[[Name]] links used in these datasets, with how many notes link each."""
+    if not datasets:
+        return []
+    marks = ",".join("?" * len(datasets))
+    with index._lock, index._conn() as c:
+        rows = c.execute(f"SELECT text FROM docs WHERE dataset IN ({marks})", datasets).fetchall()
+    counts: dict[str, list] = {}
+    for r in rows:
+        for n in set(entity_names(r["text"])):
+            counts.setdefault(fold(n), [n, 0])[1] += 1
+    return [{"entity": n, "notes": k} for n, k in sorted(counts.values(), key=lambda x: (-x[1], fold(x[0])))]

@@ -162,7 +162,9 @@ Cognee responda, y después corre `cognify_pending.py` para todos los contextos.
 **Higiene de memoria.** `scripts/memory_hygiene.py` lee todas las notas de todos los datasets como hub-admin (solo
 lectura) y escribe `~/mnemos-hygiene/hygiene-AAAA-MM-DD.md` (+ `.json`, chmod 600, se conservan 30): duplicados
 exactos, casi duplicados, series de notas superadas (mismo PR/tarea), notas relacionadas, notas sin tags/app de origen
-y textos con forma de secreto (solo el id). `--llm llama3.1:8b` agrega pistas de Ollama por par (orientativas).
+y textos con forma de secreto (solo el id). También consolida ("dream", sin LLM): agrupa por entidad las notas
+que enlazan el mismo `[[Nombre]]`, propone el texto fusionado de cada casi duplicado del mismo dataset (la más nueva +
+las frases de la vieja que falten) y lista notas posiblemente viejas (`--stale-days`, default 180). `--llm llama3.1:8b` agrega pistas de Ollama por par (orientativas).
 `--apply` borra **solo** duplicados exactos del mismo dataset (conserva la de más tags; usa el usuario dueño); todo lo
 demás queda como propuesta para decidir a mano con `memory_update` / `memory_delete` (o `memory_admin.py` en shared).
 `cognify_nightly.sh` lo corre al terminar el cognify según `AIHUB_HYGIENE` = `report` (default) | `llm` | `apply` |

@@ -1,0 +1,8 @@
+# el host importa hub_gateway desde src/ (dashboard, watchdog, scripts): sin esto cada .pyc nuevo
+# cambia el contexto de build y `docker compose build` recrea los gateways sin motivo
+**/__pycache__
+**/*.pyc
+*.egg-info
+src/*.egg-info
+.pytest_cache
+tests

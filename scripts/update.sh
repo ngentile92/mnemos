@@ -78,8 +78,8 @@ deploy() {  # $1 = ref a desplegar. Ojo: dentro de `if` bash ignora set -e, por 
   fi
   log "docker compose build"
   docker compose build || return 1
-  log "docker compose up -d"
-  docker compose up -d || return 1
+  log "docker compose up -d --wait (solo recrea lo que cambió; espera healthchecks)"
+  docker compose up -d --wait --wait-timeout "${MNEMOS_WAIT_TIMEOUT:-180}" || return 1
 }
 
 smoke() {

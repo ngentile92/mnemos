@@ -52,7 +52,7 @@ def run(repo, *args, smoke='[ "$(cat version)" != 3 ]', fail_build_at=""):
 def test_update_to_tag(repo):
     p, calls, version = run(repo, "v0.2.0")
     assert p.returncode == 0, p.stdout + p.stderr
-    assert version == "2" and calls == ["compose build @2", "compose up -d @2"]
+    assert version == "2" and calls == ["compose build @2", "compose up -d --wait --wait-timeout 180 @2"]
     assert (repo[0] / ".env").read_text() == "SOMETHING=1\n"
     assert "v0.2.0" in (repo[0] / "dev" / "state" / "updates.log").read_text()
 
@@ -63,13 +63,13 @@ def test_failed_smoke_rolls_back(repo):
     p, calls, version = run(repo)  # sin ref: el último tag (v0.3.0), cuyo smoke falla
     assert p.returncode == 1 and "rollback OK" in p.stdout
     assert version == "2"
-    assert calls == ["compose build @3", "compose up -d @3", "compose build @2", "compose up -d @2"]
+    assert calls == ["compose build @3", "compose up -d --wait --wait-timeout 180 @3", "compose build @2", "compose up -d --wait --wait-timeout 180 @2"]
 
 
 def test_failed_build_rolls_back_without_up(repo):
     p, calls, version = run(repo, "v0.2.0", fail_build_at="2")
     assert p.returncode == 1 and version == "1"
-    assert calls == ["compose build @2", "compose build @1", "compose up -d @1"]
+    assert calls == ["compose build @2", "compose build @1", "compose up -d --wait --wait-timeout 180 @1"]
 
 
 def test_rollback_returns_to_branch(repo):

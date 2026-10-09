@@ -1,0 +1,20 @@
+{"key": "n01", "text": "Laura Méndez es la CTO de Brisa Labs desde marzo de 2025. Antes trabajó en Kumo Analytics.", "tags": ["personas"]}
+{"key": "n02", "text": "Brisa Labs usa PostgreSQL 16 en producción y Redis solo para colas; descartaron MongoDB en 2024.", "tags": ["stack"]}
+{"key": "n03", "text": "Decisión 2026-08-14: el proyecto Faro migra de Stripe a Adyen por las comisiones en Europa.", "tags": ["decisiones"]}
+{"key": "n04", "text": "La fecha objetivo de lanzamiento de Faro es el 15 de enero de 2027.", "tags": ["faro"]}
+{"key": "n05", "text": "Tomás Ibarra prefiere que las revisiones de código se hagan por la mañana y odia los PR de más de 400 líneas.", "tags": ["personas", "preferencias"]}
+{"key": "n06", "text": "The staging cluster for Faro runs on Hetzner in Falkenstein; production is on AWS eu-west-1.", "tags": ["infra"]}
+{"key": "n07", "text": "Preferencia personal: café sin azúcar, té verde a la tarde, nada de cafeína después de las 18.", "tags": ["preferencias"]}
+{"key": "n08", "text": "El gimnasio es los lunes, miércoles y viernes a las 7:30 en el club Delta.", "tags": ["rutina"]}
+{"key": "n09", "text": "Kumo Analytics fue adquirida por Northwind en junio de 2026.", "tags": ["empresas"]}
+{"key": "n10", "text": "Para deployar el blog: rama main, GitHub Actions publica en Cloudflare Pages; el dominio es notas-de-campo.dev.", "tags": ["blog"]}
+{"key": "n11", "text": "El contrato con el cliente Orsay vence el 30 de noviembre de 2026 y tiene renovación automática por 12 meses.", "tags": ["clientes"]}
+{"key": "n12", "text": "Orsay paga a 60 días; la factura de septiembre todavía está pendiente.", "tags": ["clientes", "facturas"]}
+{"key": "n13", "text": "My daughter Emma is allergic to peanuts; always check snacks at birthday parties.", "tags": ["familia"]}
+{"key": "n14", "text": "El auto va al service cada 10.000 km en el taller de Ramiro, en la calle Oro 1450.", "tags": ["auto"]}
+{"key": "n15", "text": "Faro usa feature flags con Unleash autoalojado; las flags viejas se borran cada sprint.", "tags": ["faro"]}
+{"key": "n16", "text": "Retro del sprint 42: el mayor problema fueron los tests end-to-end lentos (25 minutos).", "tags": ["faro", "retro"]}
+{"key": "n17", "text": "Carla Ruiz lleva las finanzas de Brisa Labs y aprueba cualquier gasto mayor a 2.000 euros.", "tags": ["personas"]}
+{"key": "n18", "text": "El podcast favorito para correr es 'Café con datos'; episodios de 40 minutos.", "tags": ["gustos"]}
+{"key": "n19", "text": "Password policy: los secretos nunca van en notas; viven en el gestor de secretos del hub.", "tags": ["seguridad"]}
+{"key": "n20", "text": "Vacaciones planeadas: del 20 de diciembre de 2026 al 5 de enero de 2027 en Bariloche.", "tags": ["viajes"]}

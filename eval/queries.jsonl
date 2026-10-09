@@ -1,0 +1,21 @@
+{"q": "¿Quién es la CTO de Brisa Labs?", "expect": ["Laura Méndez"], "keys": ["n01"]}
+{"q": "qué base de datos usa Brisa Labs", "expect": ["PostgreSQL"], "keys": ["n02"]}
+{"q": "¿Por qué Faro dejó Stripe?", "expect": ["Adyen", "comisiones"], "keys": ["n03"]}
+{"q": "fecha de lanzamiento de Faro", "expect": ["15 de enero de 2027"], "keys": ["n04"]}
+{"q": "cómo le gustan las revisiones de código a Tomás", "expect": ["mañana", "400"], "keys": ["n05"]}
+{"q": "where does Faro staging run?", "expect": ["Hetzner"], "keys": ["n06"]}
+{"q": "¿Tomo café con azúcar?", "expect": ["sin azúcar"], "keys": ["n07"]}
+{"q": "qué días voy al gimnasio", "expect": ["lunes, miércoles y viernes"], "keys": ["n08"]}
+{"q": "¿Quién compró Kumo Analytics?", "expect": ["Northwind"], "keys": ["n09"]}
+{"q": "cómo se publica el blog", "expect": ["Cloudflare Pages"], "keys": ["n10"]}
+{"q": "cuándo vence el contrato de Orsay", "expect": ["30 de noviembre"], "keys": ["n11"]}
+{"q": "plazo de pago de Orsay", "expect": ["60 días"], "keys": ["n12"]}
+{"q": "Emma allergies", "expect": ["peanuts"], "keys": ["n13"]}
+{"q": "dónde hago el service del auto", "expect": ["Ramiro", "Oro 1450"], "keys": ["n14"]}
+{"q": "herramienta de feature flags de Faro", "expect": ["Unleash"], "keys": ["n15"]}
+{"q": "problema principal de la retro del sprint 42", "expect": ["end-to-end", "25 minutos"], "keys": ["n16"]}
+{"q": "quién aprueba gastos grandes en Brisa", "expect": ["Carla Ruiz"], "keys": ["n17"]}
+{"q": "dónde son las vacaciones de diciembre", "expect": ["Bariloche"], "keys": ["n20"]}
+{"q": "¿Cuál es el número de teléfono de Laura Méndez?", "expect": [], "keys": []}
+{"q": "¿Qué lenguaje usa el backend de Orsay?", "expect": [], "keys": []}
+{"q": "What is Emma's favourite colour?", "expect": [], "keys": []}

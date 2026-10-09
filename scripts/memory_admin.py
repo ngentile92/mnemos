@@ -2,7 +2,7 @@
 """Listar / borrar notas de la memoria como hub-admin (única vía para corregir `shared`).
 
 Los conectores (gateways) solo pueden borrar/corregir notas de los datasets PROPIOS de su contexto
-(memory_delete / memory_update); `shared` es de hub-admin y los ctx-* solo tienen read+write ahí,
+(memory_delete / memory_update / memory_undo); `shared` es de hub-admin y los ctx-* solo tienen read+write ahí,
 así que esas correcciones pasan por acá, en la Mac, contra Cognee en 127.0.0.1:8010.
 
   .venv/bin/python3 scripts/memory_admin.py list shared [--contains texto]

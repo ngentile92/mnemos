@@ -276,11 +276,18 @@ def build_server(
     async def memory_delete(
         id: Annotated[str, Field(description="id (UUID) de la nota, sacado de memory_list")],
     ) -> dict[str, Any]:
-        """Borra UNA nota de la memoria del contexto activo (y lo que el grafo sacó solo de ella).
-        Solo notas propias del contexto; shared no se puede borrar desde acá. Confirmá el id con memory_list."""
+        """Retira UNA nota de la memoria del contexto activo (y lo que el grafo sacó solo de ella).
+        Se guarda una copia en el historial: memory_undo la restaura. Solo notas propias del contexto;
+        shared no se puede borrar desde acá. Confirmá el id con memory_list."""
         login = _current_login(settings)
+        app = _client_app()
         try:
-            name, ds_id, _item = await _locate(scope(), id)
+            name, ds_id, item = await _locate(scope(), id)
+            old = item_summary(item, name)
+            text = await cognee.raw_text(ds_id, id)
+            if text is not None:
+                safe(ledger.snapshot, data_id=id, dataset=name, context=ctx.name, text=text, tags=old["tags"],
+                     action="delete", by=app, created_at=old["created_at"], source_app=old["source_app"])
             await cognee.delete_data(ds_id, id)
         except MemoryError_ as exc:
             audit.log("memory_delete", login, "rejected", data_id=id, reason=str(exc))
@@ -288,40 +295,107 @@ def build_server(
         except Exception as exc:
             audit.log("memory_delete", login, "error", data_id=id, error=type(exc).__name__)
             raise ToolError("no pude borrar la nota (Cognee no respondió)") from exc
-        audit.log("memory_delete", login, "ok", data_id=id, dataset=name, app=_client_app())
-        return {"deleted": id, "dataset": name}
+        audit.log("memory_delete", login, "ok", data_id=id, dataset=name, app=app)
+        return {"deleted": id, "dataset": name, "undo": "memory_undo con este id la restaura"}
 
     @mcp.tool(annotations={"title": "Corregir nota de memoria", "readOnlyHint": False,
                            "destructiveHint": True, "openWorldHint": False})
     async def memory_update(
-        id: Annotated[str, Field(description="id (UUID) de la nota a reemplazar, sacado de memory_list")],
+        id: Annotated[str, Field(description="id (UUID) de la nota a corregir, sacado de memory_list")],
         text: Annotated[str, Field(description="Texto nuevo COMPLETO (reemplaza al anterior)", min_length=3, max_length=20000)],
         tags: Annotated[list[str] | None, Field(description="Etiquetas; si no se pasan, se conservan las anteriores", max_length=5)] = None,
     ) -> dict[str, Any]:
-        """Reemplaza una nota propia del contexto por una versión corregida: guarda la nueva en el mismo
-        dataset y recién después borra la vieja (la nota nueva tiene otro id). Shared no se puede editar."""
+        """Corrige una nota propia del contexto en el lugar: conserva su id y su fecha, y el grafo se
+        re-extrae solo donde cambió. La versión anterior queda en memory_history (memory_undo la vuelve
+        atrás). Shared no se puede editar."""
         login = _current_login(settings)
+        app = _client_app()
         try:
             name, ds_id, item = await _locate(scope(), id)
             old = item_summary(item, name)
             clean_tags = [t.strip()[:40] for t in (tags if tags is not None else old["tags"]) if str(t).strip()]
-            app = _client_app()
-            meta = {"source_app": app, "hub_context": ctx.name, "tags": clean_tags, "replaces": id,
-                    "saved_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds")}
-            res = await cognee.remember(text, ds_id, node_set=clean_tags or None, metadata=meta)
-            await cognee.delete_data(ds_id, id)
+            old_text = await cognee.raw_text(ds_id, id)
+            if old_text is None:
+                raise MemoryError_("no pude leer el texto actual de la nota; probá de nuevo")
+            safe(ledger.snapshot, data_id=id, dataset=name, context=ctx.name, text=old_text, tags=old["tags"],
+                 action="update", by=app, created_at=old["created_at"], source_app=old["source_app"])
+            tags_changed = sorted(clean_tags) != sorted(old["tags"])
+            res = await cognee.update(ds_id, id, text, node_set=clean_tags if tags_changed else None)
         except MemoryError_ as exc:
             audit.log("memory_update", login, "rejected", data_id=id, reason=str(exc))
             raise ToolError(str(exc)) from exc
         except Exception as exc:
             audit.log("memory_update", login, "error", data_id=id, error=type(exc).__name__)
             raise ToolError("no pude corregir la nota (Cognee no respondió); revisá con memory_list") from exc
+        safe(ledger.record_change, id, text=text, by=app, tags=clean_tags)
         status = res.get("status") if isinstance(res, dict) else None
-        safe(ledger.record_change, id, text=text, by=app, tags=clean_tags, new_data_id=_returned_id(res),
-             id_changes=True)
-        audit.log("memory_update", login, "ok", data_id=id, dataset=name, chars=len(text), app=app)
-        return {"replaced": id, "saved_to": name, "status": status or "accepted",
-                "note": "la versión nueva tiene otro id (ver memory_list); el grafo se actualiza en segundo plano"}
+        audit.log("memory_update", login, "ok", data_id=id, dataset=name, chars=len(text), app=app, status=status)
+        return {"updated": id, "dataset": name, "status": status or "accepted",
+                "note": "mismo id; la versión anterior quedó en memory_history"}
+
+    @mcp.tool(annotations={**READ_ONLY, "title": "Historial de una nota"})
+    async def memory_history(
+        id: Annotated[str, Field(description="id (UUID) de la nota (también sirve el de una nota borrada)")],
+    ) -> dict[str, Any]:
+        """Muestra el origen de una nota y sus versiones anteriores (correcciones y borrados), la más
+        reciente primero. Solo notas de los datasets propios del contexto."""
+        login = _current_login(settings)
+        if not _UUID_RE.match(id or ""):
+            raise ToolError("id inválido: usá el id (UUID) que devuelve memory_list")
+        own = {n for n, _ in scope().editable()}
+        h = safe(ledger.history, id)
+        if not h or h["dataset"] not in own:
+            audit.log("memory_history", login, "rejected", data_id=id)
+            raise ToolError(f"no hay historial para ese id en el contexto {ctx.name}")
+        audit.log("memory_history", login, "ok", data_id=id, versions=len(h["previous_versions"]))
+        return h
+
+    @mcp.tool(annotations={"title": "Deshacer cambio en una nota", "readOnlyHint": False,
+                           "destructiveHint": True, "openWorldHint": False})
+    async def memory_undo(
+        id: Annotated[str, Field(description="id (UUID) de la nota corregida o borrada")],
+    ) -> dict[str, Any]:
+        """Deshace el último cambio de una nota propia: si fue borrada la restaura (con un id nuevo, ver
+        memory_list); si fue corregida vuelve a la versión anterior. Repetirlo sigue yendo hacia atrás."""
+        login = _current_login(settings)
+        app = _client_app()
+        try:
+            if not _UUID_RE.match(id or ""):
+                raise MemoryError_("id inválido: usá el id (UUID) que devuelve memory_list")
+            sc = scope()
+            own = dict(sc.editable())
+            last = ledger.last_version(id)
+            if not last or last["dataset"] not in own:
+                raise MemoryError_(f"no hay nada para deshacer en esa nota del contexto {ctx.name}")
+            ds_id = own[last["dataset"]]
+            if last["deleted"]:
+                meta = {"source_app": app, "hub_context": ctx.name, "tags": last["tags"], "restored_from": id,
+                        "saved_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds")}
+                res = await cognee.remember(last["text"], ds_id, node_set=last["tags"] or None, metadata=meta)
+                ledger.drop_version(last["vid"])
+                ledger.restored(id, text=last["text"], by=app, new_data_id=_returned_id(res))
+                action = "restored"
+            else:
+                name, _ds, item = await _locate(sc, id)
+                cur = item_summary(item, name)
+                cur_text = await cognee.raw_text(ds_id, id)
+                if cur_text is None:
+                    raise MemoryError_("no pude leer el texto actual de la nota; probá de nuevo")
+                ledger.snapshot(data_id=id, dataset=name, context=ctx.name, text=cur_text, tags=cur["tags"],
+                                action="undone", by=app)
+                changed = sorted(last["tags"]) != sorted(cur["tags"])
+                await cognee.update(ds_id, id, last["text"], node_set=last["tags"] if changed else None)
+                ledger.drop_version(last["vid"])
+                ledger.record_change(id, text=last["text"], by=app, tags=last["tags"])
+                action = "reverted"
+        except MemoryError_ as exc:
+            audit.log("memory_undo", login, "rejected", data_id=id, reason=str(exc))
+            raise ToolError(str(exc)) from exc
+        except Exception as exc:
+            audit.log("memory_undo", login, "error", data_id=id, error=type(exc).__name__)
+            raise ToolError("no pude deshacer el cambio (Cognee o el historial no respondieron)") from exc
+        audit.log("memory_undo", login, "ok", data_id=id, action=action, app=app)
+        return {"id": id, "action": action, "dataset": last["dataset"], "text": last["text"][:1500]}
 
     # ------------------------------------------------------------------ skills
     @mcp.tool(annotations={**READ_ONLY, "title": "Listar skills"})

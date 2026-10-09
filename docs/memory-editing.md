@@ -41,3 +41,13 @@ client), login, context, saved/updated dates and tags. `memory_list` shows it un
 When Cognee saves in the background it does not return the note id yet; the entry is bound to the
 note by text hash the first time it is listed. Notes saved before the registry existed show only the
 metadata Cognee kept. `memory_search` cannot show provenance: Cognee's graph answers carry no note ids.
+
+## History and undo
+
+- `memory_update` edits in place with `PATCH /api/v1/update` (same id and creation date). Tags are sent
+  only when they change, so ordinary corrections stay incremental and keep Cognee's metadata.
+- Before every correction or removal the current text is copied to the registry (`versions` table).
+- `memory_history(id)` shows provenance and previous versions, newest first.
+- `memory_undo(id)` reverts the last correction (repeat to keep going back) or restores a removed note
+  (saved again, so it gets a new Cognee id; the old id still finds its history).
+- All of it is limited to the context's own datasets; `shared` is still edited only as hub-admin.

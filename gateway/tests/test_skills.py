@@ -77,3 +77,82 @@ def test_index_refreshes_on_change(skills_repo):
 def test_missing_repo_is_empty(tmp_path):
     idx = SkillIndex(tmp_path / "nada", "personal")
     assert idx.visible() == []
+
+
+# ---------------------------------------------------------------- gbrain-format skills
+
+GBRAIN_SKILL = """---
+name: query
+version: 1.0.0
+description: |
+  Answer questions using the brain's knowledge.
+  Use when the user asks a question.
+triggers:
+  - "what do we know about"
+  - "who is"
+tools:
+  - search
+  - get_page
+  - put_page
+  - exec
+mutating: false
+writes_pages: false
+upstream: gbrain
+---
+
+# Query Skill
+"""
+
+
+def _gbrain_pack(root):
+    d = root / "skills" / "shared" / "query"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text(GBRAIN_SKILL, encoding="utf-8")
+    (d / "routing-eval.jsonl").write_text('{"intent": "who is Ben"}\n', encoding="utf-8")
+    (root / "skills" / "shared" / "RESOLVER.md").write_text("# Resolver\n", encoding="utf-8")
+    (root / "skills" / "shared" / "_output-rules.md").write_text("# Rules\n", encoding="utf-8")
+    (root / "skills" / "shared" / "conventions").mkdir()
+    (root / "skills" / "shared" / "conventions" / "quality.md").write_text("# Q\n", encoding="utf-8")
+
+
+def test_gbrain_skill_loads_with_routing_fields(skills_repo):
+    _gbrain_pack(skills_repo)
+    skills, errors = scan(skills_repo)
+    s = skills["query"]
+    assert errors == []
+    assert s.description == "Answer questions using the brain's knowledge. Use when the user asks a question."
+    assert s.triggers == ("what do we know about", "who is") and s.version == "1.0.0" and s.mutating is False
+    assert s.summary()["triggers"] == ["what do we know about", "who is"]
+    # existing Agent Skills keep the same minimal summary
+    assert set(skills["revisar-pr"].summary()) == {"name", "description", "owner"}
+    assert "routing-eval.jsonl" in SkillIndex(skills_repo, "work").files("query")
+
+
+def test_gbrain_tool_equivalents():
+    from hub_gateway.skills import tool_equivalents
+
+    assert tool_equivalents(("search", "get_page", "put_page", "exec", "mcp:recall", "memory_save")) == {
+        "search": "memory_search", "get_page": "memory_list", "put_page": "memory_save", "exec": None,
+        "mcp:recall": "memory_search", "memory_save": "memory_save"}
+
+
+@pytest.mark.parametrize("bad", ['triggers: "solo un texto"', "triggers:\n  - {a: 1}", "mutating: quizás",
+                                 "tools: 3"])
+def test_malformed_gbrain_fields_rejected(skills_repo, bad):
+    d = skills_repo / "skills" / "shared" / "rota"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text(f"---\nname: rota\ndescription: x\n{bad}\n---\nbody\n", encoding="utf-8")
+    skills, errors = scan(skills_repo)
+    assert "rota" not in skills and any("rota" in e for e in errors)
+
+
+def test_validator_accepts_gbrain_pack(skills_repo):
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location(
+        "validate", Path(__file__).resolve().parents[2] / "examples" / "skills" / "scripts" / "validate.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    _gbrain_pack(skills_repo)
+    assert [e for e in mod.validate(skills_repo) if "query" in e or "conventions" in e] == []

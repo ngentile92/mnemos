@@ -478,3 +478,19 @@ async def test_memory_update_sends_node_set_when_links_change(make_server):
         await c.call_tool("memory_update", {"id": pid, "text": "ahora con [[Orion]]"})
     assert "node_set" not in rec.patches[0][2]
     assert "node_set" in rec.patches[1][2] and "Orion" in rec.patches[1][2]
+
+
+async def test_skills_list_and_get_expose_gbrain_fields(make_server, skills_repo):
+    d = skills_repo / "skills" / "shared" / "query"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text("---\nname: query\ndescription: Q\ntriggers: [\"who is\"]\ntools: [search, exec]\n"
+                                "mutating: false\n---\nbody\n", encoding="utf-8")
+    server, _ = make_server("personal")
+    async with Client(server) as c:
+        listed = {s["name"]: s for s in data(await c.call_tool("skills_list", {}))["skills"]}
+        got = data(await c.call_tool("skills_get", {"name": "query"}))
+        plain = data(await c.call_tool("skills_get", {"name": "revisar-pr"}))
+    assert listed["query"]["triggers"] == ["who is"] and listed["query"]["mutating"] is False
+    assert "triggers" not in listed["revisar-pr"]
+    assert got["tool_equivalents"] == {"search": "memory_search", "exec": None}
+    assert "tool_equivalents" not in plain

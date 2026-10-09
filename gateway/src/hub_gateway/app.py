@@ -22,7 +22,7 @@ from .instructions import server_instructions
 from .ledger import Ledger, safe
 from .memory import CogneeClient, DatasetMap, MemoryError_, MemoryScope, item_summary, simplify_results
 from .secrets import InfisicalFetcher, SecretBroker, SecretPolicyError, load_policy
-from .skills import SkillError, SkillIndex
+from .skills import SkillError, SkillIndex, tool_equivalents
 
 log = logging.getLogger("hub.gateway")
 
@@ -431,9 +431,10 @@ def build_server(
     # ------------------------------------------------------------------ skills
     @mcp.tool(annotations={**READ_ONLY, "title": "Listar skills"})
     async def skills_list() -> dict[str, Any]:
-        """Lista las skills disponibles en este contexto (nombre y descripción)."""
+        """Lista las skills disponibles en este contexto (nombre y descripción; si la skill los declara,
+        también triggers: frases que indican cuándo usarla)."""
         login = _current_login(settings)
-        items = [{"name": s.name, "description": s.description, "owner": s.owner} for s in skills.visible()]
+        items = [s.summary() for s in skills.visible()]
         audit.log("skills_list", login, "ok", count=len(items))
         return {"context": ctx.name, "skills": items}
 
@@ -452,13 +453,16 @@ def build_server(
             audit.log("skills_get", login, "rejected", skill=name)
             raise ToolError(str(exc)) from exc
         audit.log("skills_get", login, "ok", skill=name, file=file or "SKILL.md")
-        return {"name": name, "file": file or "SKILL.md", "content": content, "files": files}
+        out: dict[str, Any] = {"name": name, "file": file or "SKILL.md", "content": content, "files": files}
+        declared = skills.get(name).tools
+        if declared:  # skills written for another server (e.g. gbrain): which hub tool to use for each
+            out["tool_equivalents"] = tool_equivalents(declared)
+        return out
 
     @mcp.resource("skill://index", mime_type="application/json", name="skills-index")
     async def skill_index_resource() -> dict[str, Any]:
         """Índice de skills visibles en este contexto."""
-        return {"skills": [{"name": s.name, "description": s.description, "uri": f"skill://{s.name}"}
-                           for s in skills.visible()]}
+        return {"skills": [{**s.summary(), "uri": f"skill://{s.name}"} for s in skills.visible()]}
 
     @mcp.resource("skill://{name}", mime_type="text/markdown")
     async def skill_resource(name: str) -> str:

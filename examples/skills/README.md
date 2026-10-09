@@ -48,3 +48,4 @@ Supporting files (`reference.md`, templates) can live in the same folder; `skill
 - Validate before pushing: `pip install pyyaml && python scripts/validate.py` (set `SKILLS_CONTEXTS` if your
   contexts differ from `work personal side`).
 - The hub only needs **read** access: add its deploy key without write permission.
+- gbrain-format skills (`triggers`, `tools`, `mutating`…) and skillpack files are accepted: see `docs/skills-gbrain.md` in the Mnemos repo.

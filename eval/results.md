@@ -22,3 +22,14 @@ characters), so it always "hits". `avg_chars` is the number to watch as memory g
 | auto without embeddings (keyword only) | 0.94 | 1.00 | 0.97 | 1 | 222 |
 
 Same answers found while returning ~4x less text, with note ids, and without calling Cognee.
+
+### 2026-10-09 — `memory_answer` (local `llama3.1:8b`, notes from `mode=hybrid`)
+
+| Metric | Value |
+|---|---|
+| answer accuracy (18 answerable) | 0.94 |
+| answered and cited the right note | 0.94 |
+| said "unknown" on the 3 unanswerable | 1.00 (0 hallucinations) |
+| p50 latency | 2.2 s |
+
+The one miss ("¿Tomo café con azúcar?") is a strict-match miss: the model answers "no" without repeating "sin azúcar".

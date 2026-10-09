@@ -21,6 +21,7 @@ from .contexts import SERVER_NAME_PREFIX, get_context
 from .instructions import server_instructions
 from .ledger import Ledger, safe
 from .local_search import LocalIndex, OllamaEmbedder
+from .answer import Answerer
 from .memory import CogneeClient, DatasetMap, MemoryError_, MemoryScope, item_summary, simplify_results
 from .secrets import InfisicalFetcher, SecretBroker, SecretPolicyError, load_policy
 from .skills import SkillError, SkillIndex, tool_equivalents
@@ -108,10 +109,12 @@ def build_server(
     audit: Audit | None = None,
     ledger: Ledger | None = None,
     index: LocalIndex | None = None,
+    answerer: Answerer | None = None,
 ) -> FastMCP:
     ctx = get_context(settings.context)
     audit = audit or Audit(settings.context, os.path.join(settings.data_dir, "audit.log"))
     ledger = ledger or Ledger(os.path.join(settings.data_dir, "ledger.sqlite"))
+    answerer = answerer or Answerer.from_env()
     index = index or LocalIndex(os.path.join(settings.data_dir, "search.sqlite"), OllamaEmbedder.from_env())
     skills = skills or SkillIndex(settings.skills_root, settings.context)
     cognee = cognee or CogneeClient(
@@ -231,6 +234,30 @@ def build_server(
             raise ToolError("la memoria (Cognee) no respondió; probá de nuevo más tarde") from exc
         audit.log("memory_search", login, "ok", mode=mode, results=len(results))
         return {"context": ctx.name, "mode": mode, "results": results}
+
+    @mcp.tool(annotations={**READ_ONLY, "title": "Responder desde la memoria"})
+    async def memory_answer(
+        question: Annotated[str, Field(description="Pregunta concreta", min_length=3, max_length=1000)],
+        include_shared: Annotated[bool, Field(description="Incluir la memoria compartida")] = True,
+        project: Annotated[str | None, Field(description="Solo contexto side: limitar a un proyecto")] = None,
+    ) -> dict[str, Any]:
+        """Responde una pregunta SOLO con lo que dicen las notas, con citas (id de cada nota) y lo que la memoria
+        no sabe (known=false si no está). Lo escribe un modelo local; verificá las citas si es importante."""
+        login = _current_login(settings)
+        if answerer is None:
+            raise ToolError("memory_answer no está configurado en este hub (HUB_ANSWER_MODEL); usá memory_search")
+        try:
+            sc = scope()
+            notes = await _local_search(sc, question, include_shared, project, 8, "hybrid")
+            out = await answerer.answer(question, notes)
+        except MemoryError_ as exc:
+            audit.log("memory_answer", login, "rejected", reason=str(exc))
+            raise ToolError(str(exc)) from exc
+        except Exception as exc:
+            audit.log("memory_answer", login, "error", error=type(exc).__name__)
+            raise ToolError("no pude responder (modelo local o memoria sin respuesta); usá memory_search") from exc
+        audit.log("memory_answer", login, "ok", known=out["known"], citations=len(out["citations"]))
+        return {"context": ctx.name, **out}
 
     @mcp.tool(annotations={"title": "Guardar en memoria", "readOnlyHint": False,
                            "destructiveHint": False, "openWorldHint": False})

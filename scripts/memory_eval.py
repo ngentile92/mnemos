@@ -59,6 +59,32 @@ def score(ranks: list[int | None], latencies: list[float], chars: list[int] | No
     }
 
 
+async def eval_answers(m: Any, queries: list[dict[str, Any]]) -> dict[str, Any]:
+    """memory_answer: answerable queries must be answered right AND cited; unanswerable ones must say unknown."""
+    ok = cited = abstained = wrong = 0
+    lat, fails = [], []
+    answerable = [q for q in queries if q["expect"]]
+    for q in queries:
+        t = time.perf_counter()
+        out = _data(await m.call_tool("memory_answer", {"question": q["q"], "include_shared": False}))
+        lat.append(time.perf_counter() - t)
+        if q["expect"]:
+            right = out["known"] and rank_of([out["answer"]], q["expect"]) == 1
+            ok += right
+            cited += bool(right and rank_of([c["text"] for c in out["citations"]], q["expect"]))
+            if not right:
+                fails.append(q["q"])
+        else:
+            abstained += not out["known"]
+            wrong += bool(out["known"])
+            if out["known"]:
+                fails.append(f"(should be unknown) {q['q']}: {out['answer'][:80]}")
+    n_a, n_u = len(answerable) or 1, (len(queries) - len(answerable)) or 1
+    return {"answer_accuracy": round(ok / n_a, 3), "cited_correctly": round(cited / n_a, 3),
+            "abstention_on_unknown": round(abstained / n_u, 3), "hallucinated_on_unknown": wrong,
+            "p50_ms": round(statistics.median(lat) * 1000) if lat else 0, "fails": fails}
+
+
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
@@ -84,7 +110,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     ctx = get_context(args.context)
     admin = admin_client(args.url, read_env(ROOT / ".env"))
     corpus = load_jsonl(args.eval_dir / "corpus.jsonl")
-    queries = [q for q in load_jsonl(args.eval_dir / "queries.jsonl") if q["expect"]]
+    all_queries = load_jsonl(args.eval_dir / "queries.jsonl")
+    queries = [q for q in all_queries if q["expect"]]
 
     if args.reuse:
         ds = json.loads(Path(args.reuse).read_text())
@@ -126,6 +153,9 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                         misses.append(q["q"])
                 report["modes"][mode] = {**score(ranks, lat, chars), "misses": misses}
                 print(f"{mode:10s} {report['modes'][mode]}", file=sys.stderr)
+            if args.answer:
+                report["answer"] = await eval_answers(m, all_queries)
+                print(f"answer     {report['answer']}", file=sys.stderr)
         return report
     finally:
         if args.keep:
@@ -147,6 +177,7 @@ def main() -> int:
     ap.add_argument("--keep", action="store_true")
     ap.add_argument("--keep-file", default=os.path.join(tempfile.gettempdir(), "mnemos-eval-datasets.json"))
     ap.add_argument("--reuse")
+    ap.add_argument("--answer", action="store_true", help="also evaluate memory_answer (needs HUB_ANSWER_MODEL)")
     ap.add_argument("--out", type=Path, help="write the JSON report here")
     args = ap.parse_args()
     report = asyncio.run(run(args))

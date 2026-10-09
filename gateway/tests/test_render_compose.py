@@ -55,3 +55,15 @@ def test_cli_write_and_check(tmp_path):
     assert run("--check").returncode == 0
     ctx.write_text("contexts:\n  a: {}\n")
     assert run("--check").returncode == 1
+
+
+def test_gateways_have_no_extra_hosts():
+    """Gateways share the Tailscale sidecar's network (network_mode: service:…): Docker rejects extra_hosts there."""
+    import yaml
+    from pathlib import Path
+
+    doc = yaml.safe_load((Path(__file__).resolve().parents[2] / "compose.yaml").read_text())
+    for name, svc in doc["services"].items():
+        if str(svc.get("network_mode", "")).startswith("service:"):
+            assert "extra_hosts" not in svc, name
+    assert "extra_hosts" not in doc.get("x-gateway", {})

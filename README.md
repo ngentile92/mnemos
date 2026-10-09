@@ -51,7 +51,7 @@ per context, each in front of its gateway, each requiring OAuth with an allow-li
 | MCP tool | What it does | Guardrails |
 |---|---|---|
 | `hub_whoami` | Context, datasets and projects visible to this connector | – |
-| `memory_search` | Searches the context's memory (+ `shared` with `include_shared`) | Context datasets only; no LLM on reads |
+| `memory_search` | Searches the context's memory (+ `shared` with `include_shared`): local keyword + embeddings first (`mode=auto`), Cognee's graph as fallback or with `mode=graph` | Context datasets only; no LLM on reads; works without API keys |
 | `memory_save` | Saves a fact to the context (or `shared`) | Contexts with projects require `project` |
 | `memory_list` | Lists notes with id, dataset, date, source app and text | Context datasets (+ read-only `shared`) |
 | `memory_update` / `memory_delete` | Fix (in place, same id) or remove one of the context's own notes | Never `shared`; marked destructive so clients ask first |

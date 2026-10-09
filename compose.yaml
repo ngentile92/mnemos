@@ -18,6 +18,7 @@ x-gateway: &gateway
   depends_on:
     cognee: { condition: service_started }
     skills-sync: { condition: service_started }
+  extra_hosts: ["host.docker.internal:host-gateway"]   # reach Ollama on the host (Linux too)
 
 x-gateway-env: &gateway-env
   HUB_ALLOWED_GITHUB_LOGINS: ${HUB_ALLOWED_GITHUB_LOGINS:-${GITHUB_USER:?definí GITHUB_USER en .env}}
@@ -28,6 +29,8 @@ x-gateway-env: &gateway-env
   HUB_SECRET_POLICY_FILE: /config/secret-policy.yaml
   HUB_SKILLS_ROOT: /skills
   HUB_RECALL_SEARCH_TYPE: ${HUB_RECALL_SEARCH_TYPE:-GRAPH_COMPLETION}
+  HUB_EMBED_URL: ${HUB_EMBED_URL:-}       # local search: Ollama for embeddings (empty = keyword only)
+  HUB_EMBED_MODEL: ${HUB_EMBED_MODEL:-}
 
 services:
   # ---------------------------------------------------------------- credenciales

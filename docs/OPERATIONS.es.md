@@ -1,5 +1,7 @@
 # Mnemos — operación (español)
 
+> English version: [`OPERATIONS.md`](OPERATIONS.md).
+
 Referencia de operación del día a día: tools, pruebas locales, grafo, dashboard, cognify nocturno, higiene,
 watchdog, backups. El setup inicial paso a paso está en [`SETUP.es.md`](SETUP.es.md).
 

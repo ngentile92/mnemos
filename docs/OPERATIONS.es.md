@@ -267,3 +267,13 @@ contexto **lea** datasets elegidos de otro (ejemplo en `config/contexts.example.
 `memory_delete` y `memory_promote` sobre una nota puenteada se rechazan. Para aplicarlo: `python3 scripts/bootstrap_cognee.py`
 (el contexto dueño le da `read` en Cognee al lector) y reiniciar el gateway lector. Para sacarlo: borrar la entrada y
 reiniciar el gateway (deja de leer en el acto; el permiso `read` de Cognee queda hasta revocarlo a mano).
+
+
+## Agregar o sacar un contexto (CLI)
+
+`python3 scripts/mnemos_context.py add <nombre> [--description ...] [--project p ...]` / `remove <nombre> [--yes]` /
+`list`. Solo cambia archivos: `config/contexts.yaml` (con backup; los bridges que mencionan un contexto borrado se
+sacan), `.env` (agrega las variables nuevas con claves generadas y `__COMPLETAR__` para la OAuth app; nunca modifica
+líneas existentes; con backup) y `compose.generated.yaml`. No levanta ni para contenedores ni borra datos.
+Después de `add`: crear la OAuth app de GitHub, `skills/<nombre>/` en el repo de skills, `scripts/bootstrap_cognee.py`
+y `docker compose up -d`. Después de `remove`: `docker compose up -d --remove-orphans`.

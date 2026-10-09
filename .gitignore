@@ -23,3 +23,7 @@ config/cognee-datasets.json
 
 # compose generado para tus contextos (scripts/render_compose.py)
 compose.generated.yaml
+
+# backups written by scripts/mnemos_context.py (may contain secrets)
+.env.bak-*
+config/*.bak-*

@@ -188,7 +188,7 @@ volumes or your gitignored config.
 
 ## Security
 
-Short version (threat model in [`SECURITY.md`](SECURITY.md)):
+Short version (threat model in [`SECURITY.md`](SECURITY.md); what is and is not isolated in [`docs/memory-trust.md`](docs/memory-trust.md)):
 
 - The only public endpoints are the `hub-<ctx>` Funnel hostnames, all behind GitHub OAuth with a login allow-list
   (`HUB_ALLOWED_GITHUB_LOGINS`, default `GITHUB_USER`).
@@ -247,7 +247,7 @@ host. The dashboard runs with `scripts/dashboard.sh start` (or a systemd user se
 | `config/` | Example contexts and secret policy, shared Tailscale `serve.json`, ACL snippet |
 | `dev/` | Fake OpenAI-compatible LLM, skill fixtures, Infisical e2e |
 | `examples/skills/` | Starter skills repo (`review-pr`, `debug-error`, `status-report`, `technical-docs`) + validator |
-| `docs/` | Setup and operations guides (Spanish), client instructions, memory editing (English) |
+| `docs/` | Setup and operations guides (Spanish), client instructions, memory editing and trust boundaries (English) |
 | `AGENTS.md`, `llms.txt` | Install checklist and doc index for AI agents |
 
 ## Contributing & license

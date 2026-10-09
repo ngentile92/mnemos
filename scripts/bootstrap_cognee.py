@@ -161,6 +161,10 @@ def main() -> None:
         for perm in ("read", "write"):
             admin.grant(sessions[f"ctx-{c}"].id, perm, [ids[SHARED]])
     print("permisos: ctx-* tienen read+write sobre shared (sin delete ni share)")
+    for br in BRIDGES:  # opt-in en contexts.yaml: el lector solo recibe read
+        admin_or_owner = sessions[f"ctx-{br.source}"]
+        admin_or_owner.grant(sessions[f"ctx-{br.reader}"].id, "read", [ids[d] for d in br.datasets])
+        print(f"bridge: ctx-{br.reader} puede leer {', '.join(br.datasets)} (solo read)")
 
     out = Path(args.datasets_out)
     out.parent.mkdir(parents=True, exist_ok=True)

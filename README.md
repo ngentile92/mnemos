@@ -14,7 +14,7 @@ Tailscale Funnel, behind GitHub OAuth that only lets *you* in.
   the gateway to make the HTTPS call. The secret is injected server-side, only towards allow-listed hosts, and the
   response comes back redacted.
 - **Isolation by context**: one gateway, one OAuth app, one Cognee user and one Infisical identity per context. Even
-  a buggy gateway gets `403` from Cognee/Infisical for another context's data.
+  a buggy gateway gets `403` from Cognee/Infisical for another context's data. Optional one-way, read-only *bridges* let a context read chosen datasets of another (`docs/OPERATIONS.md`).
 
 > Status: personal project, used daily by its author. The reference host is a Mac with Docker Desktop; Linux works
 > for the Docker stack (see [macOS-only bits](#macos-only-bits-optional)). Code comments, some scripts' output and

@@ -258,3 +258,12 @@ además (hasta `--llm-limit` = 25 de cada uno): **contradicciones** entre notas 
 enlazan la misma `[[entidad]]` (vieja vs nueva, con propuesta) y notas **desactualizadas** entre las atadas a fecha
 (el 8B solo clasifica temporal o permanente; los días los cuenta el código). Solo propone: no edita ni borra nada. Medilo con el corpus fijo:
 `.venv/bin/python3 scripts/memory_hygiene.py --eval eval/hygiene.json [--llm llama3.1:8b]` (resultados en `eval/results.md`).
+
+## Bridges entre contextos (opt-in, solo lectura)
+
+Por defecto ningún contexto ve la memoria de otro. Una entrada `bridges:` en `config/contexts.yaml` deja que un
+contexto **lea** datasets elegidos de otro (ejemplo en `config/contexts.example.yaml`): `from` (dueño), `to` (lector),
+`datasets` (opcional; por defecto todos los de `from`). Es de una sola vía y de solo lectura: `memory_update`,
+`memory_delete` y `memory_promote` sobre una nota puenteada se rechazan. Para aplicarlo: `python3 scripts/bootstrap_cognee.py`
+(el contexto dueño le da `read` en Cognee al lector) y reiniciar el gateway lector. Para sacarlo: borrar la entrada y
+reiniciar el gateway (deja de leer en el acto; el permiso `read` de Cognee queda hasta revocarlo a mano).

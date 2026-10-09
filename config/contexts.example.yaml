@@ -31,3 +31,10 @@ contexts:
       shop: side_shop
       blog: side_blog
       mnemos: side_mnemos
+
+# Optional, off by default: let one context READ another context's datasets (never write, fix or delete).
+# After changing it: python3 scripts/bootstrap_cognee.py (grants Cognee read) and restart the gateways.
+# bridges:
+#   - from: side              # context that owns the data
+#     to: work                # context that may read it
+#     datasets: [side_mnemos] # optional; default = every dataset of `from`

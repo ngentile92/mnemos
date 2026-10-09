@@ -17,7 +17,7 @@ from starlette.responses import JSONResponse
 from .audit import Audit
 from .concurrency import DuplicateRequestIdGuard
 from .config import Settings
-from .contexts import SERVER_NAME_PREFIX, get_context
+from .contexts import BRIDGES, SERVER_NAME_PREFIX, bridged_for, get_context
 from .instructions import server_instructions
 from .ledger import Ledger, safe
 from .local_search import LocalIndex, OllamaEmbedder, entity_docs, entity_list
@@ -185,6 +185,7 @@ def build_server(
             "login": login,
             "projects": ctx.projects,
             "memory_datasets": [*ctx.own_dataset_names, "shared"],
+            **({"bridged_datasets": bridged_for(ctx.name, BRIDGES)} if bridged_for(ctx.name, BRIDGES) else {}),
         }
 
     # ------------------------------------------------------------------ memoria
@@ -347,6 +348,10 @@ def build_server(
         shared_id = sc.datasets.id_of("shared")
         if any(str(d.get("id")) == data_id for d in await cognee.list_data(shared_id)):
             raise MemoryError_(SHARED_EDIT_HINT)
+        for name in sc.bridged:
+            if any(str(d.get("id")) == data_id for d in await cognee.list_data(sc.datasets.id_of(name))):
+                raise MemoryError_(f"la nota es de {name}, que este contexto solo puede leer (bridge): "
+                                   "se corrige desde el conector de su contexto")
         raise MemoryError_(f"no hay ninguna nota con ese id en el contexto {ctx.name}")
 
     @mcp.tool(annotations={**READ_ONLY, "title": "Listar notas de memoria"})
@@ -374,7 +379,7 @@ def build_server(
                     if needle and needle not in text.lower():
                         continue
                     it = item_summary(d, name)
-                    it["editable"] = name != "shared"
+                    it["editable"] = name in ctx.own_dataset_names
                     prov = safe(ledger.provenance, str(d.get("id")), name, text)
                     if prov:
                         it["provenance"] = prov

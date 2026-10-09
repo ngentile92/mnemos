@@ -43,19 +43,24 @@ from hub_gateway.contexts import CONTEXTS  # noqa: E402  (config/contexts.yaml)
 
 
 def _setting(name: str, default: str) -> str:
-    """Ajuste de la instancia: variable de entorno, si no la línea NAME= de .env, si no el default."""
-    if os.environ.get(name):
-        return os.environ[name]
+    """Instance setting: env var, else the NAME= line in .env, else the default.
+    MNEMOS_* names win; the legacy AIHUB_* name is still read."""
+    names = [name, "AIHUB_" + name[len("MNEMOS_"):]] if name.startswith("MNEMOS_") else [name]
+    for n in names:
+        if os.environ.get(n):
+            return os.environ[n]
     try:
-        for line in (ROOT / ".env").read_text().splitlines():
-            if line.startswith(f"{name}="):
-                return line.split("=", 1)[1].split("#")[0].strip() or default
+        lines = (ROOT / ".env").read_text().splitlines()
     except OSError:
-        pass
+        return default
+    for n in names:
+        for line in lines:
+            if line.startswith(f"{n}="):
+                return line.split("=", 1)[1].split("#")[0].strip() or default
     return default
 
 
-LABEL_PREFIX = _setting("AIHUB_LABEL_PREFIX", "io.mnemos")  # LaunchAgents: <prefijo>.backup, .watchdog, ...
+LABEL_PREFIX = _setting("MNEMOS_LABEL_PREFIX", "io.mnemos")  # LaunchAgents: <prefijo>.backup, .watchdog, ...
 PROJECT = _setting("COMPOSE_PROJECT_NAME", "mnemos")  # proyecto compose (prefijo de contenedores/volúmenes)
 RESTIC_TAG = _setting("RESTIC_TAG", "mnemos")
 BACKUP_LOG = Path.home() / "Library" / "Logs" / "mnemos-backup.log"
@@ -567,9 +572,9 @@ def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--host", default="127.0.0.1", help="solo loopback (o una IP del tailnet, nunca Funnel)")
-    ap.add_argument("--port", type=int, default=int(os.environ.get("AIHUB_DASHBOARD_PORT", "8787")))
+    ap.add_argument("--port", type=int, default=int(os.environ.get("MNEMOS_DASHBOARD_PORT") or os.environ.get("AIHUB_DASHBOARD_PORT", "8787")))
     ap.add_argument("--demo", metavar="JSON", help="servir datos de ejemplo (para capturas sin datos reales)")
-    ap.add_argument("--tailnet-port", type=int, default=int(os.environ.get("AIHUB_DASHBOARD_TS_PORT", "8444")),
+    ap.add_argument("--tailnet-port", type=int, default=int(os.environ.get("MNEMOS_DASHBOARD_TS_PORT") or os.environ.get("AIHUB_DASHBOARD_TS_PORT", "8444")),
                     help="puerto HTTPS de `tailscale serve` (solo tailnet) que se acepta en el Host; 0 = solo loopback")
     args = ap.parse_args()
     if args.host in ("0.0.0.0", "::", ""):

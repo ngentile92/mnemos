@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 HUB_DIR="$PWD"
 # Prefijo de los LaunchAgents (reverse-DNS): AIHUB_LABEL_PREFIX del entorno o de .env; default io.mnemos.
-LABEL_PREFIX="${AIHUB_LABEL_PREFIX:-$(grep -E '^AIHUB_LABEL_PREFIX=' ".env" 2>/dev/null | cut -d= -f2 | cut -d' ' -f1)}"
+LABEL_PREFIX="${MNEMOS_LABEL_PREFIX:-${AIHUB_LABEL_PREFIX:-$(grep -E '^(MNEMOS|AIHUB)_LABEL_PREFIX=' ".env" 2>/dev/null | cut -d= -f2 | cut -d' ' -f1)}}"
 LABEL_PREFIX="${LABEL_PREFIX:-io.mnemos}"
 LABEL="$LABEL_PREFIX.backup"
 TEMPLATE_NAME="backup"

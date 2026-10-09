@@ -207,7 +207,7 @@ Short version (threat model in [`SECURITY.md`](SECURITY.md); what is and is not 
 The Docker stack is portable. These helpers are macOS-specific and **optional**:
 
 - LaunchAgents installed by `scripts/install_backup_agent.sh`, `install_cognify_agent.sh`, `install_watchdog_agent.sh`
-  and `scripts/dashboard.sh install-agent` (labels `${AIHUB_LABEL_PREFIX:-io.mnemos}.<job>`; logs in `~/Library/Logs`).
+  and `scripts/dashboard.sh install-agent` (labels `${MNEMOS_LABEL_PREFIX:-io.mnemos}.<job>`; logs in `~/Library/Logs`).
 - Desktop notifications from the watchdog (`osascript`), `plutil`, `pmset`, and `host.docker.internal` for Ollama.
 
 ### Watchdog alerts off the machine (optional)

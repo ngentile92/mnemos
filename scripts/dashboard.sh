@@ -4,7 +4,7 @@
 #                        tailnet-on | tailnet-off
 # Puerto: AIHUB_DASHBOARD_PORT (default 8787).
 # Tailnet (opcional): `tailnet-on` publica el dashboard SOLO en el tailnet con `tailscale serve --bg` en
-#   https://<esta-mac>.<tailnet>.ts.net:${AIHUB_DASHBOARD_TS_PORT:-8444} (nunca Funnel; 443 = Vaultwarden,
+#   https://<esta-mac>.<tailnet>.ts.net:${MNEMOS_DASHBOARD_TS_PORT:-${AIHUB_DASHBOARD_TS_PORT:-8444}} (nunca Funnel; 443 = Vaultwarden,
 #   8443 = Infisical). Ojo: la pestaña Explorar muestra texto de la memoria y nombres de secretos a
 #   cualquier dispositivo de tu tailnet que llegue a esta Mac. `tailnet-off` lo saca.
 #
@@ -16,7 +16,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PORT="${AIHUB_DASHBOARD_PORT:-8787}"
+PORT="${MNEMOS_DASHBOARD_PORT:-${AIHUB_DASHBOARD_PORT:-8787}}"
 URL="http://127.0.0.1:${PORT}"
 STATE="$ROOT/dev/state"
 PIDFILE="$STATE/dashboard.pid"
@@ -24,13 +24,13 @@ if [[ -d "$HOME/Library/Logs" ]]; then LOG="$HOME/Library/Logs/mnemos-dashboard.
 PY="$ROOT/.venv/bin/python3"
 [[ -x "$PY" ]] || PY="$(command -v python3)"
 # Prefijo de los LaunchAgents (reverse-DNS): AIHUB_LABEL_PREFIX del entorno o de .env; default io.mnemos.
-LABEL_PREFIX="${AIHUB_LABEL_PREFIX:-$(grep -E '^AIHUB_LABEL_PREFIX=' "$ROOT/.env" 2>/dev/null | cut -d= -f2 | cut -d' ' -f1)}"
+LABEL_PREFIX="${MNEMOS_LABEL_PREFIX:-${AIHUB_LABEL_PREFIX:-$(grep -E '^(MNEMOS|AIHUB)_LABEL_PREFIX=' "$ROOT/.env" 2>/dev/null | cut -d= -f2 | cut -d' ' -f1)}}"
 LABEL_PREFIX="${LABEL_PREFIX:-io.mnemos}"
 LABEL="$LABEL_PREFIX.dashboard"
 TEMPLATE_NAME="dashboard"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 DOMAIN="gui/$(id -u)"
-TS_PORT="${AIHUB_DASHBOARD_TS_PORT:-8444}"
+TS_PORT="${MNEMOS_DASHBOARD_TS_PORT:-${AIHUB_DASHBOARD_TS_PORT:-8444}}"
 
 has_launchctl() { command -v launchctl >/dev/null; }
 agent_installed() { has_launchctl && [[ -f "$PLIST" ]]; }

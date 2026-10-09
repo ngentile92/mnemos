@@ -18,7 +18,7 @@
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    <key>AIHUB_LABEL_PREFIX</key>
+    <key>MNEMOS_LABEL_PREFIX</key>
     <string>__LABEL__</string>
   </dict>
   <key>RunAtLoad</key>

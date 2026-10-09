@@ -205,7 +205,7 @@ restic snapshots --tag mnemos                  # con RESTIC_REPOSITORY/RESTIC_PA
 La retención la aplica el mismo `backup.sh` al final: `restic forget --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune`.
 Para desinstalarlo: `launchctl bootout gui/$(id -u)/io.mnemos.backup && rm ~/Library/LaunchAgents/io.mnemos.backup.plist`.
 
-Dos LaunchAgents más, opcionales (solo macOS; prefijo `AIHUB_LABEL_PREFIX`, default `io.mnemos`):
+Dos LaunchAgents más, opcionales (solo macOS; prefijo `MNEMOS_LABEL_PREFIX`, default `io.mnemos`):
 
 ```bash
 ./scripts/install_cognify_agent.sh      # 03:47 diario: procesa al grafo las memorias pendientes (log ~/Library/Logs/mnemos-cognify.log)

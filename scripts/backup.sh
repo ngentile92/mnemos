@@ -54,7 +54,7 @@ rm -rf "$STAGE"
 echo "Backup OK ($STAMP). Probá un restore una vez por mes: scripts/restore.sh --check"
 
 # copia offsite del repo (ya cifrado) a Google Drive; si falla, el backup local igual quedó OK
-if [[ "${AIHUB_OFFSITE:-1}" != 0 ]]; then
+if [[ "${MNEMOS_OFFSITE:-${AIHUB_OFFSITE:-1}}" != 0 ]]; then
   echo "== offsite (rclone → Google Drive)"
   scripts/offsite_sync.sh || echo "AVISO: offsite falló; ver ~/Library/Logs/mnemos-offsite.log (el backup local está OK)"
 fi

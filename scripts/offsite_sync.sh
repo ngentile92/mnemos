@@ -14,7 +14,7 @@ mkdir -p dev/state "$(dirname "$LOG")"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
 envval() { grep -E "^$1=" .env | tail -1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//'; }
-REMOTE="${AIHUB_OFFSITE_REMOTE:-$(envval AIHUB_OFFSITE_REMOTE)}"; REMOTE="${REMOTE:-gdrive:mnemos-backups}"
+REMOTE="${MNEMOS_OFFSITE_REMOTE:-${AIHUB_OFFSITE_REMOTE:-$(envval '(MNEMOS|AIHUB)_OFFSITE_REMOTE')}}"; REMOTE="${REMOTE:-gdrive:mnemos-backups}"
 REPO="${RESTIC_REPOSITORY:-$(envval RESTIC_REPOSITORY)}"
 
 log() { echo "$*" | tee -a "$LOG"; }
@@ -36,7 +36,7 @@ fi
 
 # sync: lo borrado por prune va a la papelera de Drive (30 días), red extra ante borrados accidentales.
 # --max-duration: si la subida es enorme, corta prolijo y sigue mañana (no bloquea al cognify de las 03:47).
-rclone sync "$REPO" "$REMOTE" --max-duration "${AIHUB_OFFSITE_MAX:-40m}" --transfers 4 --stats 10m -v 2>&1 \
+rclone sync "$REPO" "$REMOTE" --max-duration "${MNEMOS_OFFSITE_MAX:-${AIHUB_OFFSITE_MAX:-40m}}" --transfers 4 --stats 10m -v 2>&1 \
   | grep -E 'NOTICE|ERROR|Transferred:|Deleted:|Checks:|Elapsed' | tee -a "$LOG"
 rc=${PIPESTATUS[0]}
 [[ "$rc" == 0 ]] || fail "rclone sync salió con error (rc=$rc)"

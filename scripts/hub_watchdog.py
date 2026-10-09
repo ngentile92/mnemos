@@ -49,15 +49,18 @@ from hub_gateway.contexts import CONTEXTS  # noqa: E402  (config/contexts.yaml)
 
 
 def _label_prefix() -> str:
-    """Prefijo de los LaunchAgents: AIHUB_LABEL_PREFIX del entorno o de .env (default io.mnemos)."""
-    if os.environ.get("AIHUB_LABEL_PREFIX"):
-        return os.environ["AIHUB_LABEL_PREFIX"]
+    """LaunchAgent prefix: MNEMOS_LABEL_PREFIX (or legacy AIHUB_LABEL_PREFIX) from env or .env (default io.mnemos)."""
+    for n in ("MNEMOS_LABEL_PREFIX", "AIHUB_LABEL_PREFIX"):
+        if os.environ.get(n):
+            return os.environ[n]
     try:
-        for line in (ROOT / ".env").read_text().splitlines():
-            if line.startswith("AIHUB_LABEL_PREFIX="):
-                return line.split("=", 1)[1].split("#")[0].strip() or "io.mnemos"
+        lines = (ROOT / ".env").read_text().splitlines()
     except OSError:
-        pass
+        return "io.mnemos"
+    for n in ("MNEMOS_LABEL_PREFIX", "AIHUB_LABEL_PREFIX"):
+        for line in lines:
+            if line.startswith(f"{n}="):
+                return line.split("=", 1)[1].split("#")[0].strip() or "io.mnemos"
     return "io.mnemos"
 
 

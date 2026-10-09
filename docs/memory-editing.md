@@ -51,3 +51,10 @@ metadata Cognee kept. `memory_search` cannot show provenance: Cognee's graph ans
 - `memory_undo(id)` reverts the last correction (repeat to keep going back) or restores a removed note
   (saved again, so it gets a new Cognee id; the old id still finds its history).
 - All of it is limited to the context's own datasets; `shared` is still edited only as hub-admin.
+
+## Links without an LLM
+
+`[[Name]]` (or `[[Name|alias]]`) in a saved note is turned into a Cognee node set, next to the tags (up to 5
+links per note). Every note that links the same name shares that node, so related notes are connected
+deterministically, even when the extraction LLM misses the entity. Changing the links in a correction
+sends the new node sets (Cognee then does a full rebuild of that note).

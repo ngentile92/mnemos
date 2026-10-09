@@ -449,3 +449,32 @@ def test_ledger_failure_never_breaks(tmp_path):
         raise RuntimeError("disk full")
 
     assert safe(boom) is None
+
+
+# ---------------------------------------------------------------- [[wikilinks]] -> node sets
+
+def test_wikilinks_parsing():
+    from hub_gateway.app import _node_sets, wikilinks
+
+    t = "Reunión con [[Ben Turner]] y [[ben  turner]] de [[Acme|la empresa]]; [[ ]] [[a\nb]] [[X]][[Y]][[Z]][[W]]"
+    assert wikilinks(t) == ["Ben Turner", "Acme", "X", "Y", "Z"]
+    assert _node_sets(["acme"], "[[Acme]] y [[Bob]]") == ["acme", "Bob"]
+    assert _node_sets([], "sin enlaces") is None
+
+
+async def test_memory_save_sends_links_as_node_sets(make_server):
+    server, rec = make_server("personal")
+    async with Client(server) as c:
+        await c.call_tool("memory_save", {"text": "Almuerzo con [[Ben Turner]]", "tags": ["gente"]})
+    body = rec.remembers[0]
+    assert body.count('name="node_set"') == 2 and "Ben Turner" in body and '"links": ["Ben Turner"]' in body
+
+
+async def test_memory_update_sends_node_set_when_links_change(make_server):
+    server, rec = make_server("personal")
+    pid = NOTE_IDS["personal"]
+    async with Client(server) as c:
+        await c.call_tool("memory_update", {"id": pid, "text": "nota de personal sobre orion, corregida"})
+        await c.call_tool("memory_update", {"id": pid, "text": "ahora con [[Orion]]"})
+    assert "node_set" not in rec.patches[0][2]
+    assert "node_set" in rec.patches[1][2] and "Orion" in rec.patches[1][2]

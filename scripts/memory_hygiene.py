@@ -43,7 +43,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-ROOT = Path(os.environ.get("AIHUB_DIR") or Path(__file__).resolve().parent.parent)
+ROOT = Path(os.environ.get("MNEMOS_DIR") or os.environ.get("AIHUB_DIR") or Path(__file__).resolve().parent.parent)
 sys.path.insert(0, str(ROOT / "gateway" / "src"))
 from hub_gateway.contexts import CONTEXTS, DATASET_OWNER  # noqa: E402
 BASE = "http://127.0.0.1:8010"

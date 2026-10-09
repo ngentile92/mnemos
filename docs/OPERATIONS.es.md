@@ -4,7 +4,7 @@ Referencia de operación del día a día: tools, pruebas locales, grafo, dashboa
 watchdog, backups. El setup inicial paso a paso está en [`SETUP.es.md`](SETUP.es.md).
 
 > Los LaunchAgents (`install_*_agent.sh`, `dashboard.sh install-agent`) y las notificaciones del watchdog son
-> **solo macOS y opcionales**. Usan el prefijo `AIHUB_LABEL_PREFIX` (default `io.mnemos`; abajo aparece así).
+> **solo macOS y opcionales**. Usan el prefijo `MNEMOS_LABEL_PREFIX` (default `io.mnemos`; abajo aparece así).
 > En Linux, el equivalente es un timer de systemd o una línea de cron que llame al mismo script (ver README,
 > *Scheduling on Linux*).
 
@@ -117,9 +117,9 @@ identity *Viewer* de cada gateway y lo que la policy deja inyectar), datasets de
 último backup restic y los últimos commits. **Solo nombres, estados y conteos**: las credenciales que usa se leen de
 `.env` del lado del servidor, nunca llegan al navegador, y cada respuesta se revisa contra los valores de `.env`.
 Escucha solo en `127.0.0.1` (se niega a `0.0.0.0`), valida el header `Host` y no carga nada externo.
-Puerto: `AIHUB_DASHBOARD_PORT` (default 8787). Log: `~/Library/Logs/mnemos-dashboard.log`.
+Puerto: `MNEMOS_DASHBOARD_PORT` (default 8787). Log: `~/Library/Logs/mnemos-dashboard.log`.
 **Tailnet (opcional):** `tailnet-on` hace `tailscale serve --bg --https=8444 http://127.0.0.1:8787` (443 es
-Vaultwarden y 8443 Infisical; cambiá con `AIHUB_DASHBOARD_TS_PORT`) y verifica que quede *tailnet only*; si no, lo saca.
+Vaultwarden y 8443 Infisical; cambiá con `MNEMOS_DASHBOARD_TS_PORT`) y verifica que quede *tailnet only*; si no, lo saca.
 El server sigue escuchando solo en `127.0.0.1` y acepta además el `Host` `<nombre-magicdns>:8444` (lo lee de
 `tailscale status --json` al arrancar). **Ojo:** la pestaña Explorar muestra texto de la memoria y nombres de secretos a
 cualquier dispositivo de tu tailnet (los sidecars `tag:hub-public` no llegan si la policy no les da accesos salientes).
@@ -170,7 +170,7 @@ que enlazan el mismo `[[Nombre]]`, propone el texto fusionado de cada casi dupli
 las frases de la vieja que falten) y lista notas posiblemente viejas (`--stale-days`, default 180). `--llm llama3.1:8b` agrega pistas de Ollama por par (orientativas).
 `--apply` borra **solo** duplicados exactos del mismo dataset (conserva la de más tags; usa el usuario dueño); todo lo
 demás queda como propuesta para decidir a mano con `memory_update` / `memory_delete` (o `memory_admin.py` en shared).
-`cognify_nightly.sh` lo corre al terminar el cognify según `AIHUB_HYGIENE` = `report` (default) | `llm` | `apply` |
+`cognify_nightly.sh` lo corre al terminar el cognify según `MNEMOS_HYGIENE` = `report` (default) | `llm` | `apply` |
 `off` (variable del plist).
 
 
@@ -240,3 +240,9 @@ de origen) y la vuelve a cargar:
   (`gbrain export --dir`) se puede importar acá. La sección de timeline de gbrain se conserva como texto.
 - El import va a UN dataset, saltea textos que ya están y archivos ocultos, y sin `--yes` no guarda nada.
 - El export queda con tu memoria en texto plano: guardalo como cualquier backup privado.
+
+## Nombres de variables (MNEMOS_* y AIHUB_*)
+
+Las variables de la instancia se llaman `MNEMOS_*` (`MNEMOS_LABEL_PREFIX`, `MNEMOS_OFFSITE_REMOTE`,
+`MNEMOS_HYGIENE`, `MNEMOS_DASHBOARD_PORT`, ...). Los nombres viejos `AIHUB_*` se siguen leyendo como
+alternativa: si existen las dos, gana `MNEMOS_*`. No hace falta tocar un `.env` ni LaunchAgents existentes.

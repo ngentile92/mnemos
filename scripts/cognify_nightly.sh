@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.." || exit 1
 PY=".venv/bin/python3"; [[ -x "$PY" ]] || PY="$(command -v python3)"
 echo "== Inicio cognify $(date +%Y%m%d-%H%M%S)"
 # si la Mac despertó y launchd disparó backup y cognify juntos, darle tiempo al backup a aparecer
-sleep "${AIHUB_COGNIFY_GRACE:-60}"
+sleep "${MNEMOS_COGNIFY_GRACE:-${AIHUB_COGNIFY_GRACE:-60}}"
 for _ in $(seq 1 120); do                     # hasta 60 min esperando al backup
   pgrep -f "scripts/backup.sh" >/dev/null || break
   sleep 30
@@ -19,17 +19,17 @@ for _ in $(seq 1 40); do                      # hasta 10 min esperando a Cognee 
   sleep 15
 done
 [[ -n "$ok" ]] || { echo "Cognee no responde en 127.0.0.1:8010: salteo esta noche"; exit 1; }
-"$PY" -u scripts/cognify_pending.py --timeout "${AIHUB_COGNIFY_TIMEOUT:-5400}"
+"$PY" -u scripts/cognify_pending.py --timeout "${MNEMOS_COGNIFY_TIMEOUT:-${AIHUB_COGNIFY_TIMEOUT:-5400}}"
 rc=$?
 echo "== Fin cognify $(date +%Y%m%d-%H%M%S) rc=$rc"
 
 # Higiene de memoria (después del cognify): AIHUB_HYGIENE=report (default, solo lee y escribe el reporte en
 # ~/mnemos-hygiene), llm (+ pistas de Ollama), apply (+ borra SOLO duplicados exactos) u off.
-case "${AIHUB_HYGIENE:-report}" in
+case "${MNEMOS_HYGIENE:-${AIHUB_HYGIENE:-report}}" in
   off) ;;
   report) "$PY" -u scripts/memory_hygiene.py || echo "higiene: falló (no afecta al cognify)";;
-  llm) "$PY" -u scripts/memory_hygiene.py --llm "${AIHUB_HYGIENE_MODEL:-llama3.1:8b}" || echo "higiene: falló";;
+  llm) "$PY" -u scripts/memory_hygiene.py --llm "${MNEMOS_HYGIENE_MODEL:-${AIHUB_HYGIENE_MODEL:-llama3.1:8b}}" || echo "higiene: falló";;
   apply) "$PY" -u scripts/memory_hygiene.py --apply || echo "higiene: falló";;
-  *) echo "AIHUB_HYGIENE desconocido: ${AIHUB_HYGIENE} (report|llm|apply|off)";;
+  *) echo "MNEMOS_HYGIENE desconocido: ${MNEMOS_HYGIENE:-${AIHUB_HYGIENE:-}} (report|llm|apply|off)";;
 esac
 exit $rc

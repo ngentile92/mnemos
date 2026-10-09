@@ -247,7 +247,8 @@ host. The dashboard runs with `scripts/dashboard.sh start` (or a systemd user se
 | `config/` | Example contexts and secret policy, shared Tailscale `serve.json`, ACL snippet |
 | `dev/` | Fake OpenAI-compatible LLM, skill fixtures, Infisical e2e |
 | `examples/skills/` | Starter skills repo (`review-pr`, `debug-error`, `status-report`, `technical-docs`) + validator |
-| `docs/` | Setup and operations guides (Spanish), client instructions (English) |
+| `docs/` | Setup and operations guides (Spanish), client instructions, memory editing (English) |
+| `AGENTS.md`, `llms.txt` | Install checklist and doc index for AI agents |
 
 ## Contributing & license
 

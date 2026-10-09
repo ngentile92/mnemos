@@ -1,0 +1,29 @@
+# Mnemos
+
+> Self-hosted MCP hub that gives all your AI assistants (Claude, ChatGPT, Grok, Cursor) one shared
+> long-term memory, skills and API credentials, isolated per context (work / personal / side projects).
+> Runs on your own machine with Docker; exposed only via Tailscale Funnel with GitHub OAuth.
+
+Built on FastMCP (Python gateway, one per context), Cognee (knowledge-graph memory; Ollama or OpenAI for
+extraction), Infisical (secrets, never shown to the model), Vaultwarden, restic backups.
+MCP tools: hub_whoami, memory_search, memory_save, memory_list, memory_update, memory_delete,
+memory_history, memory_undo, skills_list, skills_get, secrets_list, secret_http_request.
+
+## Install and operate
+
+- [AGENTS.md](AGENTS.md): step-by-step install checklist and rules for AI agents
+- [README.md](README.md): overview, requirements, quickstart, connecting assistants, configuration, updating, security
+- [docs/SETUP.es.md](docs/SETUP.es.md): full setup guide (Spanish)
+- [docs/OPERATIONS.es.md](docs/OPERATIONS.es.md): day-to-day operations, tools and their limits (Spanish)
+
+## Reference
+
+- [docs/memory-editing.md](docs/memory-editing.md): what Cognee supports for editing, provenance registry, history and undo
+- [docs/client-instructions.md](docs/client-instructions.md): instructions to paste into clients that ignore MCP server instructions
+- [config/](config/): `.example` configuration files (contexts, secret policy)
+- [examples/skills/](examples/skills/): example skills repo layout
+
+## Optional
+
+- [SECURITY.md](SECURITY.md): security policy and how to report issues
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute

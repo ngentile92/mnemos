@@ -25,8 +25,10 @@ def repo(tmp_path):
     shutil.copy(SCRIPT, r / "scripts" / "update.sh")
     (r / ".gitignore").write_text(".env\ndev/\n")
     (r / ".env").write_text("SOMETHING=1\n")  # config real: gitignored, update.sh no la toca
+    (r / "gateway").mkdir()
     for v in ("1", "2", "3"):
         (r / "version").write_text(v)
+        (r / "gateway" / "code.py").write_text(f"V = {v}\n")
         git(r, "add", "-A")
         git(r, "commit", "-qm", f"v{v}")
         git(r, "tag", f"v0.{v}.0")
@@ -92,3 +94,11 @@ def test_dirty_tree_and_dry_run_change_nothing(repo):
 def test_unknown_ref(repo):
     p, calls, _ = run(repo, "v9.9.9")
     assert p.returncode == 1 and "ref desconocido" in p.stdout and calls == []
+
+
+def test_same_code_does_not_rebuild(repo):
+    run(repo, "v0.2.0")
+    repo[2].unlink()
+    p, calls, version = run(repo, "v0.2.0")
+    assert p.returncode == 0 and version == "2" and "no reconstruyo" in p.stdout
+    assert calls == ["compose up -d --wait --wait-timeout 180 @2"]

@@ -12,7 +12,7 @@
 # Nunca corre `down` ni toca volúmenes, .env, cognee.env, config/ ni secrets/ (todo gitignored).
 # Requiere el árbol versionado limpio (sin cambios en archivos trackeados).
 #
-# Variables (para tests o casos raros): MNEMOS_SMOKE_CMD (comando del smoke test), MNEMOS_SMOKE_TRIES (3),
+# Variables (para tests o casos raros): MNEMOS_FORCE_BUILD=1 (rebuild aunque no cambie gateway/), MNEMOS_SMOKE_CMD (comando del smoke test), MNEMOS_SMOKE_TRIES (3),
 # MNEMOS_SMOKE_WAIT (segundos entre intentos, 20), MNEMOS_SKIP_FETCH=1, MNEMOS_REMOTE (origin).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -66,6 +66,8 @@ fi
 uses_generated() { [[ "${COMPOSE_FILE:-$(envval COMPOSE_FILE || true)}" == *compose.generated.yaml* ]]; }
 
 deploy() {  # $1 = ref a desplegar. Ojo: dentro de `if` bash ignora set -e, por eso cada paso lleva `|| return 1`.
+  local from
+  from="$(git rev-parse HEAD)"
   if git show-ref -q --verify "refs/heads/$1"; then git checkout -q "$1" || return 1
   else git checkout -q --detach "$1" || return 1; fi
   if uses_generated; then
@@ -76,8 +78,14 @@ deploy() {  # $1 = ref a desplegar. Ojo: dentro de `if` bash ignora set -e, por 
     log "pip install del gateway en .venv"
     .venv/bin/pip install -q -e ./gateway || return 1
   fi
-  log "docker compose build"
-  docker compose build || return 1
+  # Cada `build` produce un image id nuevo aunque todo venga de caché (y eso recrea los gateways): solo se
+  # reconstruye si cambió el código de las imágenes. Si falta una imagen, `up` la construye solo.
+  if [[ "${MNEMOS_FORCE_BUILD:-0}" == 1 ]] || ! git diff --quiet "$from" HEAD -- gateway skills-sync; then
+    log "docker compose build"
+    docker compose build || return 1
+  else
+    log "sin cambios en gateway/ ni skills-sync/: no reconstruyo imágenes"
+  fi
   log "docker compose up -d --wait (solo recrea lo que cambió; espera healthchecks)"
   docker compose up -d --wait --wait-timeout "${MNEMOS_WAIT_TIMEOUT:-180}" || return 1
 }

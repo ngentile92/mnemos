@@ -175,6 +175,27 @@ class CogneeClient:
             return None
         return r.content[:max_bytes].decode("utf-8", errors="replace")
 
+    async def update(self, dataset_id: str, data_id: str, text: str, node_set: list[str] | None = None) -> Any:
+        """Edit a note in place (PATCH /api/v1/update): keeps data_id and createdAt.
+        Send node_set ONLY when tags change: it forces a full rebuild that drops external_metadata."""
+        if not text.strip():
+            raise MemoryError_("texto vacío")
+        if len(text) > MAX_TEXT_CHARS:
+            raise MemoryError_(f"texto demasiado largo (máx {MAX_TEXT_CHARS} caracteres)")
+        files: list[tuple[str, tuple[str | None, str] | tuple[str, str, str]]] = [
+            ("data", ("note.txt", text, "text/plain"))]
+        for n in node_set or []:
+            files.append(("node_set", (None, n)))
+        async with self._client() as c:
+            r = await c.patch("/api/v1/update", params={"data_id": data_id, "dataset_id": dataset_id}, files=files)
+        if r.status_code in (403, 404):
+            raise MemoryError_(f"Cognee negó la corrección (HTTP {r.status_code})")
+        r.raise_for_status()
+        out = r.json()
+        if isinstance(out, dict) and out.get("status") == "failed":
+            raise RuntimeError(f"cognee update failed: {(out.get('error') or {}).get('error_class')}")
+        return out
+
     async def delete_data(self, dataset_id: str, data_id: str) -> None:
         async with self._client() as c:
             r = await c.delete(f"/api/v1/datasets/{dataset_id}/data/{data_id}")

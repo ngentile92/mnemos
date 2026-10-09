@@ -16,8 +16,9 @@ watchdog, backups. El setup inicial paso a paso está en [`SETUP.es.md`](SETUP.e
 | `memory_search` | Busca en la memoria del contexto (+ `shared` si `include_shared`) | Solo datasets del contexto; no usa LLM |
 | `memory_save` | Guarda un hecho en el dataset del contexto o en `shared` | En `side` exige `project` |
 | `memory_list` | Lista notas con **id**, dataset, fecha, app de origen y texto (filtro `contains`, `project`) | Datasets del contexto (+ `shared` solo lectura con `include_shared`) |
-| `memory_update` | Reemplaza una nota propia por una versión corregida (guarda la nueva y recién después borra la vieja; el id cambia) | Solo datasets **propios** del contexto; nunca `shared` |
-| `memory_delete` | Borra una nota propia (y lo que el grafo sacó solo de ella) | Solo datasets **propios**; el id se verifica contra el listado del contexto antes de borrar |
+| `memory_update` | Corrige una nota propia en el lugar (`PATCH` de Cognee: mismo id y fecha; la versión anterior queda en el historial) | Solo datasets **propios** del contexto; nunca `shared` |
+| `memory_delete` | Retira una nota propia (y lo que el grafo sacó solo de ella); guarda copia para deshacer | Solo datasets **propios**; el id se verifica contra el listado del contexto antes de borrar |
+| `memory_history` / `memory_undo` | Ver versiones anteriores de una nota / deshacer la última corrección o restaurar una borrada | Solo datasets **propios**; historial en `ledger.sqlite` del gateway |
 | `skills_list` / `skills_get` | Skills visibles para el contexto (carpeta propia + `shared` + `hub-share`) | Sin traversal ni symlinks |
 | `secrets_list` | Nombres y hosts permitidos, **nunca valores** | – |
 | `secret_http_request` | Hace el request HTTPS inyectando el secreto; la respuesta vuelve redactada | Host exacto de la policy, puerto 443, sin IPs privadas, sin redirects |

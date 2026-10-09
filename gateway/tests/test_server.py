@@ -34,6 +34,7 @@ class CogneeRecorder:
         self.recalls = []
         self.remembers = []
         self.deletes = []
+        self.patches = []
         # una nota por dataset con texto propio
         self.items = {DATASETS[n]: [{"id": i, "createdAt": f"2026-09-29T1{k}:00:00", "mimeType": "text/plain",
                                      "externalMetadata": {"source_app": "test", "tags": ["t"]}}]
@@ -61,6 +62,12 @@ class CogneeRecorder:
         if request.url.path == "/api/v1/remember":
             self.remembers.append(request.content.decode())
             return httpx.Response(200, json={"status": "running"})
+        if request.url.path == "/api/v1/update" and request.method == "PATCH":
+            did = request.url.params["data_id"]
+            body = request.content.decode()
+            self.patches.append((request.url.params["dataset_id"], did, body))
+            self.texts[did] = body.split("\r\n\r\n", 1)[1].split("\r\n--", 1)[0]
+            return httpx.Response(200, json={"status": "incremental" if "node_set" not in body else "full_rebuild"})
         return httpx.Response(404)
 
 
@@ -91,13 +98,13 @@ async def test_tool_surface_has_no_shell(make_server):
     async with Client(server) as c:
         tools = {t.name: t for t in await c.list_tools()}
     assert set(tools) == {"hub_whoami", "memory_search", "memory_save", "memory_list", "memory_update",
-                          "memory_delete", "skills_list", "skills_get", "secrets_list", "secret_http_request"}
+                          "memory_delete", "memory_history", "memory_undo", "skills_list", "skills_get", "secrets_list", "secret_http_request"}
     for name in tools:
         assert not any(w in name for w in ("forget", "shell", "exec", "prune"))
-    for ro in ("hub_whoami", "memory_search", "memory_list", "skills_list", "skills_get", "secrets_list"):
+    for ro in ("hub_whoami", "memory_search", "memory_list", "memory_history", "skills_list", "skills_get", "secrets_list"):
         assert tools[ro].annotations.read_only_hint is True
     assert tools["memory_save"].annotations.read_only_hint is False
-    for destructive in ("memory_delete", "memory_update"):
+    for destructive in ("memory_delete", "memory_update", "memory_undo"):
         assert tools[destructive].annotations.destructive_hint is True
 
 
@@ -282,7 +289,7 @@ async def test_memory_delete_own_note(make_server, tmp_path):
     server, rec = make_server("personal")
     async with Client(server) as c:
         out = data(await c.call_tool("memory_delete", {"id": NOTE_IDS["personal"]}))
-    assert out == {"deleted": NOTE_IDS["personal"], "dataset": "personal"}
+    assert out["deleted"] == NOTE_IDS["personal"] and out["dataset"] == "personal"
     assert rec.deletes == [(DATASETS["personal"], NOTE_IDS["personal"])]
     log = (tmp_path / "audit.log").read_text()
     assert "memory_delete" in log and "orion" not in log
@@ -302,23 +309,77 @@ async def test_memory_delete_refuses_shared_foreign_and_bad_ids(make_server):
     assert rec.deletes == [] and rec.remembers == []
 
 
-async def test_memory_update_saves_then_deletes(make_server):
+async def test_memory_update_patches_in_place(make_server):
+    server, rec = make_server("personal")
+    pid = NOTE_IDS["personal"]
+    async with Client(server) as c:
+        out = data(await c.call_tool("memory_update", {"id": pid, "text": "versión corregida"}))
+        hist = data(await c.call_tool("memory_history", {"id": pid}))
+    assert out["updated"] == pid and out["status"] == "incremental"
+    assert rec.patches[0][:2] == (DATASETS["personal"], pid) and "node_set" not in rec.patches[0][2]
+    assert rec.remembers == [] and rec.deletes == []
+    assert rec.texts[pid] == "versión corregida"
+    assert hist["previous_versions"][0]["text"] == "nota de personal sobre orion"
+    assert hist["previous_versions"][0]["action"] == "update"
+
+
+async def test_memory_update_tags_change_sends_node_set(make_server):
     server, rec = make_server("personal")
     async with Client(server) as c:
-        out = data(await c.call_tool("memory_update", {"id": NOTE_IDS["personal"], "text": "versión corregida"}))
-    assert out["replaced"] == NOTE_IDS["personal"] and out["saved_to"] == "personal"
-    assert len(rec.remembers) == 1 and DATASETS["personal"] in rec.remembers[0]
-    assert "versión corregida" in rec.remembers[0] and f'"replaces": "{NOTE_IDS["personal"]}"' in rec.remembers[0]
-    assert '"tags": ["t"]' in rec.remembers[0]  # conserva las etiquetas si no se pasan
-    assert rec.deletes == [(DATASETS["personal"], NOTE_IDS["personal"])]
+        out = data(await c.call_tool("memory_update", {"id": NOTE_IDS["personal"], "text": "otra", "tags": ["n"]}))
+    assert out["status"] == "full_rebuild" and "node_set" in rec.patches[0][2]
 
 
-async def test_memory_update_keeps_old_note_if_save_fails(make_server):
+async def test_memory_undo_walks_back_corrections(make_server):
+    server, rec = make_server("personal")
+    pid = NOTE_IDS["personal"]
+    async with Client(server) as c:
+        await c.call_tool("memory_update", {"id": pid, "text": "ver2"})
+        await c.call_tool("memory_update", {"id": pid, "text": "ver3"})
+        assert data(await c.call_tool("memory_undo", {"id": pid}))["action"] == "reverted"
+        assert rec.texts[pid] == "ver2"
+        await c.call_tool("memory_undo", {"id": pid})
+        assert rec.texts[pid] == "nota de personal sobre orion"
+        with pytest.raises(ToolError, match="nada para deshacer"):
+            await c.call_tool("memory_undo", {"id": pid})
+        hist = data(await c.call_tool("memory_history", {"id": pid}))
+    assert [v["action"] for v in hist["previous_versions"]] == ["undone", "undone"]
+
+
+async def test_memory_delete_then_undo_restores(make_server):
+    server, rec = make_server("personal")
+    pid = NOTE_IDS["personal"]
+    async with Client(server) as c:
+        await c.call_tool("memory_delete", {"id": pid})
+        out = data(await c.call_tool("memory_undo", {"id": pid}))
+        h = data(await c.call_tool("memory_history", {"id": pid}))
+    assert out["action"] == "restored" and out["text"] == "nota de personal sobre orion"
+    assert len(rec.remembers) == 1 and "nota de personal sobre orion" in rec.remembers[0]
+    assert f'"restored_from": "{pid}"' in rec.remembers[0]
+    assert h["deleted"] is False
+
+
+async def test_history_and_undo_scoped_to_own_context(make_server):
+    server, rec = make_server("work")
+    async with Client(server) as c:
+        await c.call_tool("memory_delete", {"id": NOTE_IDS["work"]})
+    server, rec2 = make_server("personal")  # same data dir would be per-context in compose
+    async with Client(server) as c:
+        with pytest.raises(ToolError, match="no hay"):
+            await c.call_tool("memory_history", {"id": NOTE_IDS["work"]})
+        with pytest.raises(ToolError, match="nada para deshacer"):
+            await c.call_tool("memory_undo", {"id": NOTE_IDS["work"]})
+        with pytest.raises(ToolError, match="inválido"):
+            await c.call_tool("memory_history", {"id": "x"})
+    assert rec2.remembers == []
+
+
+async def test_memory_update_keeps_old_note_if_patch_fails(make_server):
     server, rec = make_server("personal")
     orig = rec.handler
 
     def failing(request):
-        if request.url.path == "/api/v1/remember":
+        if request.url.path == "/api/v1/update":
             return httpx.Response(500)
         return orig(request)
 

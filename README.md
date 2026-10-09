@@ -54,7 +54,8 @@ per context, each in front of its gateway, each requiring OAuth with an allow-li
 | `memory_search` | Searches the context's memory (+ `shared` with `include_shared`) | Context datasets only; no LLM on reads |
 | `memory_save` | Saves a fact to the context (or `shared`) | Contexts with projects require `project` |
 | `memory_list` | Lists notes with id, dataset, date, source app and text | Context datasets (+ read-only `shared`) |
-| `memory_update` / `memory_delete` | Fix or remove one of the context's own notes | Never `shared`; marked destructive so clients ask first |
+| `memory_update` / `memory_delete` | Fix (in place, same id) or remove one of the context's own notes | Never `shared`; marked destructive so clients ask first |
+| `memory_history` / `memory_undo` | Previous versions of a note; undo the last fix or restore a removed note | Own notes only; history kept in the gateway's `ledger.sqlite` |
 | `skills_list` / `skills_get` | Skills visible to the context (own folder + `shared` + `hub-share`) | No traversal, no symlinks |
 | `secrets_list` | Secret **names** and allowed hosts | Never values |
 | `secret_http_request` | Makes the HTTPS request with the secret injected | Exact host from the policy, port 443, no private IPs, no redirects, response redacted |

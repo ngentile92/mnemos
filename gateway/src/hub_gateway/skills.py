@@ -4,6 +4,10 @@ Layout esperado del repo de skills (clonado por skills-sync en HUB_SKILLS_ROOT):
 
     skills/<owner>/<name>/SKILL.md     owner ∈ {shared, work, personal, side}
 
+Formato: Agent Skills (`name`, `description`, `metadata`). También acepta SKILL.md en formato gbrain
+(`triggers`, `version`, `tools`, `mutating`, más claves propias que se ignoran) y los archivos de soporte
+de un skillpack de gbrain (`_*.md`, `RESOLVER.md`, `conventions/`): ver docs/skills-gbrain.md.
+
 Visibilidad:
   * skills/shared/**  -> visible en todos los contextos
   * skills/<ctx>/**   -> visible en <ctx> y en los contextos listados en metadata.hub-share
@@ -39,6 +43,23 @@ class Skill:
     path: Path  # directorio de la skill
     share: frozenset[str] = field(default_factory=frozenset)
     metadata: dict[str, str] = field(default_factory=dict)
+    triggers: tuple[str, ...] = ()
+    version: str | None = None
+    tools: tuple[str, ...] = ()
+    mutating: bool | None = None
+
+    def summary(self) -> dict[str, object]:
+        """What skills_list shows: always name/description/owner; gbrain fields only when declared."""
+        out: dict[str, object] = {"name": self.name, "description": self.description, "owner": self.owner}
+        if self.triggers:
+            out["triggers"] = list(self.triggers)
+        if self.version:
+            out["version"] = self.version
+        if self.tools:
+            out["tools"] = list(self.tools)
+        if self.mutating is not None:
+            out["mutating"] = self.mutating
+        return out
 
     def visible_in(self, context: str) -> bool:
         return self.owner == SHARED or self.owner == context or context in self.share
@@ -58,10 +79,35 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
     return data, body
 
 
+# gbrain tool names -> closest Mnemos tool (for skills written for gbrain). None = no equivalent.
+GBRAIN_TOOL_MAP: dict[str, str] = {
+    "recall": "memory_search", "search": "memory_search", "query": "memory_search",
+    "get_backlinks": "memory_search", "traverse_graph": "memory_search", "get_timeline": "memory_search",
+    "get_page": "memory_list", "list_pages": "memory_list",
+    "put_page": "memory_save", "add_timeline_entry": "memory_save", "put_raw_data": "memory_save",
+}
+MAX_TRIGGERS = 50
+
+
+def _str_list(value: object, key: str, where: Path) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list) or not all(isinstance(v, (str, int, float)) for v in value):
+        raise SkillError(f"{where}: {key} debe ser una lista de textos")
+    return tuple(str(v).strip() for v in value if str(v).strip())
+
+
+def tool_equivalents(tools: tuple[str, ...]) -> dict[str, str | None]:
+    """For a skill's declared tools: Mnemos tool to use instead (None if there is none)."""
+    mnemos = {"memory_search", "memory_save", "memory_list", "memory_update", "memory_delete", "memory_history",
+              "memory_undo", "skills_list", "skills_get", "secrets_list", "secret_http_request", "hub_whoami"}
+    return {t: (t if t in mnemos else GBRAIN_TOOL_MAP.get(t.removeprefix("mcp:"))) for t in tools}
+
+
 def load_skill(skill_md: Path, owner: str) -> Skill:
     data, _ = parse_frontmatter(skill_md.read_text(encoding="utf-8"))
     name = str(data.get("name", "")).strip()
-    desc = str(data.get("description", "")).strip()
+    desc = " ".join(str(data.get("description", "")).split())  # gbrain uses multi-line `description: |`
     folder = skill_md.parent.name
     if not name or not desc:
         raise SkillError(f"{skill_md}: faltan name o description")
@@ -80,7 +126,17 @@ def load_skill(skill_md: Path, owner: str) -> Skill:
     unknown = share - set(CONTEXTS)
     if unknown:
         raise SkillError(f"{skill_md}: hub-share con contextos desconocidos: {sorted(unknown)}")
-    return Skill(name=name, description=desc, owner=owner, path=skill_md.parent, share=share, metadata=meta)
+    triggers = _str_list(data.get("triggers"), "triggers", skill_md)
+    if len(triggers) > MAX_TRIGGERS:
+        raise SkillError(f"{skill_md}: demasiados triggers (máx {MAX_TRIGGERS})")
+    tools = _str_list(data.get("tools"), "tools", skill_md)
+    mutating = data.get("mutating")
+    if mutating is not None and not isinstance(mutating, bool):
+        raise SkillError(f"{skill_md}: mutating debe ser true o false")
+    version = str(data["version"]).strip() if data.get("version") is not None else None
+    return Skill(name=name, description=desc, owner=owner, path=skill_md.parent, share=share, metadata=meta,
+                 triggers=tuple(t[:200] for t in triggers), version=version or None, tools=tools,
+                 mutating=mutating)
 
 
 def scan(root: Path) -> tuple[dict[str, Skill], list[str]]:

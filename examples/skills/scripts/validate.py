@@ -9,6 +9,9 @@ Rules:
   * `metadata` (optional) is a map; `metadata.hub-owner`, if present, matches the folder;
     `metadata.hub-share` is a space-separated list of valid contexts.
   * Unique names across the repo. No symlinks. Files <= 256 KiB.
+  * gbrain-format skills are accepted: optional `triggers` / `tools` (lists of strings), `mutating` (bool),
+    `version`; other keys are ignored. gbrain skillpack support files are allowed next to the skills:
+    `_*` / `RESOLVER.md` files and `_*`, `conventions/`, `migrations/` folders (no SKILL.md needed).
   * Anti-secret heuristic: rejects typical token and private-key patterns.
 
 Usage: python scripts/validate.py [root]   (requires PyYAML)
@@ -56,7 +59,7 @@ def parse_frontmatter(text: str) -> dict:
 def check_skill(skill_md: Path, owner: str) -> str:
     data = parse_frontmatter(skill_md.read_text(encoding="utf-8"))
     name = str(data.get("name", "")).strip()
-    desc = str(data.get("description", "")).strip()
+    desc = " ".join(str(data.get("description", "")).split())
     if not name or not desc:
         raise ValueError("missing name or description")
     if name != skill_md.parent.name:
@@ -74,7 +77,18 @@ def check_skill(skill_md: Path, owner: str) -> str:
     share = set(str(meta.get("hub-share", "")).split())
     if share - set(CONTEXTS):
         raise ValueError(f"hub-share with unknown contexts: {sorted(share - set(CONTEXTS))}")
+    for key in ("triggers", "tools"):
+        val = data.get(key)
+        if val is not None and (not isinstance(val, list) or not all(isinstance(v, (str, int, float)) for v in val)):
+            raise ValueError(f"{key} must be a list of strings")
+    if len(data.get("triggers") or []) > 50:
+        raise ValueError("more than 50 triggers")
+    if data.get("mutating") is not None and not isinstance(data.get("mutating"), bool):
+        raise ValueError("mutating must be true or false")
     return name
+
+
+SUPPORT_DIRS = {"conventions", "migrations"}
 
 
 def validate(root: Path) -> list[str]:
@@ -109,6 +123,8 @@ def validate(root: Path) -> list[str]:
             continue
         for d in sorted(p for p in odir.iterdir() if p.is_dir() and not p.is_symlink()):
             skill_md = d / "SKILL.md"
+            if not skill_md.is_file() and (d.name.startswith("_") or d.name in SUPPORT_DIRS):
+                continue  # gbrain skillpack support folder
             if not skill_md.is_file():
                 errors.append(f"{d.relative_to(root)}: missing SKILL.md")
                 continue

@@ -59,6 +59,24 @@ def score(ranks: list[int | None], latencies: list[float], chars: list[int] | No
     }
 
 
+async def eval_entities(m: Any, corpus: list[dict[str, Any]], cases: list[dict[str, Any]]) -> dict[str, Any]:
+    """memory_entity: recall/precision of the notes gathered on each entity page."""
+    key_of = {norm(n["text"]): n["key"] for n in corpus}
+    tp = fp = fn = 0
+    lat = []
+    for case in cases:
+        t = time.perf_counter()
+        out = _data(await m.call_tool("memory_entity", {"name": case["entity"], "include_shared": False,
+                                                        "summarize": False}))
+        lat.append(time.perf_counter() - t)
+        got = {key_of.get(norm(n["text"])) for n in out["notes"]}
+        want = set(case["keys"])
+        tp, fp, fn = tp + len(got & want), fp + len(got - want), fn + len(want - got)
+    return {"pages": len(cases), "recall": round(tp / ((tp + fn) or 1), 3),
+            "precision": round(tp / ((tp + fp) or 1), 3),
+            "p50_ms": round(statistics.median(lat) * 1000) if lat else 0}
+
+
 async def eval_answers(m: Any, queries: list[dict[str, Any]]) -> dict[str, Any]:
     """memory_answer: answerable queries must be answered right AND cited; unanswerable ones must say unknown."""
     ok = cited = abstained = wrong = 0
@@ -139,9 +157,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             for mode in args.modes:
                 ranks, lat, misses, chars = [], [], [], []
                 for q in queries:
-                    params: dict[str, Any] = {"query": q["q"], "top_k": 5, "include_shared": False}
-                    if mode != "graph":
-                        params["mode"] = mode
+                    params: dict[str, Any] = {"query": q["q"], "top_k": 5, "include_shared": False, "mode": mode}
                     t = time.perf_counter()
                     out = _data(await m.call_tool("memory_search", params))
                     lat.append(time.perf_counter() - t)
@@ -153,6 +169,9 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                         misses.append(q["q"])
                 report["modes"][mode] = {**score(ranks, lat, chars), "misses": misses}
                 print(f"{mode:10s} {report['modes'][mode]}", file=sys.stderr)
+            if args.entities:
+                report["entities"] = await eval_entities(m, corpus, load_jsonl(args.eval_dir / "entities.jsonl"))
+                print(f"entities   {report['entities']}", file=sys.stderr)
             if args.answer:
                 report["answer"] = await eval_answers(m, all_queries)
                 print(f"answer     {report['answer']}", file=sys.stderr)
@@ -171,12 +190,13 @@ def main() -> int:
 
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--context", default="personal", help="context whose tools are evaluated")
-    ap.add_argument("--modes", nargs="+", default=["graph"], help="memory_search modes to compare")
+    ap.add_argument("--modes", nargs="+", default=["graph", "auto"], help="memory_search modes to compare")
     ap.add_argument("--eval-dir", type=Path, default=ROOT / "eval")
     ap.add_argument("--url", default=BASE)
     ap.add_argument("--keep", action="store_true")
     ap.add_argument("--keep-file", default=os.path.join(tempfile.gettempdir(), "mnemos-eval-datasets.json"))
     ap.add_argument("--reuse")
+    ap.add_argument("--entities", action="store_true", help="also evaluate memory_entity pages")
     ap.add_argument("--answer", action="store_true", help="also evaluate memory_answer (needs HUB_ANSWER_MODEL)")
     ap.add_argument("--out", type=Path, help="write the JSON report here")
     args = ap.parse_args()

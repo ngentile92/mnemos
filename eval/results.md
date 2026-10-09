@@ -33,3 +33,8 @@ Same answers found while returning ~4x less text, with note ids, and without cal
 | p50 latency | 2.2 s |
 
 The one miss ("¿Tomo café con azúcar?") is a strict-match miss: the model answers "no" without repeating "sin azúcar".
+
+### 2026-10-09 — `memory_entity` (entity pages per context)
+
+5 entities (`eval/entities.jsonl`), notes gathered by `[[link]]` or exact name: recall 1.00, precision 1.00, p50 2 ms
+(without summary; the optional summary uses `memory_answer`'s local model, ~2 s).

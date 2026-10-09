@@ -23,7 +23,7 @@ skills/
 One folder per context in your `config/contexts.yaml` (plus `shared/`). A context's skill can be shared with others
 by adding `metadata.hub-share: "side"` (space-separated list).
 
-Included examples (all in `shared/`): `review-pr`, `debug-error`, `status-report`, `technical-docs`.
+Included examples: `shared/` → `review-pr`, `debug-error`, `status-report`, `technical-docs`, `memory-capture` (gbrain-style frontmatter), `meeting-notes`; `personal/weekly-review`; `work/incident-postmortem`; `side/release-notes` (gbrain-style). Delete or rename the per-context ones to match your contexts.
 
 ## Writing a skill
 

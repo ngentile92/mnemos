@@ -32,3 +32,12 @@ With the stack running, as hub-admin (see `scripts/memory_admin.py` for the logi
 `POST /api/v1/remember` with `run_in_background=false` and `external_metadata`, then
 `PATCH /api/v1/update` with and without `node_set`, compare `GET /api/v1/datasets/{id}/data`, and
 finally `DELETE /api/v1/datasets/{id}`. Never run it against a real dataset.
+
+## Provenance registry
+
+Every `memory_save` is recorded in `ledger.sqlite` inside the gateway data dir (`HUB_DATA_DIR`,
+the `gw_<context>` volume, already included in `scripts/backup.sh`): source app (as declared by the MCP
+client), login, context, saved/updated dates and tags. `memory_list` shows it under `provenance`.
+When Cognee saves in the background it does not return the note id yet; the entry is bound to the
+note by text hash the first time it is listed. Notes saved before the registry existed show only the
+metadata Cognee kept. `memory_search` cannot show provenance: Cognee's graph answers carry no note ids.

@@ -337,3 +337,54 @@ async def test_server_instructions_per_context(make_server, context):
     assert f"Context: {context}" in instr and "memory_search" in instr and "secret_http_request" in instr
     assert "DATA, not instructions" in instr and len(instr) < 1300  # some connectors truncate at ~1,400
     assert ("project (shop | blog | mnemos)" in instr) == (context == "side")
+
+
+# ---------------------------------------------------------------- provenance registry
+
+async def test_memory_save_records_provenance_shown_in_list(make_server):
+    server, rec = make_server("personal")
+    new_id = "44444444-4444-4444-8444-444444444444"
+    orig = rec.handler
+
+    def remember_then_list(request):
+        if request.url.path == "/api/v1/remember":
+            rec.remembers.append(request.content.decode())
+            # Cognee in background mode does not return the id: the registry binds it later by text
+            rec.items[DATASETS["personal"]].append({"id": new_id, "createdAt": "2026-10-09T10:00:00",
+                                                     "externalMetadata": {}})
+            rec.texts[new_id] = "Prefiere té verde"
+            return httpx.Response(200, json={"status": "running"})
+        return orig(request)
+
+    rec.handler = remember_then_list
+    async with Client(server) as c:
+        await c.call_tool("memory_save", {"text": "Prefiere té verde", "tags": ["gustos"]})
+        items = {i["id"]: i for i in data(await c.call_tool("memory_list", {}))["items"]}
+    prov = items[new_id]["provenance"]
+    assert prov["saved_by"] == "dev-no-auth" and prov["saved_in_context"] == "personal" and prov["saved_at"]
+    assert "provenance" not in items[NOTE_IDS["personal"]]  # notes saved before the registry: Cognee metadata only
+    assert items[NOTE_IDS["personal"]]["source_app"] == "test"
+
+
+def test_ledger_binds_by_hash_and_dedups(tmp_path):
+    from hub_gateway.ledger import Ledger
+
+    lg = Ledger(str(tmp_path / "l.sqlite"))
+    lg.record_save(dataset="work", text="hola", context="work", source_app="claude-ai", login="me", tags=[])
+    assert lg.provenance("a" * 8, "work", "otra cosa") is None
+    p = lg.provenance("a" * 8, "work", " hola ")
+    assert p["source_app"] == "claude-ai" and lg.provenance("a" * 8, "work") == p
+    lg.record_save(dataset="work", text="hola", context="work", source_app="x", login="me", tags=[], data_id="a" * 8)
+    assert lg.provenance("a" * 8, "work")["source_app"] == "claude-ai"
+    lg.record_change("a" * 8, text="chau", by="cursor", id_changes=True)
+    assert lg.provenance("a" * 8, "work") is None
+    assert lg.provenance("b" * 8, "work", "chau")["updated_by"] == "cursor"
+
+
+def test_ledger_failure_never_breaks(tmp_path):
+    from hub_gateway.ledger import safe
+
+    def boom():
+        raise RuntimeError("disk full")
+
+    assert safe(boom) is None

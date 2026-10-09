@@ -19,6 +19,7 @@ from .concurrency import DuplicateRequestIdGuard
 from .config import Settings
 from .contexts import SERVER_NAME_PREFIX, get_context
 from .instructions import server_instructions
+from .ledger import Ledger, safe
 from .memory import CogneeClient, DatasetMap, MemoryError_, MemoryScope, item_summary, simplify_results
 from .secrets import InfisicalFetcher, SecretBroker, SecretPolicyError, load_policy
 from .skills import SkillError, SkillIndex
@@ -63,6 +64,15 @@ def _client_app() -> str | None:
     return _APP_RE.sub("", label)[:60] or None
 
 
+def _returned_id(res: Any) -> str | None:
+    """data id from a /remember response, when Cognee includes it."""
+    if isinstance(res, dict):
+        items = res.get("items") or []
+        if len(items) == 1 and isinstance(items[0], dict) and items[0].get("id"):
+            return str(items[0]["id"])
+    return None
+
+
 def build_server(
     settings: Settings,
     *,
@@ -71,9 +81,11 @@ def build_server(
     skills: SkillIndex | None = None,
     broker: SecretBroker | None = None,
     audit: Audit | None = None,
+    ledger: Ledger | None = None,
 ) -> FastMCP:
     ctx = get_context(settings.context)
     audit = audit or Audit(settings.context, os.path.join(settings.data_dir, "audit.log"))
+    ledger = ledger or Ledger(os.path.join(settings.data_dir, "ledger.sqlite"))
     skills = skills or SkillIndex(settings.skills_root, settings.context)
     cognee = cognee or CogneeClient(
         settings.cognee_url,
@@ -197,6 +209,8 @@ def build_server(
             audit.log("memory_save", login, "error", error=type(exc).__name__)
             raise ToolError("no pude guardar en la memoria (Cognee no respondió)") from exc
         status = res.get("status") if isinstance(res, dict) else None
+        safe(ledger.record_save, dataset=name, text=text, context=ctx.name, source_app=app, login=login,
+             tags=clean_tags, data_id=_returned_id(res))
         audit.log("memory_save", login, "ok", dataset=name, chars=len(text), app=app)
         return {"saved_to": name, "status": status or "accepted", "source_app": app,
                 "note": "la extracción al grafo corre en segundo plano; puede tardar en aparecer en búsquedas"}
@@ -221,7 +235,8 @@ def build_server(
         include_shared: Annotated[bool, Field(description="Incluir notas de shared (solo lectura)")] = False,
         limit: Annotated[int, Field(ge=1, le=100)] = 20,
     ) -> dict[str, Any]:
-        """Lista las notas guardadas (más nuevas primero) con su id, dataset, fecha, app de origen y texto.
+        """Lista las notas guardadas (más nuevas primero) con su id, dataset, fecha, origen (provenance: app,
+        usuario, contexto y fechas de guardado/corrección) y texto.
         Usá el id con memory_update o memory_delete. Las de shared se muestran pero no se pueden editar."""
         login = _current_login(settings)
         needle = (contains or "").strip().lower()
@@ -239,6 +254,10 @@ def build_server(
                         continue
                     it = item_summary(d, name)
                     it["editable"] = name != "shared"
+                    prov = safe(ledger.provenance, str(d.get("id")), name, text)
+                    if prov:
+                        it["provenance"] = prov
+                        it["source_app"] = it["source_app"] or prov["source_app"]
                     it["chars"] = len(text)
                     it["text"] = text[:1500]
                     items.append(it)
@@ -298,6 +317,8 @@ def build_server(
             audit.log("memory_update", login, "error", data_id=id, error=type(exc).__name__)
             raise ToolError("no pude corregir la nota (Cognee no respondió); revisá con memory_list") from exc
         status = res.get("status") if isinstance(res, dict) else None
+        safe(ledger.record_change, id, text=text, by=app, tags=clean_tags, new_data_id=_returned_id(res),
+             id_changes=True)
         audit.log("memory_update", login, "ok", data_id=id, dataset=name, chars=len(text), app=app)
         return {"replaced": id, "saved_to": name, "status": status or "accepted",
                 "note": "la versión nueva tiene otro id (ver memory_list); el grafo se actualiza en segundo plano"}

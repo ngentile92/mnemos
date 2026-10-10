@@ -91,9 +91,12 @@
     <span class="muted small me-hint">Edits only from this Mac · every change is versioned (Undo)</span>
   </section>
   <section class="card me-dispute">
-    <div class="card-h"><h2>Something isn't right?</h2><span class="muted small">Say what changed. Mnemos looks for the note that says otherwise and proposes a minimal fix; nothing changes until you apply it.</span></div>
-    <div class="me-row"><input id="me-dispute" maxlength="1000" placeholder="e.g. I'm not looking for a new job these days">
-    <button id="me-dispute-go" class="mbtn primary">Find what to fix</button></div>
+    <div class="card-h"><h2>Add or correct something</h2></div>
+    <p class="muted small me-help">Write a fact in one sentence. Mnemos first looks for a note that says otherwise:
+      <b>if one does</b>, it proposes a minimal fix you can apply; <b>if none does</b>, you can save it as a new note.
+      Nothing is written until you click.</p>
+    <div class="me-row"><input id="me-dispute" maxlength="1000" placeholder="e.g. I'm not looking for a new job these days · I want every change in its own PR">
+    <button id="me-dispute-go" class="mbtn primary">Check</button></div>
     <div id="me-proposals"></div>
   </section>
   <section class="me-grid">

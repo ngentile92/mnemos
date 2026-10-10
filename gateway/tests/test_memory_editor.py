@@ -123,3 +123,12 @@ def test_pin_obsolete_dispute_via_dashboard(dash):
     r = post(base, "/api/memory/dispute", {"context": "personal", "correction": "orion ya cerró"})
     assert r.status_code == 200 and "proposals" in r.json() and not rec.patches
     assert post(base, "/api/memory/dispute", {"context": "personal", "correction": "x"}).status_code == 400
+
+
+def test_save_new_note_via_dashboard(dash):
+    base, rec, _ = dash
+    r = post(base, "/api/memory/save", {"context": "personal", "text": "Quiero cada cambio en su propio PR"})
+    assert r.status_code == 200, r.text
+    assert rec.remembers and "Quiero cada cambio en su propio PR" in rec.remembers[-1] and "dashboard" in rec.remembers[-1]
+    assert post(base, "/api/memory/save", {"context": "personal", "text": "x"}).status_code == 400
+    assert httpx.post(f"{base}/api/memory/save", json={"context": "personal", "text": "abcdef"}).status_code == 403

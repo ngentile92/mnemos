@@ -161,3 +161,4 @@ footer{color:var(--muted);text-align:center;font-size:12px;padding:10px 20px 26p
 .me-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111827;border:1px solid var(--line);color:var(--txt);padding:10px 16px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:50;display:flex;gap:12px;align-items:center}
 .me-toast button{background:none;border:0;color:var(--cb);font:600 13px inherit;cursor:pointer}
 .me-checked{margin-top:10px}.me-checked div{padding:3px 0;border-top:1px dashed var(--line)}.me-checked .ok{color:var(--live)}
+.me-help{margin:-6px 0 10px}.me-save select,.me-save input{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:7px 10px;font:inherit}

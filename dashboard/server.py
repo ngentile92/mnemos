@@ -589,7 +589,8 @@ POST_ROUTES: dict = {"/api/contexts/add": add_context, "/api/router/revoke": rou
                      "/api/memory/undo": lambda b: memory_action("undo", b),
                      "/api/memory/pin": lambda b: memory_action("pin", b),
                      "/api/memory/obsolete": lambda b: memory_action("obsolete", b),
-                     "/api/memory/dispute": lambda b: memory_action("dispute", b)}  # path → fn(body) -> dict
+                     "/api/memory/dispute": lambda b: memory_action("dispute", b),
+                     "/api/memory/save": lambda b: memory_action("save", b)}  # path → fn(body) -> dict
 
 
 def skills_dir() -> Path | None:

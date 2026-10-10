@@ -68,8 +68,9 @@ async def dev(cognee_url: str, state_dir: Path, wait_s: int) -> None:
     for c, cl in clients.items():
         async with cl:
             tools = {t.name for t in await cl.list_tools()}
-            check(not any(w in t for t in tools for w in ("delete", "forget", "shell", "exec")),
-                  f"{c}: sin tools de borrado/shell ({len(tools)} tools)")
+            # memory_delete existe (solo notas propias del contexto, con undo); nada de shell/exec ni borrado masivo
+            bad = {t for t in tools for w in ("delete", "forget", "shell", "exec") if w in t} - {"memory_delete"}
+            check(not bad, f"{c}: sin shell/exec ni borrado masivo ({len(tools)} tools){' → ' + str(sorted(bad)) if bad else ''}")
             who = payload(await cl.call_tool("hub_whoami", {}))
             check(who["context"] == c, f"{c}: hub_whoami devuelve el contexto correcto")
 

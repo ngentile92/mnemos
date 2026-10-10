@@ -22,7 +22,9 @@ if [ ! -f secrets/skills_deploy_key ]; then
   ssh-keygen -t ed25519 -N "" -C "mnemos skills-sync (read-only)" -f secrets/skills_deploy_key >/dev/null
   echo
   echo "Generé secrets/skills_deploy_key. Cargá ESTA clave pública como Deploy key (read-only) en"
-  echo "https://github.com/$(grep -E '^GITHUB_USER=' .env | cut -d= -f2 | cut -d' ' -f1)/mnemos-skills/settings/keys :"
+  gh_user="$(grep -E '^GITHUB_USER=' .env | cut -d= -f2 | cut -d' ' -f1)"
+  [[ -n "$gh_user" && "$gh_user" != "__COMPLETAR__" ]] || gh_user="<YOUR_GITHUB_USER>"
+  echo "https://github.com/$gh_user/<your-skills-repo>/settings/keys :"
   cat secrets/skills_deploy_key.pub
 fi
 [ -f config/cognee-datasets.json ] || echo "Recordá: después de levantar Cognee corré  python3 scripts/bootstrap_cognee.py"

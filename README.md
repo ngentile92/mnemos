@@ -120,6 +120,7 @@ The full step-by-step guide (Tailscale ACLs, OAuth apps, Infisical, Vaultwarden,
 **Try it locally without any account** (fake LLM, no Tailscale, no OAuth):
 
 ```bash
+python3 -m venv .venv && .venv/bin/pip install -e "gateway[dev]"   # once
 docker compose -f compose.dev.yaml up -d --build
 .venv/bin/python scripts/bootstrap_cognee.py --url http://127.0.0.1:18000 --dev \
     --datasets-out dev/state/cognee-datasets.json --dev-keys-dir dev/state

@@ -1,6 +1,6 @@
 # Design: one MCP connector for every context
 
-Status: **proposal** (2026-10-10). Nothing here is implemented yet.
+Status: **accepted** (2026-10-10), being implemented in steps (see the end).
 
 ## Goal and constraint
 
@@ -8,7 +8,7 @@ Today each context has its own connector (`hub-cloudburst`, `hub-personal`, `hub
 one gateway process, one Tailscale sidecar. It is safe, but each app needs three connectors and someone has to turn
 on the right one in each chat.
 
-Goal: **one** URL (`https://hub.<tailnet>.ts.net/mcp`) that works with every context.
+Goal: **one** URL (`https://mnemos.<tailnet>.ts.net/mcp`) that works with every context.
 
 Hard constraint: **the isolation stays real**. "Real" means it is enforced by credentials the model cannot change,
 not by instructions or by a parameter the model fills in:
@@ -41,7 +41,7 @@ A single connector must not turn any of these into "the gateway promises not to"
 - **Scope selection by clients**: use the `scope` from the 401 challenge; otherwise request **all**
   `scopes_supported`. The spec says the authorization server and the user then decide at consent. That is exactly
   what we need: the client asks for everything, the consent page narrows it, the token carries the narrowed set.
-- **Resource indicators (RFC 8707)** are mandatory for clients: `resource=https://hub.<tailnet>.ts.net/mcp` in the
+- **Resource indicators (RFC 8707)** are mandatory for clients: `resource=https://mnemos.<tailnet>.ts.net/mcp` in the
   authorize and token requests; the server MUST check the token audience. One resource per connector; we do not need
   "multiple resources" in one token (and clients would not ask for it).
 - **Step-up**: on `403 insufficient_scope` with `scope="..."` clients SHOULD re-authorize with more scopes. Useful
@@ -144,7 +144,7 @@ must be said on the consent page.
 
 ## Infrastructure
 
-- New services: `hub-router` + `ts-hub` sidecar (Funnel on `hub.<tailnet>.ts.net` only). `scripts/mnemos expose`
+- New services: `hub-router` + `ts-mnemos` sidecar (Funnel on `mnemos.<tailnet>.ts.net` only). `scripts/mnemos expose`
   learns about it; the watchdog checks it like the others.
 - Auth: the router uses the same providers as today (GitHub OAuth app — one new app for the `hub` hostname — or the
   built-in login), plus the consent checkboxes. The current per-context gateways keep their own OAuth unchanged.
@@ -176,15 +176,18 @@ must be said on the consent page.
 1. Internal listener on each gateway (`:8100`, `X-Mnemos-Internal`, per-context key) + tests; not exposed.
 2. `hub-router` skeleton: OAuth (GitHub/local) with `ctx:*` scopes and consent checkboxes, encrypted grant store.
 3. Router tool proxy with `context` argument, scope check, provenance headers; tests + `oauth_probe.py` with scopes.
-4. Compose/render: `hub-router` + `ts-hub`, internal keys in `init_env`/`mnemos_context.py`, `mnemos expose`, watchdog.
+4. Compose/render: `hub-router` + `ts-mnemos`, internal keys in `init_env`/`mnemos_context.py`, `mnemos expose`, watchdog.
 5. In-chat switching (`switch` scope, `hub_use_context`), off by default.
 6. "Connected apps" page in the dashboard (list/revoke grants).
 7. Client trials (Cursor → Claude → ChatGPT → Grok) and docs (`CLIENTS.md`, consent screenshots).
 
-## Open questions
+## Decisions taken (2026-10-10)
 
-- Which contexts should each app get by default (presets), or always unchecked?
-- Is switch mode wanted at all, or is "re-login to change contexts" enough?
-- One GitHub OAuth app for `hub.<tailnet>` is one more app to create; or use the built-in login for the router only?
-- Should the old per-context connectors stay forever, or be retired once the router has proven itself?
-- Router URL/name: `hub.<tailnet>.ts.net` or `mnemos.<tailnet>.ts.net`?
+1. Context checkboxes on the consent page start **unchecked**; no per-app presets.
+2. In-chat switching **is available**, opt-in per app on the consent page (`switch` scope), never beyond the granted
+   contexts.
+3. Router login: the **built-in local login** by default (`HUB_AUTH_PROVIDER=local`, same user/password hash as
+   `auth-local.md`), plus **optional Google sign-in (OIDC)** configured by env (needs a Google Cloud OAuth client,
+   see the router docs); **GitHub** stays an option.
+4. The three per-context connectors **stay** until the router has proven itself.
+5. URL: `https://mnemos.<tailnet>.ts.net/mcp` (sidecar `ts-mnemos`).

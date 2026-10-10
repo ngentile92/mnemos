@@ -20,7 +20,7 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 from starlette.routing import Route
 
-from ..local_auth import EXPIRED, LocalOAuthProvider, _h
+from ..local_auth import EXPIRED, LocalOAuthProvider, _h, redirect_origin
 
 SWITCH = "switch"
 OIDC_STATE_TTL = 10 * 60
@@ -103,7 +103,8 @@ class RouterOAuthProvider(LocalOAuthProvider):
             parts.append(f'<form method="get" action="/oidc/{idp.name}/start"><input type="hidden" name="txn" value="{t}">'
                          f'<button type="submit">Sign in with {html.escape(idp.label)}</button></form>')
         parts.append('<p class="m">Not you, or you did not start this? Just close this tab.</p>')
-        return self._page("".join(parts))
+        targets = [redirect_origin(pending["redirect_uri"])] + [redirect_origin(i.authorize_url) for i in self.idps.values()]
+        return self._page("".join(parts), form_targets=targets)
 
     async def login_post(self, request: Request) -> Response:
         if not self.local_enabled:
@@ -168,7 +169,7 @@ class RouterOAuthProvider(LocalOAuthProvider):
         err = f'<p class="e">{html.escape(error)}</p>' if error else ""
         boxes = "".join(f'<label><input type="checkbox" name="ctx" value="{html.escape(c)}"> {html.escape(c)}</label><br>'
                         for c in self.contexts)
-        return self._page(f"""<h2>Mnemos</h2><p>Which contexts may <b>{name}</b> use? It will not see the others.</p>{err}
+        return self._page(form_targets=[redirect_origin(pending["redirect_uri"])], body=f"""<h2>Mnemos</h2><p>Which contexts may <b>{name}</b> use? It will not see the others.</p>{err}
 <form method="post" action="/consent"><input type="hidden" name="consent" value="{html.escape(consent)}">
 <fieldset><legend>Contexts</legend>{boxes}</fieldset>
 <label><input type="checkbox" name="switch" value="1"> Let it switch between these contexts during a chat</label>

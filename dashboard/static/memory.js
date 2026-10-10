@@ -148,6 +148,9 @@
         ${p.action === "update" ? `<div class="diff">${diffHtml(p.diff)}</div>` : `<div class="diff"><del>${esc(p.text)}</del></div>`}
         <div class="me-actions"><button class="mbtn primary" data-apply="${i}">${p.action === "update" ? "Apply correction" : "Mark obsolete"}</button><button class="mbtn" data-skip="${i}">Dismiss</button></div></div>`).join("")
         : `<p class="muted">${esc(j.message || "No note in this context says that. Nothing to fix.")}</p>`;
+      const ck = j.checked || [];
+      if (ck.length) box.insertAdjacentHTML("beforeend", `<details class="me-checked"><summary class="small muted">Checked ${ck.length} note${ck.length > 1 ? "s" : ""}${j.cached ? " · same answer as before (cached)" : ""}${j.timings_ms ? ` · ${((j.timings_ms.retrieval + j.timings_ms.model) / 1000).toFixed(1)} s` : ""} — why</summary>` +
+        ck.map((c) => `<div class="small"><span class="${c.verdict === "proposed" ? "ok" : "muted"}">${esc(c.verdict)}</span> — ${esc(c.preview)}…</div>`).join("") + "</details>");
       box.querySelectorAll("[data-skip]").forEach((b) => (b.onclick = () => b.closest(".me-prop").remove()));
       box.querySelectorAll("[data-apply]").forEach((b) => (b.onclick = async () => {
         const p = ps[+b.dataset.apply];

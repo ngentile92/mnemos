@@ -108,13 +108,42 @@ def relevant(correction: str, evidence: str, why: str = "") -> bool:
     return bool(_content(correction) & _content(evidence))
 
 
+_CACHE: dict[str, tuple[list, list]] = {}
+
+
+def _key(model: str, correction: str, notes: list[dict[str, Any]]) -> str:
+    import hashlib
+    h = hashlib.sha256(f"{model}\x00{_norm(correction).lower()}".encode())
+    for n in notes:
+        h.update(f"\x00{n.get('id')}\x00{n.get('text', '')}".encode())
+    return h.hexdigest()
+
+
+async def propose_explained(url: str, model: str, correction: str, notes: list[dict[str, Any]], **kw: Any
+                            ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], bool]:
+    """(proposals, checked, cached). `checked` says, for every candidate note, why it was or was not proposed.
+    Same input (correction + same candidate notes and texts) → same answer, served from an in-process cache."""
+    k = _key(model, correction, notes)
+    if k in _CACHE:
+        props, checked = _CACHE[k]
+        return props, checked, True
+    checked: list[dict[str, Any]] = []
+    props = await propose(url, model, correction, notes, checked=checked, **kw)
+    if len(_CACHE) > 256:
+        _CACHE.pop(next(iter(_CACHE)))
+    _CACHE[k] = (props, checked)
+    return props, checked, False
+
+
 async def propose(url: str, model: str, correction: str, notes: list[dict[str, Any]], *, timeout: float = 60,
-                  transport: httpx.AsyncBaseTransport | None = None, max_out: int = 2) -> list[dict[str, Any]]:
+                  transport: httpx.AsyncBaseTransport | None = None, max_out: int = 2,
+                  checked: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    verdict: dict[int, str] = {}
     if not notes:
         return []
     listing = "\n\n".join(f"[{i}] {_norm(str(n.get('text', '')))[:1500]}" for i, n in enumerate(notes, 1))
     payload = {"model": model, "stream": False, "keep_alive": KEEP_ALIVE, "format": "json",
-               "options": {"temperature": 0, "num_ctx": 8192, "num_predict": 700},
+               "options": {"temperature": 0, "seed": 42, "num_ctx": 8192, "num_predict": 700},
                "messages": [{"role": "user", "content": PROMPT.format(correction=correction, notes=listing)}]}
     async with httpx.AsyncClient(timeout=timeout, transport=transport, trust_env=False) as c:
         r = await c.post(f"{url.rstrip('/')}/api/chat", json=payload)
@@ -132,9 +161,13 @@ async def propose(url: str, model: str, correction: str, notes: list[dict[str, A
         if not 1 <= n <= len(notes) or n in seen:
             continue
         note = notes[n - 1]
-        ok, _ = check(correction, str(note.get("text", "")), m)
-        if not ok or not relevant(correction, str(m.get("evidence", ""))):
+        ok, why = check(correction, str(note.get("text", "")), m)
+        if ok and not relevant(correction, str(m.get("evidence", ""))):
+            ok, why = False, "different subject from the correction"
+        if not ok:
+            verdict[n] = f"model suggested it, rejected: {why}"
             continue
+        verdict[n] = "proposed"
         seen.add(n)
         p = {"id": note.get("id"), "dataset": note.get("dataset"), "text": note.get("text", ""), "rank": n,
              "action": m["action"], "evidence": _norm(str(m["evidence"])), "why": str(m.get("why") or "")[:300]}
@@ -143,4 +176,13 @@ async def propose(url: str, model: str, correction: str, notes: list[dict[str, A
             p["diff"] = word_diff(str(note.get("text", "")), p["proposed_text"])
         out.append(p)
     out.sort(key=lambda p: p["rank"])  # retrieval order: most relevant first
-    return out[:max_out]
+    out = out[:max_out]
+    if checked is not None:
+        kept = {p["rank"] for p in out}
+        for i, n in enumerate(notes, 1):
+            v = verdict.get(i, "does not state what the correction contradicts")
+            if v == "proposed" and i not in kept:
+                v = "relevant, but a better match was shown"
+            checked.append({"id": n.get("id"), "dataset": n.get("dataset"), "preview": _norm(str(n.get("text", "")))[:140],
+                            "verdict": v})
+    return out

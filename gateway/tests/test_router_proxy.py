@@ -76,7 +76,8 @@ async def _stack(monkeypatch, tmp_path, skills_repo, policy_file):
 async def bearer(prov, contexts, switch=False):
     await prov.store.put("cid", {"client_id": "cid", "contexts": contexts, "switch": switch, "login": "alex"},
                          collection="grants")
-    tok = await prov._issue("cid", ["user", *(f"ctx:{c}" for c in contexts)], None, "alex")
+    tok = await prov._issue("cid", ["user", *(f"ctx:{c}" for c in contexts), *(["switch"] if switch else [])],
+                            None, "alex")
     return tok.access_token
 
 
@@ -110,7 +111,8 @@ async def test_proxy_routes_only_granted_contexts(stack):
         call = await mcp_session(c, await bearer(prov, ["personal"]))
         tools = {t["name"]: t for t in await wait_tools(call)}
         save = tools["memory_save"]["inputSchema"]
-        assert save["required"][0] == "context" and save["properties"]["context"]["enum"] == ["work", "personal", "side"]
+        assert "context" not in save["required"] and save["properties"]["context"]["enum"] == ["work", "personal", "side"]
+        assert "hub_use_context" not in tools  # no `switch` scope → hidden
         assert "secret_http_request" in tools and sum(n == "hub_whoami" for n in tools) == 1
 
         ok = await call("tools/call", {"name": "memory_save", "arguments": {"context": "personal", "text": "via router"}})
@@ -121,8 +123,8 @@ async def test_proxy_routes_only_granted_contexts(stack):
         denied = await call("tools/call", {"name": "memory_save", "arguments": {"context": "work", "text": "nope"}})
         assert denied["result"]["isError"] and "not granted" in json.dumps(denied)
         assert not recs["work"].remembers
-        missing = await call("tools/call", {"name": "memory_save", "arguments": {"text": "nope"}})
-        assert "error" in missing or missing["result"]["isError"]
+        single = await call("tools/call", {"name": "memory_save", "arguments": {"text": "only one context"}})
+        assert not single["result"].get("isError") and any("only one context" in b for b in recs["personal"].remembers)
 
         who = await call("tools/call", {"name": "hub_whoami", "arguments": {}})
         assert who["result"]["structuredContent"] == {"login": "alex", "contexts": ["personal"], "can_switch": False}
@@ -142,3 +144,35 @@ async def test_unauthenticated_router_is_401(stack):
     async with stack() as (c, *_):
         r = await c.post("/mcp", headers=ACCEPT, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
         assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_switch_within_granted_contexts(stack):
+    async with stack() as (c, prov, recs, _):
+        call = await mcp_session(c, await bearer(prov, ["personal", "work"], switch=True))
+        tools = {t["name"] for t in await wait_tools(call)}
+        assert "hub_use_context" in tools
+        amb = await call("tools/call", {"name": "memory_save", "arguments": {"text": "which one?"}})
+        assert amb["result"]["isError"] and "hub_use_context" in json.dumps(amb)
+        bad = await call("tools/call", {"name": "hub_use_context", "arguments": {"context": "side"}})
+        assert bad["result"]["isError"]
+        ok = await call("tools/call", {"name": "hub_use_context", "arguments": {"context": "work"}})
+        assert ok["result"]["structuredContent"] == {"active_context": "work"}
+        await call("tools/call", {"name": "memory_save", "arguments": {"text": "goes to work"}})
+        assert any("goes to work" in b for b in recs["work"].remembers)
+        who = await call("tools/call", {"name": "hub_whoami", "arguments": {}})
+        assert who["result"]["structuredContent"]["active_context"] == "work"
+        # explicit context still wins, and still only among granted ones
+        await call("tools/call", {"name": "memory_save", "arguments": {"context": "personal", "text": "explicit"}})
+        assert any("explicit" in b for b in recs["personal"].remembers)
+
+
+@pytest.mark.asyncio
+async def test_switch_tool_refused_without_scope(stack):
+    async with stack() as (c, prov, _, _):
+        call = await mcp_session(c, await bearer(prov, ["personal", "work"]))
+        await wait_tools(call)
+        r = await call("tools/call", {"name": "hub_use_context", "arguments": {"context": "work"}})
+        assert "error" in r or r["result"]["isError"]
+        amb = await call("tools/call", {"name": "memory_save", "arguments": {"text": "which one?"}})
+        assert amb["result"]["isError"] and "hub_use_context" not in json.dumps(amb)

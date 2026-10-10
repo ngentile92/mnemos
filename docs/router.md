@@ -76,3 +76,10 @@ Additive and reversible: the three `hub-<ctx>` connectors are not touched.
 
 Undo: remove `router` from `COMPOSE_PROFILES` and `docker compose rm -sf hub-router ts-mnemos` (then delete the
 `mnemos` machine in the Tailscale admin if you want the name back).
+
+## Switching contexts during a chat (opt-in)
+
+Only for apps whose consent included "switch". They get `hub_use_context(context)`; afterwards calls may omit
+`context` and use the active one for the rest of that MCP session. Never beyond the granted contexts; an explicit
+`context` argument always wins. Apps granted a single context can omit `context` too. Without the switch scope
+the tool is hidden and refused.

@@ -177,7 +177,7 @@ must be said on the consent page.
 2. `hub-router` skeleton: OAuth (local, Google OIDC, GitHub) with `ctx:*` scopes and consent checkboxes, encrypted grant store. **Done.**
 3. Router tool proxy with `context` argument, scope check, provenance headers; tests + `oauth_probe.py` with scopes. **Done.**
 4. Compose/render: `hub-router` + `ts-mnemos`, internal keys in `init_env`/`mnemos_context.py`, `mnemos expose`, watchdog. **Done.**
-5. In-chat switching (`switch` scope, `hub_use_context`), off by default.
+5. In-chat switching (`switch` scope, `hub_use_context`), off by default. **Done.**
 6. "Connected apps" page in the dashboard (list/revoke grants).
 7. Client trials (Cursor → Claude → ChatGPT → Grok) and docs (`CLIENTS.md`, consent screenshots).
 

@@ -23,7 +23,7 @@ from mcp.types import ToolAnnotations
 from .config import Backend
 
 log = logging.getLogger("hub.router")
-LOCAL_TOOLS = {"hub_whoami"}          # answered by the router itself
+LOCAL_TOOLS = {"hub_whoami", "hub_use_context"}          # answered by the router itself
 _APP_RE = re.compile(r"[^A-Za-z0-9 ._()/-]")
 
 
@@ -57,7 +57,8 @@ def _with_context(schema: dict, contexts: list[str], required: bool) -> dict:
     s.setdefault("properties", {})
     s["properties"] = {"context": {"type": "string", "enum": contexts,
                                    "description": "Which context to use: one of the contexts this app was granted "
-                                                  "(see hub_whoami)."}, **s["properties"]}
+                                                  "(see hub_whoami). May be omitted when the app has a single "
+                                                  "context or after hub_use_context."}, **s["properties"]}
     req = [r for r in s.get("required", []) if r != "context"]
     s["required"] = (["context"] if required else []) + req
     return s

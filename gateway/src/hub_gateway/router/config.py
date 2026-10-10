@@ -46,7 +46,9 @@ class RouterSettings:
     @classmethod
     def from_env(cls) -> "RouterSettings":
         url = _env("MNEMOS_ROUTER_PUBLIC_URL")
-        if not url or not url.startswith("https://"):
+        from ..config import _is_local_url
+
+        if not url or not (url.startswith("https://") or (url.startswith("http://") and _is_local_url(url))):
             raise ConfigError("MNEMOS_ROUTER_PUBLIC_URL must be the https URL of the router (https://mnemos.<tailnet>)")
         key = _env("MNEMOS_ROUTER_STORAGE_KEY")
         if not key:

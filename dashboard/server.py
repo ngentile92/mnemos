@@ -761,7 +761,7 @@ def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--host", default="127.0.0.1", help="solo loopback (o una IP del tailnet, nunca Funnel)")
-    ap.add_argument("--port", type=int, default=int(os.environ.get("MNEMOS_DASHBOARD_PORT") or os.environ.get("AIHUB_DASHBOARD_PORT", "8787")))
+    ap.add_argument("--port", type=int, default=int(os.environ.get("MNEMOS_DASHBOARD_PORT") or os.environ.get("AIHUB_DASHBOARD_PORT", "8790")))
     ap.add_argument("--demo", metavar="JSON", help="serve sample data (for screenshots without real data)")
     ap.add_argument("--tailnet-port", type=int, default=int(os.environ.get("MNEMOS_DASHBOARD_TS_PORT") or os.environ.get("AIHUB_DASHBOARD_TS_PORT", "8444")),
                     help="HTTPS port of `tailscale serve` (tailnet only) accepted in Host; 0 = loopback only")

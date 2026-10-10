@@ -9,7 +9,8 @@ cd "$(dirname "$0")/.."
 HUB_DIR="$PWD"
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 LOG_DIR="${MNEMOS_LOG_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/mnemos}"
-PORT="${MNEMOS_DASHBOARD_PORT:-8787}"
+PORT="${MNEMOS_DASHBOARD_PORT:-$(grep -E '^MNEMOS_DASHBOARD_PORT=' "$(cd "$(dirname "$0")/.." && pwd)/.env" 2>/dev/null | head -1 | cut -d= -f2 || true)}"
+PORT="${PORT:-8790}"
 DRY=""; ONLY="watchdog,backup,cognify,dashboard"; UNINSTALL=""
 while [[ $# -gt 0 ]]; do
   case "$1" in

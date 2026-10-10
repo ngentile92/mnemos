@@ -101,7 +101,7 @@ still cannot see other contexts. To undo the superuser: `python3 scripts/visuali
 ## Live dashboard (you only, host only)
 
 ```bash
-scripts/dashboard.sh open        # starts it (if needed) and opens http://127.0.0.1:8787
+scripts/dashboard.sh open        # starts it (if needed) and opens http://127.0.0.1:8790
 scripts/dashboard.sh status | stop | restart | logs
 scripts/dashboard.sh install-agent     # start automatically at login (LaunchAgent, KeepAlive)
 scripts/dashboard.sh uninstall-agent   # back to manual mode
@@ -119,9 +119,9 @@ identity and what the policy allows injecting), Cognee datasets with items/nodes
 and the latest commits. **Only names, states and counts**: the credentials it uses are read from `.env` on the
 server side, never reach the browser, and every response is checked against the `.env` values. It listens only on
 `127.0.0.1` (refuses `0.0.0.0`), validates the `Host` header and loads nothing external. Port:
-`MNEMOS_DASHBOARD_PORT` (default 8787). Log: `~/Library/Logs/mnemos-dashboard.log`.
+`MNEMOS_DASHBOARD_PORT` (default 8790). Log: `~/Library/Logs/mnemos-dashboard.log`.
 
-**Tailnet (optional):** `tailnet-on` runs `tailscale serve --bg --https=8444 http://127.0.0.1:8787` (443 is
+**Tailnet (optional):** `tailnet-on` runs `tailscale serve --bg --https=8444 http://127.0.0.1:8790` (443 is
 Vaultwarden and 8443 Infisical; change it with `MNEMOS_DASHBOARD_TS_PORT`) and checks it stays *tailnet only*;
 otherwise it removes it. The server still listens only on `127.0.0.1` and also accepts the `Host`
 `<magicdns-name>:8444` (read from `tailscale status --json` at startup). **Note:** the Explore tab shows memory text
@@ -183,7 +183,7 @@ Every **15 min** the `io.mnemos.watchdog` LaunchAgent resolves the three `hub-<c
 DNS (DoH to Cloudflare/Google = 1.1.1.1 / 8.8.8.8) and POSTs to `/mcp` expecting **401**. If the public record
 disappears (local MagicDNS would still resolve) or the connection fails, it recreates **only** that `ts-<ctx>` +
 `gateway-<ctx>` (`docker compose up -d --force-recreate …`), with a **30 min cooldown** per hub. It also checks
-Cognee on `127.0.0.1:8010` and restarts the dashboard LaunchAgent if `:8787` does not answer. It **never** runs
+Cognee on `127.0.0.1:8010` and restarts the dashboard LaunchAgent if `:8790` does not answer. It **never** runs
 `tailscale funnel` nor publishes anything new.
 
 ```bash

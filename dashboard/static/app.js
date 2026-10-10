@@ -279,7 +279,7 @@ function renderWatchdog(d) {
   $("watchdog").innerHTML = `<div class="kv">
     <div>Last run</div><div>${w.last_run ? `${esc(fmtDate(w.last_run))} <span class="muted">(${ago(w.last_run)})</span> ${w.run_ok ? tag("ok", "OK") : tag("bad", "FAIL")}` : "—"}</div>
     <div>Cognee :8010</div><div>${w.cognee_ok ? tag("ok", "OK") : tag("bad", "FAIL")}</div>
-    <div>Dashboard :8787</div><div>${w.dashboard_ok ? tag("ok", "OK") : tag("bad", "FAIL")}</div>
+    <div>Dashboard :8790</div><div>${w.dashboard_ok ? tag("ok", "OK") : tag("bad", "FAIL")}</div>
     <div>LaunchAgent</div><div>${w.agent_loaded ? `${tag("ok", "loaded")} <span class="muted">exit ${esc(w.agent_last_exit)}</span>` : tag("bad", "not loaded")}</div>
     ${rows}</div>
     <div class="note">Public DoH (1.1.1.1 / 8.8.8.8) + /mcp→401; recreates only ts-&lt;ctx&gt;+gateway-&lt;ctx&gt;; 30 min cooldown. Never enables Funnel.</div>`;

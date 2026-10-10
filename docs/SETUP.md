@@ -222,7 +222,7 @@ Optional extra LaunchAgents (macOS only; prefix `MNEMOS_LABEL_PREFIX`, default `
 
 ```bash
 ./scripts/install_cognify_agent.sh      # daily 03:47: processes pending memories into the graph (log ~/Library/Logs/mnemos-cognify.log)
-./scripts/dashboard.sh install-agent    # dashboard on 127.0.0.1:8787 at login; launchd restarts it if it dies
+./scripts/dashboard.sh install-agent    # dashboard on 127.0.0.1:8790 at login; launchd restarts it if it dies
 ./scripts/dashboard.sh tailnet-on       # optional: also on https://<mac>.<tailnet>.ts.net:8444 (tailnet only, never Funnel)
 ./scripts/install_watchdog_agent.sh --run-now  # every 15 min: public Funnel DNS + /mcp; recreates a missing sidecar (log ~/Library/Logs/mnemos-watchdog.log)
 ```

@@ -67,7 +67,7 @@ per context, each in front of its gateway, each requiring OAuth with an allow-li
 There are no tools to run commands or delete secrets. Every gateway writes a JSONL audit log (tool, context, result;
 never content or secrets). Also included:
 
-- **Live dashboard** (`127.0.0.1:8787`, optional tailnet-only): health of every piece, secrets per context (counts),
+- **Live dashboard** (`127.0.0.1:8790`, optional tailnet-only): health of every piece, secrets per context (counts),
   datasets, backups, an *Explore* tab with the memory graph (Cytoscape.js, vendored), memories and skills per context.
 - **Nightly jobs**: incremental `cognify` of pending memories, a memory-hygiene report (duplicates, superseded notes,
   secret-shaped text), restic backups with optional offsite copy (rclone), and a Funnel/DNS watchdog.

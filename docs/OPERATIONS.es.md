@@ -102,7 +102,7 @@ Si `python3` es el del sistema (sin `httpx`), el script se re-ejecuta solo con `
 ## Dashboard en vivo (solo vos, solo en el host)
 
 ```bash
-scripts/dashboard.sh open        # arranca (si hace falta) y abre http://127.0.0.1:8787
+scripts/dashboard.sh open        # arranca (si hace falta) y abre http://127.0.0.1:8790
 scripts/dashboard.sh status | stop | restart | logs
 scripts/dashboard.sh install-agent     # arranque automático al iniciar sesión (LaunchAgent, KeepAlive)
 scripts/dashboard.sh uninstall-agent   # vuelve al modo manual
@@ -120,8 +120,8 @@ identity *Viewer* de cada gateway y lo que la policy deja inyectar), datasets de
 último backup restic y los últimos commits. **Solo nombres, estados y conteos**: las credenciales que usa se leen de
 `.env` del lado del servidor, nunca llegan al navegador, y cada respuesta se revisa contra los valores de `.env`.
 Escucha solo en `127.0.0.1` (se niega a `0.0.0.0`), valida el header `Host` y no carga nada externo.
-Puerto: `MNEMOS_DASHBOARD_PORT` (default 8787). Log: `~/Library/Logs/mnemos-dashboard.log`.
-**Tailnet (opcional):** `tailnet-on` hace `tailscale serve --bg --https=8444 http://127.0.0.1:8787` (443 es
+Puerto: `MNEMOS_DASHBOARD_PORT` (default 8790). Log: `~/Library/Logs/mnemos-dashboard.log`.
+**Tailnet (opcional):** `tailnet-on` hace `tailscale serve --bg --https=8444 http://127.0.0.1:8790` (443 es
 Vaultwarden y 8443 Infisical; cambiá con `MNEMOS_DASHBOARD_TS_PORT`) y verifica que quede *tailnet only*; si no, lo saca.
 El server sigue escuchando solo en `127.0.0.1` y acepta además el `Host` `<nombre-magicdns>:8444` (lo lee de
 `tailscale status --json` al arrancar). **Ojo:** la pestaña Explorar muestra texto de la memoria y nombres de secretos a
@@ -183,7 +183,7 @@ Cada **15 min** el LaunchAgent `io.mnemos.watchdog` resuelve por DNS público (D
 1.1.1.1 / 8.8.8.8) los tres `hub-<ctx>.<tailnet>.ts.net` y hace POST a `/mcp` esperando **401**. Si el registro
 público desaparece (MagicDNS local seguiría resolviendo) o la conexión falla, recrea **solo** ese
 `ts-<ctx>` + `gateway-<ctx>` (`docker compose up -d --force-recreate …`), con **cooldown de 30 min** por hub.
-También chequea Cognee en `127.0.0.1:8010` y reinicia el LaunchAgent del dashboard si `:8787` no responde.
+También chequea Cognee en `127.0.0.1:8010` y reinicia el LaunchAgent del dashboard si `:8790` no responde.
 **Nunca** ejecuta `tailscale funnel` ni publica nada nuevo.
 
 ```bash

@@ -181,17 +181,17 @@ class LocalOAuthProvider(PasskeyMixin, OAuthProvider):
 
     @staticmethod
     def _page(body: str, code: int = 200, form_targets: list[str] | None = None, scripts: bool = False) -> HTMLResponse:
-        """form_targets: extra origins a form submit may end up at. CSP form-action also applies to the
-        redirect that follows a POST, so the client's redirect_uri origin must be allowed or the browser
-        silently blocks the final hop back to the assistant."""
+        """No CSP form-action on purpose: browsers apply it to every hop of the redirect chain after the POST
+        (e.g. www.cursor.com → app scheme / another origin), which silently leaves the page stuck. Forms only
+        post to our own paths; the redirect target is the registered redirect_uri. form_targets is kept for
+        callers but no longer used."""
         doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Mnemos · sign in</title><style>body{{font:16px system-ui;max-width:420px;margin:10vh auto;padding:0 16px;color:#111}}
 input,button{{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:border-box}}button{{background:#111;color:#fff;border:0;border-radius:6px}}
 .m{{color:#555;font-size:14px}}.e{{color:#b00}}code{{background:#eee;padding:1px 4px}}</style></head><body>{body}</body></html>"""
         return HTMLResponse(doc, status_code=code, headers={
             "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; "
-                                       + ("script-src 'self'; connect-src 'self'; " if scripts else "") + "form-action 'self'"
-                                       + "".join(f" {o}" for o in (form_targets or [])) + "; frame-ancestors 'none'",
+                                       + ("script-src 'self'; connect-src 'self'; " if scripts else "") + "frame-ancestors 'none'",
             "X-Frame-Options": "DENY", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
 
     async def _login_form(self, txn: str, pending: dict, error: str = "") -> HTMLResponse:

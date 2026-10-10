@@ -714,13 +714,13 @@ def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
                 if hub is not None:
                     text = hub.redact(text)
                 return self._send(200, text.encode(), "application/json; charset=utf-8")
-            if path in ("/api/memory/list", "/api/memory/history"):
+            if path in ("/api/memory/list", "/api/memory/history", "/api/memory/related"):
                 if demo is not None:
                     return self._json(200, (demo.get("memory") or {}).get(path.rsplit("/", 1)[1]) or {"items": []})
                 q = {k: v[0] for k, v in parse_qs(query).items()}
                 try:
                     return self._json(200, memory_action(path.rsplit("/", 1)[1], q | (
-                        {"include_shared": q.get("include_shared", "1") == "1"} if path.endswith("list") else {})))
+                        {"include_shared": q.get("include_shared", "1") == "1"} if not path.endswith("history") else {})))
                 except MemoryEditorOff as e:
                     return self._json(409, {"error": str(e)})
                 except ValueError as e:

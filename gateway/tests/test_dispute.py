@@ -38,3 +38,29 @@ def test_good_minimal_update_has_diff():
     assert ok
     d = word_diff(CARRERA, new)
     assert any(x["op"] == "del" for x in d) and any(x["op"] == "add" for x in d)
+
+
+async def test_explained_and_cached():
+    import json
+
+    import httpx
+
+    from hub_gateway.dispute import propose_explained
+    calls = []
+
+    def h(req):
+        calls.append(json.loads(req.content))
+        return httpx.Response(200, json={"message": {"content": json.dumps({"matches": [
+            {"n": 1, "evidence": "construir presencia digital", "action": "update", "proposed_text": CORR + "; " + INTERESES},
+            {"n": 2, "evidence": "está buscando cambiar de trabajo activamente", "action": "update",
+             "proposed_text": "Carrera de Ana: trabaja en Acme y hoy no está buscando cambiar de trabajo."}]})}})
+    notes = [{"id": "i", "dataset": "p", "text": INTERESES}, {"id": "c", "dataset": "p", "text": CARRERA},
+             {"id": "h", "dataset": "p", "text": CASA}]
+    t = httpx.MockTransport(h)
+    props, checked, cached = await propose_explained("http://o", "m", CORR, notes, transport=t)
+    assert [p["id"] for p in props] == ["c"] and not cached
+    v = {c["id"]: c["verdict"] for c in checked}
+    assert v["c"] == "proposed" and "rejected" in v["i"] and "does not state" in v["h"]
+    assert calls[0]["options"]["temperature"] == 0 and calls[0]["options"]["seed"] == 42
+    props2, _, cached2 = await propose_explained("http://o", "m", CORR, notes, transport=t)
+    assert cached2 and props2 == props and len(calls) == 1

@@ -704,10 +704,12 @@ def build_server(
             cands = [r for r in await _local_search(sc, correction, False, None, max(limit, 6), "hybrid")
                      if r.get("dataset") in own and r.get("id")][:max(limit, 6)]
             t1 = time.monotonic()
+            checked: list[dict[str, Any]] = []
+            cached = False
             if answerer is not None:
-                proposals = await dispute_mod.propose(answerer.url, answerer.model, correction, cands,
-                                                      timeout=answerer.timeout, transport=answerer.transport,
-                                                      max_out=min(limit, 3))
+                proposals, checked, cached = await dispute_mod.propose_explained(
+                    answerer.url, answerer.model, correction, cands, timeout=answerer.timeout,
+                    transport=answerer.transport, max_out=min(limit, 3))
             else:
                 proposals = [{"id": r["id"], "dataset": r["dataset"], "text": r.get("text", ""), "action": None}
                              for r in cands[:limit]]
@@ -720,6 +722,7 @@ def build_server(
         keep = proposals
         audit.log("memory_dispute", login, "ok", candidates=len(cands), proposals=len(keep))
         return {"context": ctx.name, "correction": correction, "proposals": keep,
+                "checked": checked, "cached": cached,
                 "timings_ms": {"retrieval": int((t1 - t0) * 1000), "model": int((time.monotonic() - t1) * 1000)},
                 "message": None if keep else "Ninguna nota de este contexto dice eso; no hay nada que corregir.",
                 "next": "confirmá con el usuario y aplicá con memory_update (texto propuesto) o memory_mark_obsolete"}

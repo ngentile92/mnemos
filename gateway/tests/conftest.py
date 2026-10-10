@@ -79,3 +79,10 @@ def policy_file(tmp_path: Path) -> Path:
             inject: { header: "Authorization", format: "Bearer {value}" }
     """))
     return p
+
+
+@pytest.fixture(autouse=True)
+def _clear_dispute_cache():
+    from hub_gateway import dispute
+    dispute._CACHE.clear()
+    yield

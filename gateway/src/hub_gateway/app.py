@@ -702,7 +702,7 @@ def build_server(
             own = [n for n, _ in sc.editable()]
             t0 = time.monotonic()
             cands = [r for r in await _local_search(sc, correction, False, None, max(limit, 6), "hybrid")
-                     if r.get("dataset") in own and r.get("id")][:max(limit, 6)]
+                     if r.get("dataset") in own and r.get("id")][:max(limit, 4)]
             t1 = time.monotonic()
             checked: list[dict[str, Any]] = []
             cached = False

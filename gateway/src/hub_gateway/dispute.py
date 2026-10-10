@@ -152,7 +152,7 @@ async def propose(url: str, model: str, correction: str, notes: list[dict[str, A
 
     async def ask(prompt: str, limit: int) -> dict:
         payload = {"model": model, "stream": False, "keep_alive": KEEP_ALIVE, "format": "json",
-                   "options": {"temperature": 0, "seed": 42, "num_ctx": 8192, "num_predict": limit},
+                   "options": {"temperature": 0, "seed": 42, "num_ctx": 4096, "num_predict": limit},
                    "messages": [{"role": "user", "content": prompt}]}
         async with httpx.AsyncClient(timeout=timeout, transport=transport, trust_env=False) as c:
             r = await c.post(f"{url.rstrip('/')}/api/chat", json=payload)

@@ -45,7 +45,9 @@ async def mcp_tools(c: httpx.AsyncClient, base: str, token: str) -> tuple[int, l
     return r.status_code, names
 
 
-async def probe(c: httpx.AsyncClient, base: str, user: str, password: str, log=print) -> dict:
+async def probe(c: httpx.AsyncClient, base: str, user: str, password: str, log=print,
+                contexts: list[str] | None = None, switch: bool = False) -> dict:
+    """contexts=None: a hub. contexts=[...]: the router, which shows a consent page after the login."""
     base = base.rstrip("/")
     out: dict = {}
     r = await c.post(f"{base}/mcp", headers=ACCEPT, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
@@ -70,6 +72,14 @@ async def probe(c: httpx.AsyncClient, base: str, user: str, password: str, log=p
     bad = await c.post(f"{base}/local-login", data={"txn": txn, "username": user, "password": password + "x"})
     out["wrong_password"] = "Wrong user or password" in bad.text and bad.status_code == 200
     ok = await c.post(f"{base}/local-login", data={"txn": txn, "username": user, "password": password})
+    if contexts is not None:
+        m = re.search(r'name="consent" value="([^"]+)"', ok.text)
+        out["consent_page"] = ok.status_code == 200 and bool(m) and "checked" not in ok.text
+        if m:
+            none = await c.post(f"{base}/consent", data={"consent": m.group(1)})
+            out["consent_needs_context"] = "at least one context" in none.text
+            ok = await c.post(f"{base}/consent", data={"consent": m.group(1), "ctx": contexts,
+                                                        **({"switch": "1"} if switch else {})})
     loc = ok.headers.get("location", "")
     q = parse_qs(urlparse(loc).query)
     out["login_redirect_ok"] = ok.status_code == 302 and loc.startswith(REDIRECT) and q.get("state") == [state]
@@ -81,6 +91,7 @@ async def probe(c: httpx.AsyncClient, base: str, user: str, password: str, log=p
         "code_verifier": verifier, "resource": f"{base}/mcp"})
     out["token_status"] = tok.status_code
     t = tok.json()
+    out["scope"] = t.get("scope")
     again = await c.post(meta["token_endpoint"], data={
         "grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT, "client_id": client_id,
         "code_verifier": verifier})
@@ -107,6 +118,9 @@ EXPECT = {"unauth_status": 401, "register_status": 201, "authorize_status": 302,
 
 def check(out: dict) -> list[str]:
     bad = [f"{k}: got {out.get(k)!r}, want {v!r}" for k, v in EXPECT.items() if out.get(k) != v]
+    for k in ("consent_page", "consent_needs_context"):
+        if k in out and out[k] is not True:
+            bad.append(f"{k}: got {out[k]!r}")
     if not out.get("tools"):
         bad.append("tools/list returned no tools")
     return bad
@@ -116,14 +130,17 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("base_url")
     ap.add_argument("--user", required=True)
+    ap.add_argument("--contexts", help="router only: comma-separated contexts to tick on the consent page")
+    ap.add_argument("--switch", action="store_true", help="router only: also allow in-chat switching")
     args = ap.parse_args()
+    ctxs = [x for x in (args.contexts or "").split(",") if x] or None
     pw = os.environ.get("MNEMOS_PROBE_PASSWORD") or ""
     if not pw:
         raise SystemExit("set MNEMOS_PROBE_PASSWORD")
 
     async def run() -> dict:
         async with httpx.AsyncClient(timeout=30, follow_redirects=False) as c:
-            return await probe(c, args.base_url, args.user, pw)
+            return await probe(c, args.base_url, args.user, pw, contexts=ctxs, switch=args.switch)
 
     out = asyncio.run(run())
     for k, v in out.items():

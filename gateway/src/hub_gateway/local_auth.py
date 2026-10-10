@@ -85,17 +85,19 @@ EXPIRED = "<p class='e'>This sign-in link expired. Start again from your assista
 
 class LocalOAuthProvider(OAuthProvider):
     def __init__(self, *, base_url: str, user: str, password_hash: str, store: Any,
-                 resource_name: str = "Mnemos") -> None:
-        if not user or not (password_hash or "").startswith("scrypt:"):
+                 resource_name: str = "Mnemos", scopes: list[str] | None = None,
+                 require_password: bool = True) -> None:
+        if require_password and (not user or not (password_hash or "").startswith("scrypt:")):
             raise ValueError("HUB_LOCAL_USER and HUB_LOCAL_PASSWORD_HASH (scrypt:...) are required")
+        self.valid_scopes = list(scopes or SCOPES)
         super().__init__(
             base_url=base_url,
-            client_registration_options=ClientRegistrationOptions(enabled=True, valid_scopes=SCOPES,
+            client_registration_options=ClientRegistrationOptions(enabled=True, valid_scopes=self.valid_scopes,
                                                                   default_scopes=SCOPES),
             revocation_options=RevocationOptions(enabled=True),
             required_scopes=SCOPES,
         )
-        self.user = user.lower()
+        self.user = (user or "").lower()
         self.password_hash = password_hash
         self.store = store
         self.resource_name = resource_name
@@ -111,7 +113,7 @@ class LocalOAuthProvider(OAuthProvider):
         if client_info.client_id is None:
             raise ValueError("client_id is required")
         if client_info.scope:
-            bad = set(client_info.scope.split()) - set(SCOPES)
+            bad = set(client_info.scope.split()) - set(self.valid_scopes)
             if bad:
                 raise ValueError(f"Requested scopes are not valid: {', '.join(sorted(bad))}")
         await self.store.put(client_info.client_id, client_info.model_dump(mode="json"), collection="clients")
@@ -181,14 +183,21 @@ input,button{{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:borde
         if self._locked():
             return await self._login_form(txn, pending, "Too many attempts. Try again in a few minutes.")
         user = str(form.get("username", "")).strip().lower()
-        ok_pw = verify_password(str(form.get("password", "")), self.password_hash)  # always computed (timing)
+        ok_pw = verify_password(str(form.get("password", "")), self.password_hash or "")  # always computed (timing)
         if not (ok_pw and hmac.compare_digest(user.encode(), self.user.encode())):
             self._fail()
             return await self._login_form(txn, pending, "Wrong user or password.")
+        return await self._after_login(txn, pending, self.user)
+
+    async def _after_login(self, txn: str, pending: dict, login: str) -> Response:
+        """Identity confirmed: hand out the authorization code (the router overrides this to show consent)."""
+        return await self._grant_code(txn, pending, login, pending["scopes"])
+
+    async def _grant_code(self, txn: str, pending: dict, login: str, scopes: list[str]) -> Response:
         await self.store.delete(txn, collection="pending")  # single use
         code = secrets.token_urlsafe(32)
-        await self.store.put(_h(code), {**pending, "expires_at": time.time() + CODE_TTL},
-                             collection="codes", ttl=CODE_TTL)
+        await self.store.put(_h(code), {**pending, "scopes": scopes, "login": login,
+                                        "expires_at": time.time() + CODE_TTL}, collection="codes", ttl=CODE_TTL)
         return RedirectResponse(construct_redirect_uri(pending["redirect_uri"], code=code, state=pending["state"]),
                                 status_code=302)
 
@@ -209,13 +218,15 @@ input,button{{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:borde
                                  scopes=d["scopes"], expires_at=d["expires_at"], code_challenge=d["code_challenge"],
                                  resource=d.get("resource"))
 
-    async def _issue(self, client_id: str, scopes: list[str], resource: str | None) -> OAuthToken:
+    async def _issue(self, client_id: str, scopes: list[str], resource: str | None,
+                     login: str | None = None) -> OAuthToken:
         access, refresh = secrets.token_urlsafe(32), secrets.token_urlsafe(48)
         now = int(time.time())
+        login = login or self.user
         await self.store.put(_h(access), {"client_id": client_id, "scopes": scopes, "expires_at": now + ACCESS_TTL,
-                                          "login": self.user, "resource": resource, "refresh": _h(refresh)},
+                                          "login": login, "resource": resource, "refresh": _h(refresh)},
                              collection="access", ttl=ACCESS_TTL)
-        await self.store.put(_h(refresh), {"client_id": client_id, "scopes": scopes,
+        await self.store.put(_h(refresh), {"client_id": client_id, "scopes": scopes, "login": login,
                                            "expires_at": now + REFRESH_TTL, "resource": resource,
                                            "access": _h(access)}, collection="refresh", ttl=REFRESH_TTL)
         return OAuthToken(access_token=access, token_type="Bearer", expires_in=ACCESS_TTL, refresh_token=refresh,
@@ -228,7 +239,7 @@ input,button{{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:borde
         if not d:
             raise TokenError("invalid_grant", "authorization code not found or already used")
         await self.store.delete(key, collection="codes")
-        return await self._issue(client.client_id or "", authorization_code.scopes, d.get("resource"))
+        return await self._issue(client.client_id or "", authorization_code.scopes, d.get("resource"), d.get("login"))
 
     async def load_refresh_token(self, client: OAuthClientInformationFull, refresh_token: str) -> RefreshToken | None:
         d = await self.store.get(_h(refresh_token), collection="refresh")
@@ -243,7 +254,8 @@ input,button{{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:borde
             raise TokenError("invalid_scope", "requested scopes exceed the original grant")
         d = await self.store.get(_h(refresh_token.token), collection="refresh") or {}
         await self._revoke_pair(refresh=_h(refresh_token.token))  # rotation: old pair dies
-        return await self._issue(client.client_id or "", scopes or refresh_token.scopes, d.get("resource"))
+        return await self._issue(client.client_id or "", scopes or refresh_token.scopes, d.get("resource"),
+                                 d.get("login"))
 
     async def load_access_token(self, token: str) -> AccessToken | None:  # type: ignore[override]
         d = await self.store.get(_h(token), collection="access")

@@ -135,11 +135,31 @@
 
   // ------------------------------------------------ "Something isn't right?"
   const diffHtml = (d) => (d || []).map((x) => x.op === "del" ? `<del>${esc(x.text)}</del>` : x.op === "add" ? `<ins>${esc(x.text)}</ins>` : esc(x.text)).join(" ");
+  function saveCard(q, hasProps) {
+    return `<div class="me-prop me-save"><div class="small muted">${hasProps ? "Or keep it as a separate fact" : "Nothing in memory says otherwise"}</div>
+      <div class="why">${hasProps ? "Save it as a new note instead of correcting." : "Save it as a new note?"}</div>
+      <div class="me-row"><select id="me-save-ctx" aria-label="Context">${CTXS.map((c) => `<option${c === ctx() ? " selected" : ""}>${esc(c)}</option>`).join("")}</select>
+      <input id="me-save-proj" placeholder="project (only for contexts with projects)" maxlength="80"></div>
+      <textarea id="me-save-text" style="min-height:70px;margin-top:8px">${esc(q)}</textarea>
+      <div class="me-actions"><button class="mbtn ${hasProps ? "" : "primary"}" id="me-save-new">Save as new note</button>
+      <span class="muted small">Saved with origin “dashboard”; you can edit or forget it later.</span></div></div>`;
+  }
+  $("me-proposals").addEventListener("click", async (ev) => {
+    if (ev.target.id !== "me-save-new") return;
+    const b = ev.target, c = $("me-save-ctx").value;
+    b.disabled = true; b.innerHTML = '<span class="spin"></span>Saving…';
+    try {
+      await post("/api/memory/save", { context: c, text: $("me-save-text").value, project: $("me-save-proj").value });
+      b.closest(".me-save").innerHTML = `<span class="small">Saved as a new note in <b>${esc(c)}</b> ✓ (it appears in the list in a few seconds)</span>`;
+      toast("Saved as new note ✓");
+      if (c === ctx()) setTimeout(() => load(), 2500);
+    } catch (e) { b.disabled = false; b.textContent = "Save as new note"; toast("Not saved: " + e.message); }
+  });
   $("me-dispute-go").onclick = async () => {
     const box = $("me-proposals"), btn = $("me-dispute-go"), q = $("me-dispute").value.trim();
     if (q.length < 5) return toast("Describe what changed (a short sentence).");
     btn.disabled = true;
-    box.innerHTML = '<p class="muted"><span class="spin"></span>Looking for notes that say otherwise… (local model, usually under 5 s)</p>';
+    box.innerHTML = '<p class="muted"><span class="spin"></span>Checking whether a note says otherwise… (local model, usually under 5 s)</p>';
     try {
       const j = await post("/api/memory/dispute", { context: ctx(), correction: q });
       const ps = j.proposals || [];
@@ -147,7 +167,8 @@
         <div class="why">${esc(p.why)}</div>
         ${p.action === "update" ? `<div class="diff">${diffHtml(p.diff)}</div>` : `<div class="diff"><del>${esc(p.text)}</del></div>`}
         <div class="me-actions"><button class="mbtn primary" data-apply="${i}">${p.action === "update" ? "Apply correction" : "Mark obsolete"}</button><button class="mbtn" data-skip="${i}">Dismiss</button></div></div>`).join("")
-        : `<p class="muted">${esc(j.message || "No note in this context says that. Nothing to fix.")}</p>`;
+        : "";
+      box.insertAdjacentHTML("beforeend", saveCard(q, ps.length > 0));
       const ck = j.checked || [];
       if (ck.length) box.insertAdjacentHTML("beforeend", `<details class="me-checked"><summary class="small muted">Checked ${ck.length} note${ck.length > 1 ? "s" : ""}${j.cached ? " · same answer as before (cached)" : ""}${j.timings_ms ? ` · ${((j.timings_ms.retrieval + j.timings_ms.model) / 1000).toFixed(1)} s` : ""} — why</summary>` +
         ck.map((c) => `<div class="small"><span class="${c.verdict === "proposed" ? "ok" : "muted"}">${esc(c.verdict)}</span> — ${esc(c.preview)}…</div>`).join("") + "</details>");

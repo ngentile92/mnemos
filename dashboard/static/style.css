@@ -126,7 +126,37 @@ footer{color:var(--muted);text-align:center;font-size:12px;padding:10px 20px 26p
 .ctxform{display:flex;gap:8px;flex-wrap:wrap}.ctxform input{flex:1;min-width:160px;background:#050811;color:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 #ca-out{margin-top:10px;white-space:pre-wrap;font:12px/1.5 ui-monospace,Menlo,monospace;background:#050811;border:1px solid var(--line);border-radius:12px;padding:12px}
 
-#view-memoria .note{padding:6px 4px;border-bottom:1px solid rgba(127,127,127,.2);cursor:pointer}
-#view-memoria .note:hover{background:rgba(127,127,127,.08)}
-#view-memoria textarea{width:100%;box-sizing:border-box;font:inherit}
-#me-list{max-height:70vh;overflow:auto}
+
+/* ---------------- Memory tab */
+.me-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 36px 14px}
+.me-bar select,.me-bar input[type=search],.me-row input{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:8px 10px;font:inherit}
+.me-bar input[type=search]{flex:1;min-width:180px}.me-hint{margin-left:auto}
+.me-dispute{margin:0 36px 14px}.me-row{display:flex;gap:10px}.me-row input{flex:1}
+.me-grid{display:grid;grid-template-columns:minmax(260px,38%) 1fr;gap:14px;margin:0 36px 30px}
+@media(max-width:900px){.me-grid{grid-template-columns:1fr}}
+#me-list{max-height:68vh;overflow:auto;margin:0 -8px}
+.me-item{padding:9px 10px;border-radius:10px;cursor:pointer;border:1px solid transparent}
+.me-item:hover{background:rgba(148,163,209,.07)}.me-item.sel{background:rgba(124,92,255,.14);border-color:rgba(124,92,255,.4)}
+.me-item .t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.me-item .m{font-size:11px;color:var(--muted);margin-bottom:2px;display:flex;gap:6px;flex-wrap:wrap}
+.badge{font-size:10.5px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.badge.pin{color:var(--warn);border-color:rgba(251,191,36,.4)}.badge.obs{color:var(--down);border-color:rgba(248,113,113,.4)}
+.badge.proc{color:var(--cb);border-color:rgba(56,189,248,.4)}.badge.ro{opacity:.8}
+.me-note{white-space:pre-wrap;line-height:1.6;font-size:14.5px;background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:12px;padding:14px 16px;max-height:40vh;overflow:auto}
+#view-memoria textarea{width:100%;min-height:180px;background:rgba(0,0,0,.25);color:var(--txt);border:1px solid rgba(124,92,255,.5);border-radius:12px;padding:12px 14px;font:14.5px/1.6 inherit;resize:vertical}
+.me-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.mbtn{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:8px 14px;font:600 13px/1 inherit;cursor:pointer}
+.mbtn:hover{border-color:rgba(148,163,209,.45)}.mbtn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+.mbtn.danger{color:var(--down);border-color:rgba(248,113,113,.45)}.mbtn:disabled{opacity:.5;cursor:wait}
+.me-meta{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12.5px;margin:8px 0}
+.me-meta dt{color:var(--muted)}.me-meta dd{margin:0}
+.me-hist details{border-top:1px solid var(--line);padding:6px 0}.me-hist summary{cursor:pointer;font-size:12.5px}
+.me-hist pre{white-space:pre-wrap;font:12.5px/1.5 inherit;color:#c3cbe3;margin:6px 0}
+.me-prop{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:12px;background:rgba(0,0,0,.15)}
+.me-prop .why{margin:4px 0 8px}.diff{line-height:1.7}
+.diff del{background:rgba(248,113,113,.18);color:#fca5a5;text-decoration:line-through;border-radius:3px;padding:0 2px}
+.diff ins{background:rgba(52,211,153,.18);color:#6ee7b7;text-decoration:none;border-radius:3px;padding:0 2px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(148,163,209,.3);border-top-color:var(--acc);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.me-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111827;border:1px solid var(--line);color:var(--txt);padding:10px 16px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:50;display:flex;gap:12px;align-items:center}
+.me-toast button{background:none;border:0;color:var(--cb);font:600 13px inherit;cursor:pointer}

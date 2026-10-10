@@ -319,3 +319,9 @@ It calls the gateway's own `memory_list` / `memory_update` / `memory_delete` / `
 `memory_undo` through the gateway's key-gated internal listener (published on a random loopback port,
 `docker compose port ts-<ctx> 8100`, key `HUB_INTERNAL_KEY_<CTX>`), so every change is versioned in the ledger
 exactly like a change made by an assistant (origin shows `dashboard via mnemos`).
+
+**Why a correction is not instant in Cognee:** `memory_update` asks Cognee to re-extract the graph for that note,
+which runs the local LLM (20–60 s). The Memory tab saves with `background=true`: the new version is stored in
+the ledger and the search index immediately (you see it right away, with a *processing* badge) and Cognee is
+updated in the background. Undo waits until processing ends. "Something isn't right?" only proposes; each fix is
+shown as a before/after diff and applied with one click.

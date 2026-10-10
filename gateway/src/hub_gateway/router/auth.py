@@ -72,14 +72,14 @@ class ExternalIdP:
 class RouterOAuthProvider(LocalOAuthProvider):
     def __init__(self, *, base_url: str, contexts: list[str], store: Any, user: str | None = None,
                  password_hash: str | None = None, idps: list[ExternalIdP] | None = None,
-                 http: httpx.AsyncClient | None = None) -> None:
+                 http: httpx.AsyncClient | None = None, passkeys: bool | None = None) -> None:
         self.contexts = list(contexts)
         self.idps = {i.name: i for i in (idps or [])}
         self.local_enabled = bool(user and (password_hash or "").startswith("scrypt:"))
         if not self.local_enabled and not self.idps:
             raise ValueError("router needs a sign-in method: HUB_LOCAL_USER + HUB_LOCAL_PASSWORD_HASH, "
                              "Google (MNEMOS_GOOGLE_CLIENT_ID/SECRET) or GitHub (MNEMOS_ROUTER_GITHUB_CLIENT_ID/SECRET)")
-        super().__init__(base_url=base_url, user=user or "", password_hash=password_hash or "", store=store,
+        super().__init__(base_url=base_url, user=user or "", password_hash=password_hash or "", store=store, passkeys=passkeys,
                          resource_name="Mnemos", require_password=False,
                          scopes=["user", SWITCH, *map(ctx_scope, self.contexts)])
         self.http = http
@@ -102,9 +102,11 @@ class RouterOAuthProvider(LocalOAuthProvider):
         for idp in self.idps.values():
             parts.append(f'<form method="get" action="/oidc/{idp.name}/start"><input type="hidden" name="txn" value="{t}">'
                          f'<button type="submit">Sign in with {html.escape(idp.label)}</button></form>')
+        pk = await self.passkey_button(txn) if self.local_enabled else ""
+        parts.append(pk)
         parts.append('<p class="m">Not you, or you did not start this? Just close this tab.</p>')
         targets = [redirect_origin(pending["redirect_uri"])] + [redirect_origin(i.authorize_url) for i in self.idps.values()]
-        return self._page("".join(parts), form_targets=targets)
+        return self._page("".join(parts), form_targets=targets, scripts=bool(pk))
 
     async def login_post(self, request: Request) -> Response:
         if not self.local_enabled:

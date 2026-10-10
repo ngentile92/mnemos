@@ -56,3 +56,18 @@ Not verified yet with the real Claude / ChatGPT / Grok / Cursor UIs (they need a
 - **Passkeys (WebAuthn)**: feasible as a second factor or password replacement on `/local-login` (needs a small
   script on the page and the `webauthn` library); left out to keep the first version dependency-free.
 - One user per instance. Several users would need per-user allowlists per context.
+
+## Passkeys (optional)
+
+Set `HUB_PASSKEYS=1` in `.env` and run `scripts/update.sh`. Applies to hubs with `HUB_AUTH_PROVIDER=local` and to
+the router. The password keeps working; a passkey is an extra, faster way in.
+
+1. Open `https://<hub-or-router-host>/passkey/enroll` in the browser where you want the passkey (Mac Safari/Chrome
+   → iCloud Keychain / Google Password Manager; phone; security key).
+2. Enter your user and password, optionally a name, and confirm with Touch ID / your device.
+3. Next time an assistant connects, the sign-in page shows **Use a passkey** under the password form.
+
+A passkey is tied to the host it was created on (`hub-side.<tailnet>.ts.net` and `mnemos.<tailnet>.ts.net` need one
+each). Credentials (public keys only) are kept in the encrypted OAuth store of that hub. To remove all passkeys,
+stop the hub and delete the `passkeys` collection in its OAuth store, or turn `HUB_PASSKEYS` off.
+Hubs that use the GitHub provider are not affected.

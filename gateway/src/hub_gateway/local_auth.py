@@ -93,10 +93,12 @@ def _h(token: str) -> str:
 EXPIRED = "<p class='e'>This sign-in link expired. Start again from your assistant.</p>"
 
 
-class LocalOAuthProvider(OAuthProvider):
+from .passkeys import PasskeyMixin, enabled_from_env  # noqa: E402
+
+class LocalOAuthProvider(PasskeyMixin, OAuthProvider):
     def __init__(self, *, base_url: str, user: str, password_hash: str, store: Any,
                  resource_name: str = "Mnemos", scopes: list[str] | None = None,
-                 require_password: bool = True) -> None:
+                 require_password: bool = True, passkeys: bool | None = None) -> None:
         if require_password and (not user or not (password_hash or "").startswith("scrypt:")):
             raise ValueError("HUB_LOCAL_USER and HUB_LOCAL_PASSWORD_HASH (scrypt:...) are required")
         self.valid_scopes = list(scopes or SCOPES)
@@ -113,6 +115,7 @@ class LocalOAuthProvider(OAuthProvider):
         self.resource_name = resource_name
         self._fails: list[float] = []
         self._locked_until = 0.0
+        self.passkeys_enabled = enabled_from_env() if passkeys is None else passkeys
 
     # ------------------------------------------------------------ clients (DCR)
     async def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
@@ -156,7 +159,7 @@ class LocalOAuthProvider(OAuthProvider):
             self._fails.clear()
 
     @staticmethod
-    def _page(body: str, code: int = 200, form_targets: list[str] | None = None) -> HTMLResponse:
+    def _page(body: str, code: int = 200, form_targets: list[str] | None = None, scripts: bool = False) -> HTMLResponse:
         """form_targets: extra origins a form submit may end up at. CSP form-action also applies to the
         redirect that follows a POST, so the client's redirect_uri origin must be allowed or the browser
         silently blocks the final hop back to the assistant."""
@@ -165,7 +168,8 @@ class LocalOAuthProvider(OAuthProvider):
 input,button{{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:border-box}}button{{background:#111;color:#fff;border:0;border-radius:6px}}
 .m{{color:#555;font-size:14px}}.e{{color:#b00}}code{{background:#eee;padding:1px 4px}}</style></head><body>{body}</body></html>"""
         return HTMLResponse(doc, status_code=code, headers={
-            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'"
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; "
+                                       + ("script-src 'self'; connect-src 'self'; " if scripts else "") + "form-action 'self'"
                                        + "".join(f" {o}" for o in (form_targets or [])) + "; frame-ancestors 'none'",
             "X-Frame-Options": "DENY", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
 
@@ -174,12 +178,13 @@ input,button{{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:borde
         name = html.escape((client.client_name if client else None) or pending["client_id"])
         dest = html.escape(urlparse(pending["redirect_uri"]).netloc or pending["redirect_uri"])
         err = f'<p class="e">{html.escape(error)}</p>' if error else ""
-        return self._page(form_targets=[redirect_origin(pending["redirect_uri"])], body=f"""<h2>{html.escape(self.resource_name)}</h2>
+        pk = await self.passkey_button(txn)
+        return self._page(form_targets=[redirect_origin(pending["redirect_uri"])], scripts=bool(pk), body=f"""<h2>{html.escape(self.resource_name)}</h2>
 <p><b>{name}</b> wants to use your memory, skills and credentials. After signing in you return to <code>{dest}</code>.</p>
 {err}<form method="post" action="/local-login"><input type="hidden" name="txn" value="{html.escape(txn)}">
 <input name="username" autocomplete="username" placeholder="user" required>
 <input name="password" type="password" autocomplete="current-password" placeholder="password" required>
-<button type="submit">Allow</button></form><p class="m">Not you, or you did not start this? Just close this tab.</p>""")
+<button type="submit">Allow</button></form>{pk}<p class="m">Not you, or you did not start this? Just close this tab.</p>""")
 
     async def login_get(self, request: Request) -> Response:
         txn = request.query_params.get("txn", "")
@@ -237,6 +242,7 @@ input,button{{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:borde
         routes = self._public_client_metadata(super().get_routes(mcp_path))
         routes.append(Route("/local-login", self.login_get, methods=["GET"]))
         routes.append(Route("/local-login", self.login_post, methods=["POST"]))
+        routes.extend(self.passkey_routes())
         return routes
 
     # ------------------------------------------------------------ codes and tokens

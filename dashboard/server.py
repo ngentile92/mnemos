@@ -538,7 +538,44 @@ def add_context(body: dict) -> dict:
     return {"ok": True, "dry_run": dry, "output": out}
 
 
-POST_ROUTES: dict = {"/api/contexts/add": add_context}  # path → fn(body) -> dict
+class RouterOff(Exception):
+    pass
+
+
+def _router_admin(method: str, path: str, body: dict | None = None) -> dict:
+    """Talk to hub-router's grant admin (127.0.0.1:MNEMOS_ROUTER_ADMIN_PORT, key from .env)."""
+    import urllib.error
+    import urllib.request
+
+    env = read_env(ROOT / ".env")
+    key = env.get("MNEMOS_ROUTER_ADMIN_KEY", "")
+    if not key or "router" not in {x.strip() for x in env.get("COMPOSE_PROFILES", "").split(",")}:
+        raise RouterOff("the single connector (hub-router) is not enabled: see docs/router.md")
+    port = int(env.get("MNEMOS_ROUTER_ADMIN_PORT") or 8210)
+    req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", method=method,
+                                 data=json.dumps(body).encode() if body is not None else None,
+                                 headers={"X-Mnemos-Admin": key, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        raise ValueError(f"router answered HTTP {e.code}") from e
+    except OSError as e:
+        raise ValueError(f"router not reachable on 127.0.0.1:{port} ({type(e).__name__})") from e
+
+
+def router_grants() -> dict:
+    return _router_admin("GET", "/admin/grants")
+
+
+def router_revoke(body: dict) -> dict:
+    cid = str(body.get("client_id", ""))
+    if not cid or len(cid) > 200:
+        raise ValueError("client_id required")
+    return _router_admin("POST", "/admin/revoke", {"client_id": cid})
+
+
+POST_ROUTES: dict = {"/api/contexts/add": add_context, "/api/router/revoke": router_revoke}  # path → fn(body) -> dict
 
 
 def skills_dir() -> Path | None:
@@ -638,6 +675,8 @@ def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
                 if handler is None:
                     return self._json(404, {"error": "not found"})
                 return self._json(200, handler(body))
+            except RouterOff as e:
+                return self._json(409, {"error": str(e)[:300]})
             except (ValueError, KeyError) as e:  # SkillError/ContextError are ValueErrors
                 return self._json(400, {"error": str(e)[:300]})
             except Exception as e:  # noqa: BLE001
@@ -658,6 +697,15 @@ def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
                 if hub is not None:
                     text = hub.redact(text)
                 return self._send(200, text.encode(), "application/json; charset=utf-8")
+            if path == "/api/router/grants":
+                if demo is not None:
+                    return self._json(200, demo.get("router_grants") or {"grants": []})
+                try:
+                    return self._json(200, router_grants())
+                except RouterOff as e:
+                    return self._json(409, {"error": str(e)})
+                except ValueError as e:
+                    return self._json(502, {"error": str(e)[:200]})
             if path == "/config.js":  # contextos de config/contexts.yaml para la UI (solo nombres)
                 return self._send(200, config_js(skills_dir() is not None).encode(), "text/javascript; charset=utf-8")
             name = "index.html" if path in ("/", "/index.html") else path.lstrip("/")

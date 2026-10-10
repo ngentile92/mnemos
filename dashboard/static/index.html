@@ -71,6 +71,9 @@
       <input id="ca-proj" placeholder="projects, comma-separated (optional)"> <button id="ca-preview">Preview</button> <button id="ca-create">Create</button></div>
     <pre id="ca-out" class="hidden"></pre></section>
 
+  <section class="card hidden" id="apps-card"><div class="card-h"><h2>Connected apps</h2><span class="muted small">single connector (mnemos.&lt;tailnet&gt;) · which contexts each app may use · revoke only from http://127.0.0.1</span></div>
+    <div id="apps"></div></section>
+
   <section class="card"><div class="card-h"><h2>Watchdog Funnel/DNS</h2><span class="muted small" id="wd-head"></span></div><div id="watchdog"></div></section>
 
   <section class="grid2">
@@ -117,5 +120,6 @@
 <script src="/app.js"></script>
 <script src="/explore.js"></script>
 <script src="/contexts.js"></script>
+<script src="/apps.js"></script>
 </body>
 </html>

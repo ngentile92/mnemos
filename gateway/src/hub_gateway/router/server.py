@@ -149,20 +149,80 @@ def build_router(s: RouterSettings, *, provider: RouterOAuthProvider | None = No
     return mcp
 
 
+def admin_app(provider: RouterOAuthProvider, key: str):
+    """Grant admin for the dashboard ("Connected apps"): list and revoke. Key-gated, Docker network only,
+    published on the host's 127.0.0.1 (compose `ports`). Never exposed by Funnel."""
+    import hmac
+
+    from starlette.applications import Starlette
+    from starlette.routing import Route
+
+    if len(key or "") < 24:
+        raise ValueError("MNEMOS_ROUTER_ADMIN_KEY must be at least 24 characters")
+
+    def ok(request: Request) -> bool:
+        return hmac.compare_digest(request.headers.get("x-mnemos-admin", "").encode(), key.encode())
+
+    async def grants(request: Request) -> JSONResponse:
+        if not ok(request):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        rows = await provider.list_grants()
+        return JSONResponse({"grants": [{k: g.get(k) for k in ("client_id", "client_name", "login", "contexts",
+                                                                 "switch", "created")} for g in rows]})
+
+    async def revoke(request: Request) -> JSONResponse:
+        if not ok(request):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        try:
+            cid = str((await request.json()).get("client_id", ""))
+        except ValueError:
+            cid = ""
+        if not cid:
+            return JSONResponse({"error": "client_id required"}, status_code=400)
+        return JSONResponse({"revoked": await provider.revoke_grant(cid), "client_id": cid})
+
+    return Starlette(routes=[Route("/admin/grants", grants, methods=["GET"]),
+                             Route("/admin/revoke", revoke, methods=["POST"])])
+
+
+def _public(mcp: FastMCP):
+    from ..internal import StripInternalHeaders
+
+    return StripInternalHeaders(mcp.http_app(path="/mcp"))
+
+
 def create_app():
     logging.basicConfig(level=os.environ.get("HUB_LOG_LEVEL", "INFO"),
                         format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    from ..internal import StripInternalHeaders
-
-    return StripInternalHeaders(build_router(RouterSettings.from_env()).http_app(path="/mcp"))
+    return _public(build_router(RouterSettings.from_env()))
 
 
 def main() -> None:
     import uvicorn
 
+    from ..internal import default_bind
+
+    logging.basicConfig(level=os.environ.get("HUB_LOG_LEVEL", "INFO"),
+                        format="%(asctime)s %(levelname)s %(name)s %(message)s")
     s = RouterSettings.from_env()
-    uvicorn.run("hub_gateway.router.server:create_app", factory=True, host=s.host, port=s.port,
-                proxy_headers=True, forwarded_allow_ips="127.0.0.1")
+    admin_key = os.environ.get("MNEMOS_ROUTER_ADMIN_KEY") or ""
+    if not admin_key:
+        uvicorn.run("hub_gateway.router.server:create_app", factory=True, host=s.host, port=s.port,
+                    proxy_headers=True, forwarded_allow_ips="127.0.0.1")
+        return
+    mcp = build_router(s)
+    bind = os.environ.get("MNEMOS_ROUTER_ADMIN_BIND_HOST") or default_bind()
+    port = int(os.environ.get("MNEMOS_ROUTER_ADMIN_PORT_INTERNAL", "8001"))
+    log.info("router admin (grants) on %s:%s", bind, port)
+    servers = [uvicorn.Server(uvicorn.Config(_public(mcp), host=s.host, port=s.port, proxy_headers=True,
+                                             forwarded_allow_ips="127.0.0.1")),
+               uvicorn.Server(uvicorn.Config(admin_app(mcp.provider, admin_key), host=bind, port=port,
+                                             lifespan="off"))]
+
+    async def serve() -> None:
+        await asyncio.gather(*(x.serve() for x in servers))
+
+    asyncio.run(serve())
 
 
 if __name__ == "__main__":

@@ -83,3 +83,12 @@ Only for apps whose consent included "switch". They get `hub_use_context(context
 `context` and use the active one for the rest of that MCP session. Never beyond the granted contexts; an explicit
 `context` argument always wins. Apps granted a single context can omit `context` too. Without the switch scope
 the tool is hidden and refused.
+
+## Connected apps (dashboard)
+
+The dashboard shows a **Connected apps** card when `COMPOSE_PROFILES` includes `router`: each app that went
+through the consent page, the account it signed in with, its contexts and whether it may switch. **Revoke** deletes
+the grant; that app's tokens stop working immediately and it has to sign in (and choose contexts) again.
+The dashboard talks to the router's admin listener on `127.0.0.1:${MNEMOS_ROUTER_ADMIN_PORT:-8210}` with
+`MNEMOS_ROUTER_ADMIN_KEY`; that listener is not on the tailnet or Funnel. Revoking works only from
+`http://127.0.0.1` (same write guard as the other dashboard edits).

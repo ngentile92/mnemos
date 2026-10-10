@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import logging
 import os
@@ -124,6 +125,8 @@ def build_server(
     audit = audit or Audit(settings.context, os.path.join(settings.data_dir, "audit.log"))
     ledger = ledger or Ledger(os.path.join(settings.data_dir, "ledger.sqlite"))
     answerer = answerer or Answerer.from_env()
+    _syncing: dict[str, dict[str, Any]] = {}  # background corrections still being re-processed by Cognee
+    _tasks: set = set()
     index = index or LocalIndex(os.path.join(settings.data_dir, "search.sqlite"), OllamaEmbedder.from_env())
     skills = skills or SkillIndex(settings.skills_root, settings.context)
     cognee = cognee or CogneeClient(
@@ -409,6 +412,10 @@ def build_server(
                         it["source_app"] = it["source_app"] or prov["source_app"]
                         it["pinned"] = bool(prov.get("pinned"))
                         it["obsolete"] = bool(prov.get("obsolete"))
+                    sy = _syncing.get(str(d.get("id")))
+                    if sy:
+                        text = sy["text"]
+                        it["sync"] = sy["state"]
                     it["chars"] = len(text)
                     it["text"] = text[:1500]
                     items.append(it)
@@ -456,6 +463,8 @@ def build_server(
         id: Annotated[str, Field(description="id (UUID) de la nota a corregir, sacado de memory_list")],
         text: Annotated[str, Field(description="Texto nuevo COMPLETO (reemplaza al anterior)", min_length=3, max_length=20000)],
         tags: Annotated[list[str] | None, Field(description="Etiquetas; si no se pasan, se conservan las anteriores", max_length=5)] = None,
+        background: Annotated[bool, Field(description="true: guarda la versión y responde ya; Cognee re-procesa la nota en "
+                                                      "segundo plano (memory_list muestra sync=processing)")] = False,
     ) -> dict[str, Any]:
         """Corrige una nota propia del contexto en el lugar: conserva su id y su fecha, y el grafo se
         re-extrae solo donde cambió. La versión anterior queda en memory_history (memory_undo la vuelve
@@ -473,6 +482,29 @@ def build_server(
                  action="update", by=app, created_at=old["created_at"], source_app=old["source_app"])
             new_ns = _node_sets(clean_tags, text) or []
             ns_changed = sorted(new_ns) != sorted(_node_sets(old["tags"], old_text) or [])
+            if background:
+                if _syncing.get(id, {}).get("state") == "processing":
+                    raise MemoryError_("la nota todavía se está procesando; esperá unos segundos")
+                safe(ledger.record_change, id, text=text, by=app, tags=clean_tags)
+                safe(index.put, id, name, text, old["created_at"])
+                _syncing[id] = {"state": "processing", "text": text}
+
+                async def _apply(ds_id=ds_id, ns=new_ns if ns_changed else None) -> None:
+                    try:
+                        await cognee.update(ds_id, id, text, node_set=ns)
+                        _syncing.pop(id, None)
+                    except Exception as exc:  # noqa: BLE001
+                        log.warning("background update failed for %s", id, exc_info=True)
+                        _syncing[id] = {"state": "error", "text": text, "error": type(exc).__name__}
+                task = asyncio.create_task(_apply())
+                _tasks.add(task)
+                task.add_done_callback(_tasks.discard)
+                h = safe(ledger.history, id) or {}
+                audit.log("memory_update", login, "ok", data_id=id, dataset=name, chars=len(text), app=app,
+                          status="processing")
+                return {"updated": id, "dataset": name, "status": "processing",
+                        "version": len(h.get("previous_versions", [])) + 1,
+                        "note": "guardado; Cognee lo re-procesa en segundo plano (memory_list: sync)"}
             res = await cognee.update(ds_id, id, text, node_set=new_ns if ns_changed else None)
         except MemoryError_ as exc:
             audit.log("memory_update", login, "rejected", data_id=id, reason=str(exc))
@@ -544,6 +576,15 @@ def build_server(
             raise ToolError("id inválido: usá el id (UUID) que devuelve memory_list")
         own = {n for n, _ in scope().editable()}
         h = safe(ledger.history, id)
+        if not h:  # older note, never edited through Mnemos: fall back to Cognee's metadata
+            try:
+                name, _ds, item = await _locate(scope(), id)
+                old = item_summary(item, name)
+                h = {"id": id, "dataset": name, "deleted": False, "previous_versions": [],
+                     "provenance": {"source_app": old["source_app"], "saved_at": old["created_at"],
+                                    "source": "cognee metadata (no Mnemos history yet)"}}
+            except Exception:  # noqa: BLE001
+                h = None
         if not h or h["dataset"] not in own:
             audit.log("memory_history", login, "rejected", data_id=id)
             raise ToolError(f"no hay historial para ese id en el contexto {ctx.name}")
@@ -559,6 +600,8 @@ def build_server(
         memory_list); si fue corregida vuelve a la versión anterior. Repetirlo sigue yendo hacia atrás."""
         login = _current_login(settings)
         app = _client_app()
+        if _syncing.get(id, {}).get("state") == "processing":
+            raise ToolError("la nota todavía se está procesando; esperá unos segundos y deshacé")
         try:
             if not _UUID_RE.match(id or ""):
                 raise MemoryError_("id inválido: usá el id (UUID) que devuelve memory_list")

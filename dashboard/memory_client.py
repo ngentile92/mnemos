@@ -111,6 +111,7 @@ def run(root: Path, env: dict[str, str], contexts: list[str], action: str, body:
             if not 3 <= len(text) <= 20000:
                 raise ValueError("text must be 3-20000 characters")
             args["text"] = text
+            args["background"] = True
         elif action == "pin":
             args["pinned"] = bool(body.get("pinned", True))
         elif action == "obsolete":

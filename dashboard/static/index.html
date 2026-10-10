@@ -83,22 +83,24 @@
   </section>
 </main>
 <main id="view-memoria" class="hidden">
-  <section class="card ctxbar">
+  <section class="card me-bar">
     <select id="me-ctx" aria-label="Context"></select>
     <input id="me-q" type="search" placeholder="Filter notes…" maxlength="200">
-    <label><input type="checkbox" id="me-shared" checked> include shared (read-only)</label>
-    <button id="me-refresh" class="btn">Refresh</button>
-    <span class="muted small">edits only from http://127.0.0.1 · every change keeps a version (Undo)</span>
+    <label class="small muted"><input type="checkbox" id="me-shared" checked> show shared (read-only)</label>
+    <button id="me-refresh" class="mbtn">Refresh</button>
+    <span class="muted small me-hint">Edits only from this Mac · every change is versioned (Undo)</span>
   </section>
-  <section class="card">
-    <div class="card-h"><h2>This isn't right</h2><span class="muted small">say what is wrong; Mnemos proposes fixes, you confirm each one</span></div>
-    <textarea id="me-dispute" rows="2" maxlength="1000" placeholder="e.g. Ana no longer works at Acme, she is at Beta now"></textarea>
-    <button id="me-dispute-go">Find notes to fix</button><div id="me-proposals"></div>
+  <section class="card me-dispute">
+    <div class="card-h"><h2>Something isn't right?</h2><span class="muted small">Say what changed. Mnemos looks for the note that says otherwise and proposes a minimal fix; nothing changes until you apply it.</span></div>
+    <div class="me-row"><input id="me-dispute" maxlength="1000" placeholder="e.g. I'm not looking for a new job these days">
+    <button id="me-dispute-go" class="mbtn primary">Find what to fix</button></div>
+    <div id="me-proposals"></div>
   </section>
-  <section class="grid2">
-    <div class="card"><div class="card-h"><h2>Notes</h2><span class="muted small" id="me-count"></span></div><div id="me-list"></div></div>
-    <div class="card"><div class="card-h"><h2>Note</h2></div><div id="me-detail"><p class="muted">Pick a note.</p></div></div>
+  <section class="me-grid">
+    <div class="card me-listcard"><div class="card-h"><h2>Notes</h2><span class="muted small" id="me-count"></span></div><div id="me-list"></div></div>
+    <div class="card me-detailcard"><div id="me-detail"><p class="muted">Pick a note on the left.</p></div></div>
   </section>
+  <div id="me-toast" class="me-toast hidden" role="status"></div>
 </main>
 <main id="view-explorar" class="hidden">
   <section class="card ctxbar">

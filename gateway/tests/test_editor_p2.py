@@ -93,3 +93,30 @@ async def test_dispute_drops_unrelated(monkeypatch, tmp_path, skills_repo, polic
     async with Client(server) as c:
         out = data(await c.call_tool("memory_dispute", {"correction": "orion ya está cerrado"}))
     assert out["proposals"] == [] and out["message"]
+
+
+async def test_background_update_returns_fast_and_overlays(make_server):  # noqa: F811
+    import asyncio
+    server, rec = make_server("personal")
+    async with Client(server) as c:
+        out = data(await c.call_tool("memory_update", {"id": PID, "text": "texto nuevo en segundo plano", "background": True}))
+        assert out["status"] == "processing" and out["version"] == 2
+        items = {i["id"]: i for i in data(await c.call_tool("memory_list", {}))["items"]}
+        assert items[PID]["text"] == "texto nuevo en segundo plano"
+        for _ in range(50):
+            if rec.patches:
+                break
+            await asyncio.sleep(0.02)
+        await asyncio.sleep(0.05)
+        assert rec.texts[PID] == "texto nuevo en segundo plano"
+        items = {i["id"]: i for i in data(await c.call_tool("memory_list", {}))["items"]}
+        assert "sync" not in items[PID]
+        h = data(await c.call_tool("memory_history", {"id": PID}))
+        assert h["previous_versions"][0]["text"] == "nota de personal sobre orion"
+
+
+async def test_history_falls_back_for_old_notes(make_server):  # noqa: F811
+    server, _ = make_server("personal")
+    async with Client(server) as c:
+        h = data(await c.call_tool("memory_history", {"id": PID}))
+    assert h["previous_versions"] == [] and "cognee" in h["provenance"]["source"]

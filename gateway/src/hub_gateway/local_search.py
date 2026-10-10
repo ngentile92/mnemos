@@ -24,6 +24,8 @@ from typing import Any, Awaitable, Callable
 
 import httpx
 
+KEEP_ALIVE = __import__("os").environ.get("HUB_OLLAMA_KEEP_ALIVE", "30m")  # keep local models warm: first call loads them (~10 s)
+
 log = logging.getLogger("hub.search")
 
 STOP = set("""a al algo ante con de del desde donde el en entre es esta este esto la las le lo los mas me mi mis no o
@@ -68,7 +70,7 @@ class OllamaEmbedder:
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         async with httpx.AsyncClient(timeout=self.timeout, transport=self.transport, trust_env=False) as c:
-            r = await c.post(f"{self.url}/api/embed", json={"model": self.model, "input": texts})
+            r = await c.post(f"{self.url}/api/embed", json={"model": self.model, "input": texts, "keep_alive": KEEP_ALIVE})
         r.raise_for_status()
         return r.json()["embeddings"]
 

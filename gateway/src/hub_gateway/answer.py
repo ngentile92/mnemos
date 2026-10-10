@@ -13,6 +13,8 @@ from typing import Any
 
 import httpx
 
+KEEP_ALIVE = __import__("os").environ.get("HUB_OLLAMA_KEEP_ALIVE", "30m")  # keep local models warm: first call loads them (~10 s)
+
 MAX_NOTE_CHARS = 1500
 
 SYSTEM = (
@@ -44,7 +46,7 @@ class Answerer:
             return {"known": False, "answer": "", "citations": [], "unknown": [question]}
         block = "\n\n".join(f"[{i}] ({n.get('created_at') or 's/f'}) {n['text'][:MAX_NOTE_CHARS]}"
                             for i, n in enumerate(notes, 1))
-        payload = {"model": self.model, "stream": False, "format": "json",
+        payload = {"model": self.model, "stream": False, "keep_alive": KEEP_ALIVE, "format": "json",
                    "options": {"temperature": 0, "num_ctx": 8192},
                    "messages": [{"role": "system", "content": SYSTEM},
                                 {"role": "user", "content": f"NOTES:\n{block}\n\nQUESTION: {question}"}]}

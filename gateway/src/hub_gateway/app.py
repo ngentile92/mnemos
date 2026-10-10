@@ -6,6 +6,7 @@ import datetime as dt
 import logging
 import os
 import re
+import time
 from typing import Annotated, Any, Literal
 
 from fastmcp import FastMCP
@@ -656,8 +657,10 @@ def build_server(
         try:
             sc = scope()
             own = [n for n, _ in sc.editable()]
+            t0 = time.monotonic()
             cands = [r for r in await _local_search(sc, correction, False, None, max(limit, 6), "hybrid")
                      if r.get("dataset") in own and r.get("id")][:max(limit, 6)]
+            t1 = time.monotonic()
             if answerer is not None:
                 proposals = await dispute_mod.propose(answerer.url, answerer.model, correction, cands,
                                                       timeout=answerer.timeout, transport=answerer.transport,
@@ -674,6 +677,7 @@ def build_server(
         keep = proposals
         audit.log("memory_dispute", login, "ok", candidates=len(cands), proposals=len(keep))
         return {"context": ctx.name, "correction": correction, "proposals": keep,
+                "timings_ms": {"retrieval": int((t1 - t0) * 1000), "model": int((time.monotonic() - t1) * 1000)},
                 "message": None if keep else "Ninguna nota de este contexto dice eso; no hay nada que corregir.",
                 "next": "confirmá con el usuario y aplicá con memory_update (texto propuesto) o memory_mark_obsolete"}
 

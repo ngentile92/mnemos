@@ -52,6 +52,9 @@ class Settings:
     auth_provider: str = "github"   # github (default) | local (built-in login, no GitHub OAuth app)
     local_user: str | None = None
     local_password_hash: str | None = None
+    internal_key: str | None = None    # HUB_INTERNAL_KEY: enables the router-only internal listener
+    internal_host: str | None = None
+    internal_port: int = 8100
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -93,7 +96,12 @@ class Settings:
             auth_provider=(_env("HUB_AUTH_PROVIDER", "github") or "github").strip().lower(),
             local_user=(_env("HUB_LOCAL_USER") or "").strip().lower() or None,
             local_password_hash=_env("HUB_LOCAL_PASSWORD_HASH"),
+            internal_key=_env("HUB_INTERNAL_KEY") or None,
+            internal_host=_env("HUB_INTERNAL_BIND_HOST") or None,
+            internal_port=int(_env("HUB_INTERNAL_PORT", "8100")),
         )
+        if s.internal_key and len(s.internal_key) < 32:
+            raise ConfigError("HUB_INTERNAL_KEY must be at least 32 characters (scripts/init_env.py generates one)")
         if s.auth_provider not in ("github", "local"):
             raise ConfigError(f"HUB_AUTH_PROVIDER inválido: {s.auth_provider!r} (github | local)")
         if s.auth_provider == "local" and not logins and s.local_user:

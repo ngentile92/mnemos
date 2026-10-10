@@ -83,35 +83,3 @@ def parse_reply(content: str, notes: list[dict[str, Any]]) -> dict[str, Any]:
         "unknown": unknown,
     }
 
-
-FIX_PROMPT = """You maintain a personal memory. The user says something in it is wrong:
-CORRECTION: {correction}
-
-NOTE (id {id}):
-{text}
-
-Does this note state the thing the user corrects? Reply ONLY with JSON:
-{{"related": true|false, "action": "update"|"obsolete"|"none",
-  "proposed_text": "the full note rewritten with the correction (same language, keep everything else), or empty",
-  "why": "one short sentence"}}
-Use "obsolete" when the whole note is no longer true and rewriting makes no sense. Never invent other facts."""
-
-
-async def propose_fix(answerer: "Answerer", correction: str, note: dict[str, Any]) -> dict[str, Any]:
-    payload = {"model": answerer.model, "stream": False, "format": "json", "options": {"temperature": 0},
-               "messages": [{"role": "user", "content": FIX_PROMPT.format(
-                   correction=correction, id=note.get("id"), text=str(note.get("text", ""))[:4000])}]}
-    async with httpx.AsyncClient(timeout=answerer.timeout, transport=answerer.transport, trust_env=False) as c:
-        r = await c.post(f"{answerer.url}/api/chat", json=payload)
-        r.raise_for_status()
-    try:
-        d = json.loads(r.json().get("message", {}).get("content", "") or "{}")
-    except json.JSONDecodeError:
-        d = {}
-    action = d.get("action") if d.get("action") in ("update", "obsolete", "none") else "none"
-    if not d.get("related"):
-        action = "none"
-    text = str(d.get("proposed_text") or "").strip()
-    if action == "update" and len(text) < 3:
-        action = "none"
-    return {"action": action, "proposed_text": text if action == "update" else None, "why": str(d.get("why") or "")[:300]}

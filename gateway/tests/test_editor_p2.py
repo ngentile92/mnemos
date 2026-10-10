@@ -53,10 +53,15 @@ async def test_flags_refused_on_shared(make_server):  # noqa: F811
 
 
 def llm(reply):
+    import re
+
     def h(req):
         body = json.loads(req.content)
-        assert "CORRECTION" in body["messages"][0]["content"]
-        return httpx.Response(200, json={"message": {"content": json.dumps(reply)}})
+        prompt = body["messages"][0]["content"]
+        assert "CORRECTION" in prompt
+        m = re.search(r"\[(\d+)\] nota de personal sobre orion", prompt)
+        out = {"matches": [{**reply, "n": int(m.group(1))}]} if (m and reply) else {"matches": []}
+        return httpx.Response(200, json={"message": {"content": json.dumps(out)}})
     return Answerer("http://ollama", "m", transport=httpx.MockTransport(h))
 
 
@@ -73,18 +78,18 @@ def server_with(monkeypatch, tmp_path, skills_repo, policy_file, answerer):
 
 async def test_dispute_proposes_without_writing(monkeypatch, tmp_path, skills_repo, policy_file):
     server, rec = server_with(monkeypatch, tmp_path, skills_repo, policy_file, llm(
-        {"related": True, "action": "update", "proposed_text": "nota de personal sobre orion (ya cerrado)", "why": "x"}))
+        {"action": "update", "evidence": "personal sobre orion", "proposed_text": "nota de personal sobre orion cerrado", "why": "x"}))
     async with Client(server) as c:
         out = data(await c.call_tool("memory_dispute", {"correction": "orion ya está cerrado"}))
     ids = [p["id"] for p in out["proposals"]]
     assert PID in ids and NOTE_IDS["shared"] not in ids and NOTE_IDS["work"] not in ids
     p = next(p for p in out["proposals"] if p["id"] == PID)
-    assert p["action"] == "update" and "cerrado" in p["proposed_text"]
+    assert p["action"] == "update" and "cerrado" in p["proposed_text"] and p["diff"]
     assert not rec.patches and not rec.deletes  # propose only
 
 
 async def test_dispute_drops_unrelated(monkeypatch, tmp_path, skills_repo, policy_file):
-    server, _ = server_with(monkeypatch, tmp_path, skills_repo, policy_file, llm({"related": False, "action": "update"}))
+    server, _ = server_with(monkeypatch, tmp_path, skills_repo, policy_file, llm({}))
     async with Client(server) as c:
         out = data(await c.call_tool("memory_dispute", {"correction": "orion ya está cerrado"}))
-    assert out["proposals"] == []
+    assert out["proposals"] == [] and out["message"]

@@ -19,6 +19,7 @@ memory_history, memory_undo, memory_answer, memory_entity, skills_list, skills_g
 
 ## Reference
 
+- [docs/auth-local.md](docs/auth-local.md): built-in OAuth login (local user + password) instead of a GitHub OAuth app
 - [docs/memory-editing.md](docs/memory-editing.md): what Cognee supports for editing, provenance registry, history and undo
 - [docs/memory-trust.md](docs/memory-trust.md): what leaves your machine, what is isolated between contexts and what is not
 - [docs/client-instructions.md](docs/client-instructions.md): instructions to paste into clients that ignore MCP server instructions

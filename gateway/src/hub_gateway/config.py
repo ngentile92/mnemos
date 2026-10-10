@@ -49,6 +49,9 @@ class Settings:
     infisical_environment: str
     host: str
     port: int
+    auth_provider: str = "github"   # github (default) | local (built-in login, no GitHub OAuth app)
+    local_user: str | None = None
+    local_password_hash: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -87,24 +90,28 @@ class Settings:
             infisical_environment=_env("INFISICAL_ENVIRONMENT", "prod"),
             host=_env("HUB_BIND_HOST", "0.0.0.0"),
             port=int(_env("HUB_PORT", "8000")),
+            auth_provider=(_env("HUB_AUTH_PROVIDER", "github") or "github").strip().lower(),
+            local_user=(_env("HUB_LOCAL_USER") or "").strip().lower() or None,
+            local_password_hash=_env("HUB_LOCAL_PASSWORD_HASH"),
         )
+        if s.auth_provider not in ("github", "local"):
+            raise ConfigError(f"HUB_AUTH_PROVIDER inválido: {s.auth_provider!r} (github | local)")
+        if s.auth_provider == "local" and not logins and s.local_user:
+            s.allowed_logins = frozenset({s.local_user})  # the only account of the built-in login
         if not dev:
-            missing = [
-                n
-                for n, v in {
-                    "GITHUB_CLIENT_ID": s.github_client_id,
-                    "GITHUB_CLIENT_SECRET": s.github_client_secret,
-                    "HUB_JWT_SIGNING_KEY": s.jwt_signing_key,
-                    "HUB_STORAGE_ENCRYPTION_KEY": s.storage_encryption_key,
-                }.items()
-                if not v
-            ]
+            need = ({"HUB_LOCAL_USER": s.local_user, "HUB_LOCAL_PASSWORD_HASH": s.local_password_hash,
+                     "HUB_STORAGE_ENCRYPTION_KEY": s.storage_encryption_key}
+                    if s.auth_provider == "local" else
+                    {"GITHUB_CLIENT_ID": s.github_client_id, "GITHUB_CLIENT_SECRET": s.github_client_secret,
+                     "HUB_JWT_SIGNING_KEY": s.jwt_signing_key,
+                     "HUB_STORAGE_ENCRYPTION_KEY": s.storage_encryption_key})
+            missing = [n for n, v in need.items() if not v]
             if missing:
                 raise ConfigError("Faltan variables para OAuth: " + ", ".join(missing))
             if "SIN-TAILNET" in (public_url or ""):
                 raise ConfigError("TS_TAILNET no está definido en .env (HUB_PUBLIC_URL inválida)")
             if not s.cognee_api_key:
                 raise ConfigError("Falta COGNEE_API_KEY: corré scripts/bootstrap_cognee.py")
-            if not logins:
+            if not s.allowed_logins:
                 raise ConfigError("HUB_ALLOWED_GITHUB_LOGINS está vacío: nadie podría entrar (o entraría cualquiera).")
         return s

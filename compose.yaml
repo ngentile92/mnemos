@@ -20,7 +20,10 @@ x-gateway: &gateway
     skills-sync: { condition: service_started }
 
 x-gateway-env: &gateway-env
-  HUB_ALLOWED_GITHUB_LOGINS: ${HUB_ALLOWED_GITHUB_LOGINS:-${GITHUB_USER:?definí GITHUB_USER en .env}}
+  HUB_ALLOWED_GITHUB_LOGINS: ${HUB_ALLOWED_GITHUB_LOGINS:-${GITHUB_USER:-}}   # github auth: who may log in (empty = refused at start)
+  HUB_AUTH_PROVIDER: ${HUB_AUTH_PROVIDER:-github}   # github (OAuth app per context) | local (built-in user + password)
+  HUB_LOCAL_USER: ${HUB_LOCAL_USER:-}
+  HUB_LOCAL_PASSWORD_HASH: ${HUB_LOCAL_PASSWORD_HASH:-}   # python -m hub_gateway.local_auth hash
   COGNEE_URL: http://cognee:8000
   INFISICAL_URL: http://infisical:8080
   INFISICAL_ENVIRONMENT: prod

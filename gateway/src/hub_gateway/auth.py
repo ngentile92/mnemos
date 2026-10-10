@@ -1,5 +1,6 @@
-"""Auth del gateway: OAuth 2.1 (spec MCP) con GitHub como IdP vía el OAuth proxy de FastMCP,
-más una allowlist de logins de GitHub. Sin allowlist, GitHubProvider aceptaría cualquier cuenta."""
+"""Auth del gateway: OAuth 2.1 (spec MCP). Default: GitHub como IdP vía el OAuth proxy de FastMCP,
+más una allowlist de logins de GitHub. Opcional (HUB_AUTH_PROVIDER=local): servidor OAuth propio con un
+usuario local (local_auth.py). Sin allowlist, GitHubProvider aceptaría cualquier cuenta."""
 
 from __future__ import annotations
 
@@ -14,8 +15,16 @@ def build_auth(settings: Settings):
     from key_value.aio.stores.filetree import FileTreeStore
     from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
 
-    oauth_dir = os.path.join(settings.data_dir, "oauth")
+    oauth_dir = os.path.join(settings.data_dir, "oauth" if settings.auth_provider == "github" else "oauth-local")
     os.makedirs(oauth_dir, exist_ok=True)
+    store = FernetEncryptionWrapper(key_value=FileTreeStore(data_directory=oauth_dir),
+                                    fernet=Fernet(settings.storage_encryption_key.encode()))
+    if settings.auth_provider == "local":
+        from .local_auth import LocalOAuthProvider
+
+        return LocalOAuthProvider(base_url=settings.public_url, user=settings.local_user or "",
+                                  password_hash=settings.local_password_hash or "", store=store,
+                                  resource_name=f"Mnemos · {settings.context}")
     return GitHubProvider(
         client_id=settings.github_client_id,
         client_secret=settings.github_client_secret,

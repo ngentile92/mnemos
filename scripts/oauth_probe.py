@@ -45,8 +45,30 @@ async def mcp_tools(c: httpx.AsyncClient, base: str, token: str) -> tuple[int, l
     return r.status_code, names
 
 
+async def mcp_calls(c: httpx.AsyncClient, base: str, token: str, calls: list[tuple[str, dict]]) -> list[dict]:
+    """tools/call each (name, args) with the bearer; returns [{tool, ok, text}] (text cut to 160 chars)."""
+    import json as _json
+    h = {**ACCEPT, "Authorization": f"Bearer {token}"}
+    r = await c.post(f"{base}/mcp", headers=h, json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+        "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "oauth-probe", "version": "1"}}})
+    if r.headers.get("mcp-session-id"):
+        h["mcp-session-id"] = r.headers["mcp-session-id"]
+    await c.post(f"{base}/mcp", headers=h, json={"jsonrpc": "2.0", "method": "notifications/initialized"})
+    out = []
+    for i, (name, args) in enumerate(calls, start=10):
+        r = await c.post(f"{base}/mcp", headers=h, json={"jsonrpc": "2.0", "id": i, "method": "tools/call",
+                                                          "params": {"name": name, "arguments": args}})
+        data = [_json.loads(x[5:]) for x in r.text.splitlines() if x.startswith("data:")]
+        msg = data[-1] if data else {}
+        res = msg.get("result") or {}
+        text = " ".join(b.get("text", "") for b in res.get("content", []) if isinstance(b, dict)) or str(msg.get("error"))
+        out.append({"tool": name, "args": args, "ok": bool(res) and not res.get("isError"), "text": text[:160]})
+    return out
+
+
 async def probe(c: httpx.AsyncClient, base: str, user: str, password: str, log=print,
-                contexts: list[str] | None = None, switch: bool = False) -> dict:
+                contexts: list[str] | None = None, switch: bool = False,
+                calls: list[tuple[str, dict]] | None = None) -> dict:
     """contexts=None: a hub. contexts=[...]: the router, which shows a consent page after the login."""
     base = base.rstrip("/")
     out: dict = {}
@@ -107,6 +129,8 @@ async def probe(c: httpx.AsyncClient, base: str, user: str, password: str, log=p
         "grant_type": "refresh_token", "refresh_token": t["refresh_token"], "client_id": client_id})
     out["old_refresh_rejected"] = old_ref.status_code in (400, 401)
     out["new_access_works"] = (await mcp_tools(c, base, t2.get("access_token", "")))[0] == 200
+    if calls:
+        out["calls"] = await mcp_calls(c, base, t2.get("access_token", ""), calls)
     return out
 
 
@@ -132,6 +156,8 @@ def main() -> int:
     ap.add_argument("--user", required=True)
     ap.add_argument("--contexts", help="router only: comma-separated contexts to tick on the consent page")
     ap.add_argument("--switch", action="store_true", help="router only: also allow in-chat switching")
+    ap.add_argument("--call", action="append", default=[], metavar="TOOL[:JSON]",
+                    help='after the flow, call a tool, e.g. --call hub_whoami --call \'skills_list:{"context":"side"}\'')
     args = ap.parse_args()
     ctxs = [x for x in (args.contexts or "").split(",") if x] or None
     pw = os.environ.get("MNEMOS_PROBE_PASSWORD") or ""
@@ -140,10 +166,20 @@ def main() -> int:
 
     async def run() -> dict:
         async with httpx.AsyncClient(timeout=30, follow_redirects=False) as c:
-            return await probe(c, args.base_url, args.user, pw, contexts=ctxs, switch=args.switch)
+            return await probe(c, args.base_url, args.user, pw, contexts=ctxs, switch=args.switch, calls=calls)
+
+    import json as _json
+    calls = []
+    for spec in args.call:
+        name, _, raw = spec.partition(":")
+        calls.append((name, _json.loads(raw) if raw else {}))
 
     out = asyncio.run(run())
     for k, v in out.items():
+        if k == "calls":
+            for x in v:
+                print(f"call {x['tool']} {x['args']}: {'ok' if x['ok'] else 'ERROR'} — {x['text']}")
+            continue
         print(f"{k:24} {v}")
     bad = check(out)
     print("ALL OK" if not bad else "FAILED:\n  " + "\n  ".join(bad))

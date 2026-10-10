@@ -209,6 +209,16 @@ async def test_claude_full_browser_flow_reaches_callback():
             assert q["state"] == ["st"] and q["code"][0]
             assert _form_action_allows(csp, BASE, done.headers["location"]), csp
             assert (await prov.list_grants())[0]["switch"] is True
+            assert "script-src 'self'" in csp and "/consent.js" in consent.text
+            assert "disabled" in (await c.get("/consent.js")).text
+            # double submit / back button: same redirect while the code is unused, then a friendly page
+            again = await c.post("/consent", data={"consent": token, "ctx": ["work"]})
+            assert again.status_code == 302 and again.headers["location"] == done.headers["location"]
+            from hub_gateway.local_auth import _h
+            await prov.store.delete(_h(q["code"][0]), collection="codes")  # code redeemed by the client
+            again = await c.post("/consent", data={"consent": token, "ctx": ["work"]})
+            assert again.status_code == 200 and "You're connected" in again.text
+            assert (await c.post("/consent", data={"consent": "bogus", "ctx": ["work"]})).status_code == 400
 
 
 def test_redirect_origin_is_csp_safe():

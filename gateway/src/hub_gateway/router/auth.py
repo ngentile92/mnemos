@@ -13,7 +13,7 @@ import secrets
 import time
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import httpx
 from starlette.requests import Request
@@ -24,6 +24,15 @@ from ..local_auth import EXPIRED, LocalOAuthProvider, _h, redirect_origin
 
 SWITCH = "switch"
 OIDC_STATE_TTL = 10 * 60
+CONNECTED = "<h2>You're connected</h2><p>Mnemos is connected to your assistant. You can close this tab.</p>"
+CONSENT_JS = """document.querySelectorAll('form[action="/consent"]').forEach(function (f) {
+  f.addEventListener('submit', function (e) {
+    if (f.dataset.sent) { e.preventDefault(); return; }
+    f.dataset.sent = '1';
+    var b = f.querySelector('button[type=submit]');
+    if (b) { b.textContent = 'Connecting…'; setTimeout(function () { b.disabled = true; }, 0); }
+  });
+});"""
 
 
 def ctx_scope(name: str) -> str:
@@ -171,17 +180,23 @@ class RouterOAuthProvider(LocalOAuthProvider):
         err = f'<p class="e">{html.escape(error)}</p>' if error else ""
         boxes = "".join(f'<label><input type="checkbox" name="ctx" value="{html.escape(c)}"> {html.escape(c)}</label><br>'
                         for c in self.contexts)
-        return self._page(form_targets=[redirect_origin(pending["redirect_uri"])], body=f"""<h2>Mnemos</h2><p>Which contexts may <b>{name}</b> use? It will not see the others.</p>{err}
+        return self._page(form_targets=[redirect_origin(pending["redirect_uri"])], scripts=True, body=f"""<h2>Mnemos</h2><p>Which contexts may <b>{name}</b> use? It will not see the others.</p>{err}
 <form method="post" action="/consent"><input type="hidden" name="consent" value="{html.escape(consent)}">
 <fieldset><legend>Contexts</legend>{boxes}</fieldset>
 <label><input type="checkbox" name="switch" value="1"> Let it switch between these contexts during a chat</label>
-<button type="submit">Allow</button></form><p class="m">You can revoke this app later from the dashboard.</p>""")
+<button type="submit" id="allow">Allow</button></form><p class="m">You can revoke this app later from the dashboard.</p>
+<script src="/consent.js"></script>""")
 
     async def consent_post(self, request: Request) -> Response:
         form = await request.form()
         consent = str(form.get("consent", ""))
         pending = await self.store.get(_h(consent), collection="consent") if consent else None
         if not pending:
+            done = await self.store.get(_h(consent), collection="consent_done") if consent else None
+            if done:  # duplicate submit / back button after a successful Allow
+                if await self.store.get(done["code_h"], collection="codes"):
+                    return RedirectResponse(done["url"], status_code=302)
+                return self._page(CONNECTED)
             return self._page(EXPIRED, 400)
         chosen = [c for c in self.contexts if c in set(map(str, form.getlist("ctx")))]
         if not chosen:
@@ -195,7 +210,16 @@ class RouterOAuthProvider(LocalOAuthProvider):
             collection="grants")
         await self._index_grant(pending["client_id"], add=True)
         scopes = ["user", *map(ctx_scope, chosen), *([SWITCH] if switch else [])]
-        return await self._grant_code("", pending, pending["login"], scopes)
+        resp = await self._grant_code("", pending, pending["login"], scopes)
+        url = resp.headers.get("location", "")
+        code = (parse_qs(urlparse(url).query).get("code") or [""])[0]
+        if code:
+            await self.store.put(_h(consent), {"url": url, "code_h": _h(code)}, collection="consent_done", ttl=600)
+        return resp
+
+    async def consent_js(self, request: Request) -> Response:
+        from starlette.responses import PlainTextResponse
+        return PlainTextResponse(CONSENT_JS, media_type="text/javascript", headers={"Cache-Control": "no-store"})
 
     async def _grant_code(self, txn: str, pending: dict, login: str, scopes: list[str]) -> Response:
         if txn:
@@ -248,7 +272,7 @@ class RouterOAuthProvider(LocalOAuthProvider):
 
     def get_routes(self, mcp_path: str | None = None) -> list[Route]:
         routes = super().get_routes(mcp_path)
-        routes += [Route("/consent", self.consent_post, methods=["POST"]),
+        routes += [Route("/consent", self.consent_post, methods=["POST"]), Route("/consent.js", self.consent_js, methods=["GET"]),
                    Route("/oidc/{idp}/start", self.oidc_start, methods=["GET"]),
                    Route("/oidc/{idp}/callback", self.oidc_callback, methods=["GET"])]
         return routes

@@ -116,6 +116,7 @@ services:
   ts-work:
     <<: *ts
     hostname: hub-work
+    ports: ["127.0.0.1::8100"]   # gateway internal listener on a random host loopback port: dashboard memory editor (key-gated)
     environment:
       TS_AUTHKEY: ${TS_AUTHKEY_PUBLIC:-}
       TS_HOSTNAME: hub-work
@@ -152,6 +153,7 @@ services:
   ts-personal:
     <<: *ts
     hostname: hub-personal
+    ports: ["127.0.0.1::8100"]   # gateway internal listener on a random host loopback port: dashboard memory editor (key-gated)
     environment:
       TS_AUTHKEY: ${TS_AUTHKEY_PUBLIC:-}
       TS_HOSTNAME: hub-personal
@@ -188,6 +190,7 @@ services:
   ts-side:
     <<: *ts
     hostname: hub-side
+    ports: ["127.0.0.1::8100"]   # gateway internal listener on a random host loopback port: dashboard memory editor (key-gated)
     environment:
       TS_AUTHKEY: ${TS_AUTHKEY_PUBLIC:-}
       TS_HOSTNAME: hub-side

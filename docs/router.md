@@ -32,7 +32,7 @@ An allowlist is mandatory for Google and GitHub: without it the router refuses t
 
 ## Google sign-in (optional)
 
-Nothing is created for you. In Google Cloud Console:
+Step-by-step guide with troubleshooting: [google-login.md](google-login.md). Short version — nothing is created for you. In Google Cloud Console:
 
 1. Create (or pick) a project → **APIs & Services → OAuth consent screen**: type *External*, publishing status
    *Testing*, add your own address under *Test users*. Scopes: `openid`, `email` only.

@@ -11,7 +11,7 @@ What "exposed" means:
     turns Funnel on for that hostname only. Check: public DNS (DoH 1.1.1.1/8.8.8.8) resolves
     hub-<ctx>.<tailnet>.ts.net and POST /mcp answers 401 + WWW-Authenticate (OAuth required).
   - tailnet only (`tailscale serve` on the host): Vaultwarden :443 → 127.0.0.1:8081, Infisical :8443 →
-    127.0.0.1:8082 and, with --dashboard, :8444 → 127.0.0.1:8787.
+    127.0.0.1:8082 and, with --dashboard, :8444 → 127.0.0.1:8790.
 
 Safety: it never runs `tailscale funnel`, never removes or rewrites an existing serve entry (a port that already
 points elsewhere is reported as a conflict and left alone), never stops containers, and refuses to touch the host
@@ -35,7 +35,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 HOST_SERVE = {443: ("vaultwarden", 8081), 8443: ("infisical", 8082)}
-DASHBOARD = {8444: ("dashboard", 8787)}
+DASHBOARD = {8444: ("dashboard", 8790)}
 TS_CANDIDATES = ("tailscale", "/usr/local/bin/tailscale", "/opt/homebrew/bin/tailscale",
                  "/Applications/Tailscale.app/Contents/MacOS/Tailscale")
 
@@ -165,7 +165,8 @@ def main(argv: list[str] | None = None) -> int:
     wanted = dict(HOST_SERVE)
     serve = ts_json(ts, "serve", "status")
     if args.dashboard or f"{self_dns}:8444" in (serve.get("Web") or {}):
-        wanted.update(DASHBOARD)
+        from hub_watchdog import dashboard_url
+        wanted[8444] = ("dashboard", int(dashboard_url(env).rsplit(":", 1)[1]))
 
     def plan() -> list[dict[str, Any]]:
         pub = {} if args.no_public_check or not tailnet else public_checks(contexts, tailnet)

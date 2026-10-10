@@ -215,7 +215,7 @@ Dos LaunchAgents más, opcionales (solo macOS; prefijo `MNEMOS_LABEL_PREFIX`, de
 
 ```bash
 ./scripts/install_cognify_agent.sh      # 03:47 diario: procesa al grafo las memorias pendientes (log ~/Library/Logs/mnemos-cognify.log)
-./scripts/dashboard.sh install-agent    # dashboard en 127.0.0.1:8787 al iniciar sesión, launchd lo relanza si se cae
+./scripts/dashboard.sh install-agent    # dashboard en 127.0.0.1:8790 al iniciar sesión, launchd lo relanza si se cae
 ./scripts/dashboard.sh tailnet-on       # opcional: también en https://<mac>.<tailnet>.ts.net:8444 (solo tailnet, nunca Funnel)
 ./scripts/install_watchdog_agent.sh --run-now  # cada 15 min: DNS público Funnel + /mcp; recrea sidecar si falta (log ~/Library/Logs/mnemos-watchdog.log)
 ```

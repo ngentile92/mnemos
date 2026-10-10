@@ -178,14 +178,14 @@ def test_explore_endpoint_is_redacted_and_host_checked(tmp_path, monkeypatch):
 
 
 def test_allowed_hosts_loopback_and_tailnet_only():
-    base = {"127.0.0.1:8787", "localhost:8787"}
-    assert dash.build_allowed_hosts("127.0.0.1", 8787) == base
-    got = dash.build_allowed_hosts("127.0.0.1", 8787, 8444, "My-Laptop.tail1234.ts.net.")
+    base = {"127.0.0.1:8790", "localhost:8790"}
+    assert dash.build_allowed_hosts("127.0.0.1", 8790) == base
+    got = dash.build_allowed_hosts("127.0.0.1", 8790, 8444, "My-Laptop.tail1234.ts.net.")
     assert got == base | {"my-laptop.tail1234.ts.net:8444"}
     # sin puerto de serve, o con un nombre que no es MagicDNS, no se agrega nada
-    assert dash.build_allowed_hosts("127.0.0.1", 8787, 0, "my-laptop.tail1234.ts.net") == base
+    assert dash.build_allowed_hosts("127.0.0.1", 8790, 0, "my-laptop.tail1234.ts.net") == base
     for bad in ("evil.example", "my-laptop.tail1234.ts.net.evil.example", "a b.ts.net", ""):
-        assert dash.build_allowed_hosts("127.0.0.1", 8787, 8444, bad) == base
+        assert dash.build_allowed_hosts("127.0.0.1", 8790, 8444, bad) == base
 
 
 def test_tailnet_host_header_accepted_foreign_rejected():

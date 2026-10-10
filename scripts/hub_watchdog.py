@@ -6,7 +6,7 @@ Cada corrida (LaunchAgent cada 15 min):
   2. GET/POST https://hub-*/mcp esperando 401 (OAuth).
   3. Si DNS falta o la conexión falla → `docker compose up -d --force-recreate ts-<ctx> gateway-<ctx>`
      (con cooldown de 30 min por hub para no recrear en loop). Nunca hace Funnel-enable.
-  4. Chequea Cognee en 127.0.0.1:8010 y el dashboard en :8787 (reinicia el LaunchAgent si cae).
+  4. Chequea Cognee en 127.0.0.1:8010 y el dashboard en :8790 (reinicia el LaunchAgent si cae).
   5. Escribe ~/Library/Logs/mnemos-watchdog-status.json (el dashboard lo muestra) y loggea a
      ~/Library/Logs/mnemos-watchdog.log. Notificación macOS opcional en fallo/recuperación.
   6. Alertas externas opcionales (apagadas por defecto), configurables en .env:
@@ -84,7 +84,14 @@ STATE_PATH = _APP / "watchdog-state.json"
 LOCK_PATH = _APP / "watchdog.lock"
 DASHBOARD_LABEL = f"{LABEL_PREFIX}.dashboard"
 COGNEE_URL = "http://127.0.0.1:8010"
-DASHBOARD_URL = "http://127.0.0.1:8787"
+DEFAULT_DASHBOARD_PORT = 8790  # not 8787: desktop apps' OAuth sign-in listens there
+
+
+def dashboard_url(env: dict[str, str] | None = None) -> str:
+    env = env if env is not None else {}
+    port = (os.environ.get("MNEMOS_DASHBOARD_PORT") or env.get("MNEMOS_DASHBOARD_PORT")
+            or os.environ.get("AIHUB_DASHBOARD_PORT") or env.get("AIHUB_DASHBOARD_PORT") or str(DEFAULT_DASHBOARD_PORT))
+    return f"http://127.0.0.1:{int(port)}"
 DOH_ENDPOINTS = (
     ("cloudflare", "https://cloudflare-dns.com/dns-query"),
     ("google", "https://dns.google/resolve"),
@@ -267,9 +274,10 @@ def check_cognee() -> dict[str, Any]:
 
 
 def check_dashboard() -> dict[str, Any]:
-    out: dict[str, Any] = {"url": DASHBOARD_URL, "ok": False}
+    url = dashboard_url(read_env(ROOT / ".env"))
+    out: dict[str, Any] = {"url": url, "ok": False}
     try:
-        r = httpx.get(f"{DASHBOARD_URL}/api/status", timeout=5)
+        r = httpx.get(f"{url}/api/status", timeout=5)
         out["http"] = r.status_code
         out["ok"] = r.status_code == 200
     except Exception as exc:  # noqa: BLE001
@@ -568,7 +576,7 @@ def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S
     else:
         log("dashboard: OK")
         if notify and prev.get("dashboard") is False:
-            notify_macos("AI Hub · Dashboard OK", "8787 recuperado")
+            notify_macos("AI Hub · Dashboard OK", "dashboard recuperado")
     prev["dashboard"] = bool(status["dashboard"].get("ok"))
 
     if notify and not dry_run:

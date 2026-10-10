@@ -2,7 +2,7 @@
 # Dashboard en vivo del hub (solo lectura, solo 127.0.0.1). Nunca se expone por Funnel.
 #   scripts/dashboard.sh start | stop | restart | status | open | logs | install-agent | uninstall-agent
 #                        tailnet-on | tailnet-off
-# Puerto: AIHUB_DASHBOARD_PORT (default 8787).
+# Puerto: MNEMOS_DASHBOARD_PORT (entorno o .env; default 8790).
 # Tailnet (opcional): `tailnet-on` publica el dashboard SOLO en el tailnet con `tailscale serve --bg` en
 #   https://<esta-mac>.<tailnet>.ts.net:${MNEMOS_DASHBOARD_TS_PORT:-${AIHUB_DASHBOARD_TS_PORT:-8444}} (nunca Funnel; 443 = Vaultwarden,
 #   8443 = Infisical). Ojo: la pestaña Explorar muestra texto de la memoria y nombres de secretos a
@@ -16,7 +16,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PORT="${MNEMOS_DASHBOARD_PORT:-${AIHUB_DASHBOARD_PORT:-8787}}"
+# Puerto: entorno, luego .env, default 8790 (8787 lo usan los logins OAuth de apps de escritorio)
+PORT="${MNEMOS_DASHBOARD_PORT:-${AIHUB_DASHBOARD_PORT:-$(grep -E '^(MNEMOS|AIHUB)_DASHBOARD_PORT=' "$ROOT/.env" 2>/dev/null | head -1 | cut -d= -f2 | cut -d' ' -f1 || true)}}"
+PORT="${PORT:-8790}"
 URL="http://127.0.0.1:${PORT}"
 STATE="$ROOT/dev/state"
 PIDFILE="$STATE/dashboard.pid"

@@ -76,6 +76,16 @@ def verify_password(password: str, encoded: str) -> bool:
         return False
 
 
+def redirect_origin(uri: str) -> str:
+    """scheme://host[:port] of a redirect URI, safe to put in a CSP source list."""
+    u = urlparse(uri)
+    if u.scheme not in ("http", "https"):  # native apps (cursor://…): allow the scheme
+        return f"{u.scheme}:" if u.scheme and u.scheme.replace("+", "").replace("-", "").replace(".", "").isalnum() else ""
+    if not u.netloc or any(c in u.netloc for c in " ;,'\"\n"):
+        return ""
+    return f"{u.scheme}://{u.netloc}"
+
+
 def _h(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
@@ -146,13 +156,17 @@ class LocalOAuthProvider(OAuthProvider):
             self._fails.clear()
 
     @staticmethod
-    def _page(body: str, code: int = 200) -> HTMLResponse:
+    def _page(body: str, code: int = 200, form_targets: list[str] | None = None) -> HTMLResponse:
+        """form_targets: extra origins a form submit may end up at. CSP form-action also applies to the
+        redirect that follows a POST, so the client's redirect_uri origin must be allowed or the browser
+        silently blocks the final hop back to the assistant."""
         doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Mnemos · sign in</title><style>body{{font:16px system-ui;max-width:420px;margin:10vh auto;padding:0 16px;color:#111}}
 input,button{{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:border-box}}button{{background:#111;color:#fff;border:0;border-radius:6px}}
 .m{{color:#555;font-size:14px}}.e{{color:#b00}}code{{background:#eee;padding:1px 4px}}</style></head><body>{body}</body></html>"""
         return HTMLResponse(doc, status_code=code, headers={
-            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'",
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'"
+                                       + "".join(f" {o}" for o in (form_targets or [])) + "; frame-ancestors 'none'",
             "X-Frame-Options": "DENY", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
 
     async def _login_form(self, txn: str, pending: dict, error: str = "") -> HTMLResponse:
@@ -160,7 +174,7 @@ input,button{{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:borde
         name = html.escape((client.client_name if client else None) or pending["client_id"])
         dest = html.escape(urlparse(pending["redirect_uri"]).netloc or pending["redirect_uri"])
         err = f'<p class="e">{html.escape(error)}</p>' if error else ""
-        return self._page(f"""<h2>{html.escape(self.resource_name)}</h2>
+        return self._page(form_targets=[redirect_origin(pending["redirect_uri"])], body=f"""<h2>{html.escape(self.resource_name)}</h2>
 <p><b>{name}</b> wants to use your memory, skills and credentials. After signing in you return to <code>{dest}</code>.</p>
 {err}<form method="post" action="/local-login"><input type="hidden" name="txn" value="{html.escape(txn)}">
 <input name="username" autocomplete="username" placeholder="user" required>

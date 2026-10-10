@@ -172,3 +172,48 @@ async def test_claude_ai_registration(scope):
                                                   "code_challenge_method": "S256", "state": "s",
                                                   **({"scope": scope} if scope else {})})
             assert a.status_code == 302 and "/local-login" in a.headers["location"]
+
+
+def _form_action_allows(csp: str, base: str, location: str) -> bool:
+    """Browser rule: CSP form-action also governs the redirect after a form POST."""
+    from urllib.parse import urlparse as up
+    fa = next(d for d in csp.split(";") if d.strip().startswith("form-action")).split()[1:]
+    loc = up(location)
+    origin = f"{loc.scheme}://{loc.netloc}"
+    return origin in fa or ("'self'" in fa and origin == base)
+
+
+@pytest.mark.asyncio
+async def test_claude_full_browser_flow_reaches_callback():
+    """Real stack: DCR → /authorize → login page → login POST → consent POST → 302 to claude.ai allowed by CSP."""
+    app, prov = router()
+    cb = CLAUDE_DCR["redirect_uris"][0]
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=BASE,
+                                     headers={"host": "mnemos.test", "x-forwarded-proto": "https"}) as c:
+            j = (await c.post("/register", json=CLAUDE_DCR)).json()
+            _, ch = probe_mod.pkce()
+            a = await c.get("/authorize", params={"response_type": "code", "client_id": j["client_id"], "redirect_uri": cb,
+                                                  "code_challenge": ch, "code_challenge_method": "S256", "state": "st",
+                                                  "scope": "user", "resource": f"{BASE}/mcp"})
+            txn = parse_qs(urlparse(a.headers["location"]).query)["txn"][0]
+            page = await c.get(f"/local-login?txn={txn}")
+            assert "https://claude.ai" in page.headers["content-security-policy"]
+            consent = await c.post("/local-login", data={"txn": txn, "username": "alex", "password": PW})
+            import re
+            token = re.search(r'name="consent" value="([^"]+)"', consent.text).group(1)
+            csp = consent.headers["content-security-policy"]
+            done = await c.post("/consent", data={"consent": token, "ctx": ["work", "personal", "side"], "switch": "1"})
+            assert done.status_code == 302 and done.headers["location"].startswith(cb + "?")
+            q = parse_qs(urlparse(done.headers["location"]).query)
+            assert q["state"] == ["st"] and q["code"][0]
+            assert _form_action_allows(csp, BASE, done.headers["location"]), csp
+            assert (await prov.list_grants())[0]["switch"] is True
+
+
+def test_redirect_origin_is_csp_safe():
+    from hub_gateway.local_auth import redirect_origin
+    assert redirect_origin("https://claude.ai/api/mcp/auth_callback") == "https://claude.ai"
+    assert redirect_origin("http://127.0.0.1:33418/callback") == "http://127.0.0.1:33418"
+    assert redirect_origin("cursor://anysphere/cb") == "cursor:"
+    assert redirect_origin("https://a.b; script-src *") == ""

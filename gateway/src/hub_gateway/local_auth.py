@@ -201,8 +201,26 @@ input,button{{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:borde
         return RedirectResponse(construct_redirect_uri(pending["redirect_uri"], code=code, state=pending["state"]),
                                 status_code=302)
 
+    def _public_client_metadata(self, routes: list) -> list:
+        """Advertise what /token really accepts: public clients with PKCE (`none`), like the GitHub hubs.
+        The SDK default (client_secret_post/basic only) makes Claude.ai refuse to register at all."""
+        from mcp.server.auth.handlers.metadata import MetadataHandler
+        from mcp.server.auth.routes import build_metadata, cors_middleware
+
+        out = []
+        for r in routes:
+            if isinstance(r, Route) and r.path == "/.well-known/oauth-authorization-server":
+                md = build_metadata(self.base_url, self.service_documentation_url, self.client_registration_options,
+                                    self.revocation_options)
+                md.issuer = self.issuer_url
+                md.token_endpoint_auth_methods_supported = ["none", "client_secret_post", "client_secret_basic"]
+                r = Route(r.path, endpoint=cors_middleware(MetadataHandler(md).handle, ["GET", "OPTIONS"]),
+                          methods=r.methods or ["GET", "OPTIONS"], name=r.name)
+            out.append(r)
+        return out
+
     def get_routes(self, mcp_path: str | None = None) -> list[Route]:
-        routes = super().get_routes(mcp_path)
+        routes = self._public_client_metadata(super().get_routes(mcp_path))
         routes.append(Route("/local-login", self.login_get, methods=["GET"]))
         routes.append(Route("/local-login", self.login_post, methods=["POST"]))
         return routes

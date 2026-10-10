@@ -142,3 +142,33 @@ def test_settings(monkeypatch):
     assert s.allowed_emails == {"nico@example.com"} and s.backends == {}
     with pytest.raises(ValueError):
         RouterOAuthProvider(base_url=BASE, contexts=CTXS, store=MemoryStore())
+
+
+CLAUDE_DCR = {"client_name": "Claude", "redirect_uris": ["https://claude.ai/api/mcp/auth_callback"],
+              "grant_types": ["authorization_code", "refresh_token"], "response_types": ["code"],
+              "token_endpoint_auth_method": "none"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scope", [None, "user", "user switch ctx:work ctx:personal ctx:side"])
+async def test_claude_ai_registration(scope):
+    """Claude.ai refuses to register unless metadata advertises public clients (`none`)."""
+    app, _ = router()
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=BASE) as c:
+            meta = (await c.get("/.well-known/oauth-authorization-server")).json()
+            assert "none" in meta["token_endpoint_auth_methods_supported"]
+            assert "S256" in meta["code_challenge_methods_supported"]
+            body = {**CLAUDE_DCR, **({"scope": scope} if scope else {})}
+            r = await c.post(meta["registration_endpoint"], json=body,
+                             headers={"origin": "https://claude.ai"})
+            assert r.status_code == 201, r.text
+            j = r.json()
+            assert j["client_id"] and j["token_endpoint_auth_method"] == "none" and "client_secret" not in j
+            assert j["redirect_uris"] == CLAUDE_DCR["redirect_uris"]
+            _, ch = probe_mod.pkce()
+            a = await c.get("/authorize", params={"response_type": "code", "client_id": j["client_id"],
+                                                  "redirect_uri": CLAUDE_DCR["redirect_uris"][0], "code_challenge": ch,
+                                                  "code_challenge_method": "S256", "state": "s",
+                                                  **({"scope": scope} if scope else {})})
+            assert a.status_code == 302 and "/local-login" in a.headers["location"]

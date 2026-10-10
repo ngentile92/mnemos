@@ -20,6 +20,7 @@
   <nav class="tabs" role="tablist">
     <a href="#estado" id="tab-estado" class="tab active" role="tab">Status</a>
     <a href="#explorar" id="tab-explorar" class="tab" role="tab">Explore</a>
+    <a href="#memoria" id="tab-memoria" class="tab" role="tab">Memory</a>
   </nav>
   <div class="livebox">
     <span class="pulse" id="pulse"></span>
@@ -81,6 +82,19 @@
     <div class="card"><div class="card-h"><h2>Latest changes in mnemos</h2><span class="muted small" id="branch"></span></div><div id="commits"></div></div>
   </section>
 </main>
+<main id="view-memoria" class="hidden">
+  <section class="card ctxbar">
+    <select id="me-ctx" aria-label="Context"></select>
+    <input id="me-q" type="search" placeholder="Filter notes…" maxlength="200">
+    <label><input type="checkbox" id="me-shared" checked> include shared (read-only)</label>
+    <button id="me-refresh" class="btn">Refresh</button>
+    <span class="muted small">edits only from http://127.0.0.1 · every change keeps a version (Undo)</span>
+  </section>
+  <section class="grid2">
+    <div class="card"><div class="card-h"><h2>Notes</h2><span class="muted small" id="me-count"></span></div><div id="me-list"></div></div>
+    <div class="card"><div class="card-h"><h2>Note</h2></div><div id="me-detail"><p class="muted">Pick a note.</p></div></div>
+  </section>
+</main>
 <main id="view-explorar" class="hidden">
   <section class="card ctxbar">
     <div class="seg" id="ctx-seg" role="radiogroup" aria-label="Context">
@@ -121,5 +135,6 @@
 <script src="/explore.js"></script>
 <script src="/contexts.js"></script>
 <script src="/apps.js"></script>
+<script src="/memory.js"></script>
 </body>
 </html>

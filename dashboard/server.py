@@ -41,6 +41,7 @@ STATIC = Path(__file__).resolve().parent / "static"
 sys.path.insert(0, str(ROOT / "gateway" / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hub_gateway.contexts import CONTEXTS  # noqa: E402  (config/contexts.yaml)
+from memory_client import MemoryEditorOff  # noqa: E402
 
 
 def _setting(name: str, default: str) -> str:
@@ -575,7 +576,15 @@ def router_revoke(body: dict) -> dict:
     return _router_admin("POST", "/admin/revoke", {"client_id": cid})
 
 
-POST_ROUTES: dict = {"/api/contexts/add": add_context, "/api/router/revoke": router_revoke}  # path → fn(body) -> dict
+def memory_action(action: str, body: dict) -> dict:
+    from memory_client import run
+    return run(ROOT, read_env(ROOT / ".env"), list(CONTEXTS), action, body)
+
+
+POST_ROUTES: dict = {"/api/contexts/add": add_context, "/api/router/revoke": router_revoke,
+                     "/api/memory/update": lambda b: memory_action("update", b),
+                     "/api/memory/delete": lambda b: memory_action("delete", b),
+                     "/api/memory/undo": lambda b: memory_action("undo", b)}  # path → fn(body) -> dict
 
 
 def skills_dir() -> Path | None:
@@ -677,6 +686,8 @@ def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
                 return self._json(200, handler(body))
             except RouterOff as e:
                 return self._json(409, {"error": str(e)[:300]})
+            except MemoryEditorOff as e:
+                return self._json(409, {"error": str(e)[:300]})
             except (ValueError, KeyError) as e:  # SkillError/ContextError are ValueErrors
                 return self._json(400, {"error": str(e)[:300]})
             except Exception as e:  # noqa: BLE001
@@ -697,6 +708,17 @@ def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
                 if hub is not None:
                     text = hub.redact(text)
                 return self._send(200, text.encode(), "application/json; charset=utf-8")
+            if path in ("/api/memory/list", "/api/memory/history"):
+                if demo is not None:
+                    return self._json(200, (demo.get("memory") or {}).get(path.rsplit("/", 1)[1]) or {"items": []})
+                q = {k: v[0] for k, v in parse_qs(query).items()}
+                try:
+                    return self._json(200, memory_action(path.rsplit("/", 1)[1], q | (
+                        {"include_shared": q.get("include_shared", "1") == "1"} if path.endswith("list") else {})))
+                except MemoryEditorOff as e:
+                    return self._json(409, {"error": str(e)})
+                except ValueError as e:
+                    return self._json(400, {"error": str(e)[:300]})
             if path == "/api/router/grants":
                 if demo is not None:
                     return self._json(200, demo.get("router_grants") or {"grants": []})

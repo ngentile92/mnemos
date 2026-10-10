@@ -125,3 +125,8 @@ footer{color:var(--muted);text-align:center;font-size:12px;padding:10px 20px 26p
 .nlist{margin:4px 0 0;padding-left:16px;font-size:12px;line-height:1.6}.nlist i{color:var(--muted)}
 .ctxform{display:flex;gap:8px;flex-wrap:wrap}.ctxform input{flex:1;min-width:160px;background:#050811;color:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 #ca-out{margin-top:10px;white-space:pre-wrap;font:12px/1.5 ui-monospace,Menlo,monospace;background:#050811;border:1px solid var(--line);border-radius:12px;padding:12px}
+
+#view-memoria .note{padding:6px 4px;border-bottom:1px solid rgba(127,127,127,.2);cursor:pointer}
+#view-memoria .note:hover{background:rgba(127,127,127,.08)}
+#view-memoria textarea{width:100%;box-sizing:border-box;font:inherit}
+#me-list{max-height:70vh;overflow:auto}

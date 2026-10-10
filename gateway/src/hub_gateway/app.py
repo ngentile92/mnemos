@@ -22,7 +22,8 @@ from .contexts import BRIDGES, SERVER_NAME_PREFIX, bridged_for, get_context
 from .instructions import server_instructions
 from .ledger import Ledger, safe
 from .local_search import LocalIndex, OllamaEmbedder, entity_docs, entity_list
-from .answer import Answerer, propose_fix
+from .answer import Answerer
+from . import dispute as dispute_mod
 from .memory import CogneeClient, DatasetMap, MemoryError_, MemoryScope, item_summary, simplify_results
 from .secrets import InfisicalFetcher, SecretBroker, SecretPolicyError, load_policy
 from .skills import SkillError, SkillIndex, tool_equivalents
@@ -645,7 +646,7 @@ def build_server(
         correction: Annotated[str, Field(description="Qué está mal y cómo es en realidad, en palabras del usuario "
                                                      "(ej. 'Ana ya no trabaja en Acme, ahora está en Beta')",
                                          min_length=5, max_length=1000)],
-        limit: Annotated[int, Field(ge=1, le=10)] = 5,
+        limit: Annotated[int, Field(ge=1, le=10)] = 2,
     ) -> dict[str, Any]:
         """Flujo 'esto no es así': busca las notas PROPIAS que dicen lo que el usuario corrige y propone, para
         cada una, el texto corregido (action=update) o marcarla obsoleta (action=obsolete). NO cambia nada:
@@ -655,29 +656,25 @@ def build_server(
         try:
             sc = scope()
             own = [n for n, _ in sc.editable()]
-            cands = [r for r in await _local_search(sc, correction, False, None, limit * 2, "hybrid")
-                     if r.get("dataset") in own and r.get("id")][:limit]
-            proposals = []
-            for r in cands:
-                p: dict[str, Any] = {"id": r["id"], "dataset": r["dataset"], "text": r.get("text", "")}
-                if answerer is not None:
-                    try:
-                        p.update(await propose_fix(answerer, correction, r))
-                    except Exception:  # noqa: BLE001 — the candidate is still useful
-                        log.warning("dispute proposal failed", exc_info=True)
-                        p["action"] = None
-                else:
-                    p["action"] = None
-                proposals.append(p)
+            cands = [r for r in await _local_search(sc, correction, False, None, max(limit, 6), "hybrid")
+                     if r.get("dataset") in own and r.get("id")][:max(limit, 6)]
+            if answerer is not None:
+                proposals = await dispute_mod.propose(answerer.url, answerer.model, correction, cands,
+                                                      timeout=answerer.timeout, transport=answerer.transport,
+                                                      max_out=min(limit, 3))
+            else:
+                proposals = [{"id": r["id"], "dataset": r["dataset"], "text": r.get("text", ""), "action": None}
+                             for r in cands[:limit]]
         except MemoryError_ as exc:
             audit.log("memory_dispute", login, "rejected", reason=str(exc))
             raise ToolError(str(exc)) from exc
         except Exception as exc:
             audit.log("memory_dispute", login, "error", error=type(exc).__name__)
             raise ToolError("la memoria no respondió; probá de nuevo más tarde") from exc
-        keep = [p for p in proposals if p.get("action") != "none"]
-        audit.log("memory_dispute", login, "ok", candidates=len(proposals), proposals=len(keep))
+        keep = proposals
+        audit.log("memory_dispute", login, "ok", candidates=len(cands), proposals=len(keep))
         return {"context": ctx.name, "correction": correction, "proposals": keep,
+                "message": None if keep else "Ninguna nota de este contexto dice eso; no hay nada que corregir.",
                 "next": "confirmá con el usuario y aplicá con memory_update (texto propuesto) o memory_mark_obsolete"}
 
     # ------------------------------------------------------------------ skills

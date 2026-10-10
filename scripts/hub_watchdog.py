@@ -66,12 +66,22 @@ def _label_prefix() -> str:
 
 LABEL_PREFIX = _label_prefix()
 
+def _log_dir() -> Path:
+    """macOS: ~/Library/Logs (unchanged). Linux: $MNEMOS_LOG_DIR or $XDG_STATE_HOME/mnemos (~/.local/state/mnemos)."""
+    if os.environ.get("MNEMOS_LOG_DIR"):
+        return Path(os.environ["MNEMOS_LOG_DIR"])
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Logs"
+    return Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "mnemos"
+
+
 COOLDOWN_S = 30 * 60
-LOG_DIR = Path.home() / "Library" / "Logs"
+LOG_DIR = _log_dir()
 LOG_PATH = LOG_DIR / "mnemos-watchdog.log"
 STATUS_PATH = LOG_DIR / "mnemos-watchdog-status.json"
-STATE_PATH = Path.home() / "Library" / "Application Support" / "mnemos" / "watchdog-state.json"
-LOCK_PATH = Path.home() / "Library" / "Application Support" / "mnemos" / "watchdog.lock"
+_APP = Path.home() / "Library" / "Application Support" / "mnemos" if sys.platform == "darwin" else LOG_DIR
+STATE_PATH = _APP / "watchdog-state.json"
+LOCK_PATH = _APP / "watchdog.lock"
 DASHBOARD_LABEL = f"{LABEL_PREFIX}.dashboard"
 COGNEE_URL = "http://127.0.0.1:8010"
 DASHBOARD_URL = "http://127.0.0.1:8787"

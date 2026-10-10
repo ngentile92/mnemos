@@ -285,3 +285,9 @@ y `docker compose up -d`. Después de `remove`: `docker compose up -d --remove-o
 `/mcp` → 401) y el `tailscale serve` solo-tailnet del host (Vaultwarden :443, Infisical :8443, dashboard :8444).
 Idempotente; nunca corre `tailscale funnel`, no pisa entradas que apuntan a otro lado y se frena si el host tiene
 Funnel prendido.
+
+## Agregar un contexto desde el dashboard
+
+*Estado → Add a context*: **Preview** corre `mnemos_context.py add --dry-run` (no escribe nada); **Create** edita
+`config/contexts.yaml`, `.env` (con backup) y `compose.generated.yaml`. No levanta contenedores ni toca cuentas; muestra
+los pasos que faltan. Solo desde `http://127.0.0.1`. Reiniciá el dashboard para verlo.

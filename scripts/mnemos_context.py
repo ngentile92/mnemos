@@ -157,11 +157,14 @@ def contexts_file(root: Path) -> Path:
 def next_steps(name: str, env: dict[str, str]) -> str:
     tailnet = env.get("TS_TAILNET") or "<tailnet>"
     host = f"https://hub-{name}.{tailnet}.ts.net"
+    sd = env.get("SKILLS_DIR")
+    skills_step = (f"Skills: mkdir -p {sd}/skills/{name} (or create them in the dashboard)" if sd
+                   else f"In your skills repo: mkdir skills/{name} (and push).")
     return f"""
 Next steps (they need your accounts, so this script does not do them):
   1. GitHub → Settings → Developer settings → OAuth Apps → New: name mnemos-{name}, homepage {host},
      callback {host}/auth/callback. Put the client id/secret in .env: GH_OAUTH_{env_suffix(name)}_ID / _SECRET.
-  2. In your skills repo: mkdir skills/{name} (and push).
+  2. {skills_step}
   3. python3 scripts/bootstrap_cognee.py        # creates ctx-{name}, its dataset(s) and COGNEE_KEY_{env_suffix(name)}
   4. Optional, for secrets: python3 scripts/bootstrap_infisical.py ... and a `{name}:` section in config/secret-policy.yaml
   5. docker compose up -d                        # starts ts-{name} + gateway-{name}

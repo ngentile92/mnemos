@@ -310,3 +310,12 @@ is enabled on the host itself (DANGER).
 `.env` (new variables, backups kept) and `compose.generated.yaml`. No containers are started and no account is
 touched; the output lists the remaining steps (OAuth app, `bootstrap_cognee.py`, `docker compose up -d`, connectors).
 Only from `http://127.0.0.1` on the Mac (not over the tailnet). Restart the dashboard afterwards to see the context.
+
+## Memory tab (dashboard)
+
+The dashboard's **Memory** tab lists the notes of a context (plus shared, read-only), shows each note's
+provenance and history, and lets you **correct**, **forget** and **undo** — from `http://127.0.0.1` only.
+It calls the gateway's own `memory_list` / `memory_update` / `memory_delete` / `memory_history` /
+`memory_undo` through the gateway's key-gated internal listener (published on a random loopback port,
+`docker compose port ts-<ctx> 8100`, key `HUB_INTERNAL_KEY_<CTX>`), so every change is versioned in the ledger
+exactly like a change made by an assistant (origin shows `dashboard via mnemos`).

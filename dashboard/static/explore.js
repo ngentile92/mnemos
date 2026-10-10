@@ -22,11 +22,14 @@
   // ---------------------------------------------------------------- pestañas
   function route() {
     const [tab, v] = location.hash.replace("#", "").split("/");
-    const ex = tab === "explorar";
-    $("view-estado").classList.toggle("hidden", ex);
+    const ex = tab === "explorar", mem = tab === "memoria";
+    $("view-estado").classList.toggle("hidden", ex || mem);
     $("view-explorar").classList.toggle("hidden", !ex);
-    $("tab-estado").classList.toggle("active", !ex);
+    $("view-memoria")?.classList.toggle("hidden", !mem);
+    $("tab-estado").classList.toggle("active", !ex && !mem);
     $("tab-explorar").classList.toggle("active", ex);
+    $("tab-memoria")?.classList.toggle("active", mem);
+    if (mem) window.dispatchEvent(new Event("mnemos:memoria"));
     if (ex) {
       if (v && VIEWS.includes(v) && v !== view) { view = v; data = null; }
       if (!data) load(); else if (cy) { cy.resize(); cy.fit(undefined, 30); }

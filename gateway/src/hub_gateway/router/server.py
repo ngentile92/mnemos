@@ -6,10 +6,13 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Any
+from collections import OrderedDict
+from typing import Annotated, Any
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.server.auth import require_scopes
+from pydantic import Field
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -58,21 +61,42 @@ def build_router(s: RouterSettings, *, provider: RouterOAuthProvider | None = No
         password_hash=s.local_password_hash, idps=s.idps())
     forwarder = forwarder or Forwarder(s.backends)
 
+    active: OrderedDict[str, str] = OrderedDict()   # MCP session → context picked with hub_use_context
+
+    def _session() -> str | None:
+        try:
+            from fastmcp.server.dependencies import get_context
+
+            return get_context().session_id
+        except Exception:  # noqa: BLE001
+            return None
+
+    def pick(requested: str | None, g: dict) -> str:
+        if requested:
+            if requested not in g["contexts"]:
+                raise ToolError(f"this app was not granted context {requested!r}; granted: {g['contexts']}. "
+                                "Reconnect the app to change its contexts.")
+            return requested
+        sid = _session()
+        if g["switch"] and sid and active.get(sid) in g["contexts"]:
+            return active[sid]
+        if len(g["contexts"]) == 1:
+            return g["contexts"][0]
+        hint = " or pick one with hub_use_context" if g["switch"] else ""
+        raise ToolError(f"pass `context` (one of {g['contexts']}){hint}")
+
     async def resolve(requested: str | None):
         g = current_grant()
-        if not requested:
-            raise ToolError(f"pass `context`: one of {g['contexts']}")
-        if requested not in g["contexts"]:
-            raise ToolError(f"this app was not granted context {requested!r}; granted: {g['contexts']}. "
-                            "Reconnect the app to change its contexts.")
-        if requested not in forwarder.backends:
-            raise ToolError(f"context {requested!r} has no gateway configured on the router")
-        log.info("route %s → %s (app=%s)", g["login"], requested, client_app())
-        return requested, g["login"], client_app()
+        ctx = pick(requested, g)
+        if ctx not in forwarder.backends:
+            raise ToolError(f"context {ctx!r} has no gateway configured on the router")
+        log.info("route %s → %s (app=%s)", g["login"], ctx, client_app())
+        return ctx, g["login"], client_app()
 
     @asynccontextmanager
     async def lifespan(_server):
-        task = asyncio.create_task(keep_catalog(_server, forwarder, s.contexts, resolve)) if discover_tools else None
+        task = asyncio.create_task(keep_catalog(_server, forwarder, s.contexts, resolve,
+                                                context_required=False)) if discover_tools else None
         try:
             yield {}
         finally:
@@ -94,7 +118,33 @@ def build_router(s: RouterSettings, *, provider: RouterOAuthProvider | None = No
     async def hub_whoami() -> dict[str, Any]:
         """Who you are signed in as and which contexts this app may use."""
         g = current_grant()
-        return {"login": g["login"], "contexts": g["contexts"], "can_switch": g["switch"]}
+        out = {"login": g["login"], "contexts": g["contexts"], "can_switch": g["switch"]}
+        sid = _session()
+        if g["switch"] and sid in active and active[sid] in g["contexts"]:
+            out["active_context"] = active[sid]
+        return out
+
+    @mcp.tool(auth=require_scopes(SWITCH),
+              annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False})
+    async def hub_use_context(
+        context: Annotated[str, Field(description="One of the contexts this app was granted (hub_whoami)")],
+    ) -> dict[str, Any]:
+        """Switch the active context for the rest of this chat, so later calls can omit `context`.
+        Only available when the app was allowed to switch, and only among its granted contexts."""
+        g = current_grant()
+        if not g["switch"]:
+            raise ToolError("context switching is not enabled for this app")
+        if context not in g["contexts"]:
+            raise ToolError(f"not granted: {context!r}; granted: {g['contexts']}")
+        sid = _session()
+        if not sid:
+            raise ToolError("no MCP session")
+        active[sid] = context
+        active.move_to_end(sid)
+        while len(active) > 2000:
+            active.popitem(last=False)
+        log.info("switch %s → %s (app=%s)", g["login"], context, client_app())
+        return {"active_context": context}
 
     return mcp
 

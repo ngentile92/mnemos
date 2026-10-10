@@ -199,9 +199,27 @@ def mark_recreate(state: dict, ctx: str, reason: str, ok: bool) -> None:
     }
 
 
-def recreate_hub(ctx: str, dry_run: bool) -> dict[str, Any]:
+ROUTER_KEY = "mnemos"
+
+
+def router_enabled(env: dict[str, str] | None = None) -> bool:
+    """The single-connector router runs only when COMPOSE_PROFILES includes `router` (docs/router.md)."""
+    env = read_env(ROOT / ".env") if env is None else env
+    raw = env.get("COMPOSE_PROFILES") or os.environ.get("COMPOSE_PROFILES") or ""
+    return "router" in {x.strip() for x in raw.split(",")}
+
+
+def targets(contexts=None, env: dict[str, str] | None = None) -> list[tuple[str, str, list[str]]]:
+    """(key, public host label, compose services) for every Funnel endpoint: one per context, plus the router."""
+    out = [(c, f"hub-{c}", [f"ts-{c}", f"gateway-{c}"]) for c in (CONTEXTS if contexts is None else contexts)]
+    if router_enabled(env):
+        out.append((ROUTER_KEY, "mnemos", ["ts-mnemos", "hub-router"]))
+    return out
+
+
+def recreate_hub(ctx: str, dry_run: bool, services: list[str] | None = None) -> dict[str, Any]:
     """Recrea solo el sidecar+gateway del contexto. Nunca toca Funnel config ni otros servicios."""
-    services = [f"ts-{ctx}", f"gateway-{ctx}"]
+    services = services or [f"ts-{ctx}", f"gateway-{ctx}"]
     cmd = ["docker", "compose", "up", "-d", "--force-recreate", *services]
     out: dict[str, Any] = {"cmd": cmd, "services": services}
     if dry_run:
@@ -431,8 +449,8 @@ def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S
         return status
 
     epoch = time.time()
-    for ctx in CONTEXTS:
-        name = f"hub-{ctx}.{tailnet}.ts.net"
+    for ctx, label, services in targets():
+        name = f"{label}.{tailnet}.ts.net"
         base = f"https://{name}"
         dns = resolve_public_dns(name)
         mcp = check_mcp(base) if dns.get("ok") else {"url": f"{base}/mcp", "ok": False, "error": "sin DNS público"}
@@ -452,7 +470,7 @@ def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S
             "cooldown": False,
             "last_recreate": ((state.get("recreates") or {}).get(ctx) or {}).get("at"),
         }
-        log(f"hub-{ctx}: dns={'OK' if entry['dns_ok'] else 'FAIL'} "
+        log(f"{label}: dns={'OK' if entry['dns_ok'] else 'FAIL'} "
             f"mcp={'OK' if entry['mcp_ok'] else 'FAIL'} addrs={entry['dns_addrs'] or '-'}")
 
         if not entry["ok"]:
@@ -462,15 +480,15 @@ def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S
             if not entry["dns_ok"] and resolvers and all("error" in v for v in resolvers.values()):
                 # Ningún resolver DoH contestó (Mac sin red, recién despierta): no es el Funnel, no recrear.
                 entry["no_network"] = True
-                log(f"hub-{ctx}: sin red (DoH inalcanzable), no recreo")
+                log(f"{label}: sin red (DoH inalcanzable), no recreo")
                 status["actions"].append({"ctx": ctx, "action": "skip_no_network", "reason": reason})
             elif in_cooldown(state, ctx, epoch, cooldown_s):
                 entry["cooldown"] = True
-                log(f"hub-{ctx}: en cooldown, no recreo (último {entry['last_recreate']})")
+                log(f"{label}: en cooldown, no recreo (último {entry['last_recreate']})")
                 status["actions"].append({"ctx": ctx, "action": "skip_cooldown", "reason": reason})
             else:
-                log(f"hub-{ctx}: recreando ts-{ctx} + gateway-{ctx} (motivo={reason})")
-                rec = recreate_hub(ctx, dry_run=dry_run)
+                log(f"{label}: recreando {' + '.join(services)} (motivo={reason})")
+                rec = recreate_hub(ctx, dry_run=dry_run, **({"services": services} if ctx == ROUTER_KEY else {}))
                 entry["recreated"] = True
                 entry["recreate"] = {k: rec[k] for k in ("ok", "error", "dry_run", "services") if k in rec}
                 status["actions"].append({"ctx": ctx, "action": "recreate", "reason": reason, **entry["recreate"]})
@@ -488,7 +506,7 @@ def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S
                         entry["mcp_error"] = mcp2.get("error")
                         entry["ok"] = hub_ok(dns2, mcp2)
                         entry["recheck"] = True
-                        log(f"hub-{ctx}: recheck dns={'OK' if entry['dns_ok'] else 'FAIL'} "
+                        log(f"{label}: recheck dns={'OK' if entry['dns_ok'] else 'FAIL'} "
                             f"mcp={'OK' if entry['mcp_ok'] else 'FAIL'}")
                         if not entry["ok"]:
                             status["ok"] = False
@@ -498,9 +516,9 @@ def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S
         was_ok = prev.get(ctx)
         if notify and was_ok is not None:
             if was_ok and not entry["ok"]:
-                notify_macos("AI Hub · Funnel caído", f"hub-{ctx}: DNS/MCP falló; watchdog actuó")
+                notify_macos("AI Hub · Funnel caído", f"{label}: DNS/MCP falló; watchdog actuó")
             elif (not was_ok) and entry["ok"]:
-                notify_macos("AI Hub · Funnel OK", f"hub-{ctx}: recuperado")
+                notify_macos("AI Hub · Funnel OK", f"{label}: recuperado")
         prev[ctx] = entry["ok"]
         status["hubs"][ctx] = entry
         # Si tras recheck quedó OK, no ensuciar ok global solo por el fallo inicial
@@ -563,7 +581,7 @@ def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S
     status["finished_at"] = now_iso()
     # last recreate summary for dashboard
     status["last_recreates"] = {
-        ctx: (state.get("recreates") or {}).get(ctx) for ctx in CONTEXTS
+        ctx: (state.get("recreates") or {}).get(ctx) for ctx, _, _ in targets()
     }
     save_json(STATUS_PATH, status)
     log(f"== Fin watchdog ok={status['ok']}")

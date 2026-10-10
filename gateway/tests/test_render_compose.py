@@ -67,3 +67,14 @@ def test_gateways_have_no_extra_hosts():
         if str(svc.get("network_mode", "")).startswith("service:"):
             assert "extra_hosts" not in svc, name
     assert "extra_hosts" not in doc.get("x-gateway", {})
+
+
+def test_router_gets_one_internal_key_per_context():
+    import yaml
+    base = yaml.safe_load((ROOT / "compose.yaml").read_text())
+    out = rc.render(base, ["alpha", "beta-two"])
+    env = out["services"]["hub-router"]["environment"]
+    keys = [k for k in env if k.startswith("HUB_INTERNAL_KEY_")]
+    assert keys == ["HUB_INTERNAL_KEY_ALPHA", "HUB_INTERNAL_KEY_BETA_TWO"]
+    assert out["services"]["gateway-alpha"]["environment"]["HUB_INTERNAL_KEY"] == "${HUB_INTERNAL_KEY_ALPHA:-}"
+    assert out["services"]["hub-router"]["profiles"] == ["router"]

@@ -263,3 +263,11 @@ def test_run_sends_alerts_only_when_not_dry_run(tmp_path, monkeypatch):
     assert posts == ["down"]  # una sola alerta aunque siga caído
     state = json.loads((tmp_path / "state.json").read_text())
     assert state["alerts"]["cognee"]["down"] is True
+
+
+def test_targets_include_router_only_with_profile():
+    import hub_watchdog as w
+    base = w.targets(["personal"], {})
+    assert base == [("personal", "hub-personal", ["ts-personal", "gateway-personal"])]
+    on = w.targets(["personal"], {"COMPOSE_PROFILES": "foo, router"})
+    assert on[-1] == ("mnemos", "mnemos", ["ts-mnemos", "hub-router"])

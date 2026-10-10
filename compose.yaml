@@ -142,6 +142,7 @@ services:
       COGNEE_API_KEY: ${COGNEE_KEY_WORK:-}
       INFISICAL_CLIENT_ID: ${INF_MI_WORK_ID:-}
       INFISICAL_CLIENT_SECRET: ${INF_MI_WORK_SECRET:-}
+      HUB_INTERNAL_KEY: ${HUB_INTERNAL_KEY_WORK:-}   # set → internal listener :8100 for hub-router (Docker network only)
     volumes:
       - ${SKILLS_DIR:-skills_repo}:/skills:ro   # SKILLS_DIR=./skills-local → local folder; unset → GitHub clone
       - ./config:/config:ro
@@ -177,6 +178,7 @@ services:
       COGNEE_API_KEY: ${COGNEE_KEY_PERSONAL:-}
       INFISICAL_CLIENT_ID: ${INF_MI_PERSONAL_ID:-}
       INFISICAL_CLIENT_SECRET: ${INF_MI_PERSONAL_SECRET:-}
+      HUB_INTERNAL_KEY: ${HUB_INTERNAL_KEY_PERSONAL:-}
     volumes:
       - ${SKILLS_DIR:-skills_repo}:/skills:ro   # SKILLS_DIR=./skills-local → local folder; unset → GitHub clone
       - ./config:/config:ro
@@ -212,10 +214,56 @@ services:
       COGNEE_API_KEY: ${COGNEE_KEY_SIDE:-}
       INFISICAL_CLIENT_ID: ${INF_MI_SIDE_ID:-}
       INFISICAL_CLIENT_SECRET: ${INF_MI_SIDE_SECRET:-}
+      HUB_INTERNAL_KEY: ${HUB_INTERNAL_KEY_SIDE:-}
     volumes:
       - ${SKILLS_DIR:-skills_repo}:/skills:ro   # SKILLS_DIR=./skills-local → local folder; unset → GitHub clone
       - ./config:/config:ro
       - gw_side:/data
+
+  # ---------------------------------------------------------------- one connector for all contexts (opt-in)
+  # Enabled with COMPOSE_PROFILES=router in .env (docs/router.md). The three hub-<ctx> URLs keep working.
+  ts-mnemos:
+    <<: *ts
+    profiles: [router]
+    hostname: mnemos
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY_PUBLIC:-}
+      TS_HOSTNAME: mnemos
+      TS_EXTRA_ARGS: --advertise-tags=tag:hub-public
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_ACCEPT_DNS: "false"
+    volumes:
+      - ts_mnemos:/var/lib/tailscale
+      - ./config/tailscale/funnel:/config:ro   # same serve.json: 443 → 127.0.0.1:8000 (the router)
+
+  hub-router:
+    image: mnemos/gateway:local
+    profiles: [router]
+    restart: unless-stopped
+    command: ["mnemos-router"]
+    network_mode: service:ts-mnemos
+    depends_on:
+      ts-mnemos: { condition: service_started }
+    environment:
+      MNEMOS_ROUTER_PUBLIC_URL: https://mnemos.${TS_TAILNET:-SIN-TAILNET}.ts.net
+      MNEMOS_ROUTER_STORAGE_KEY: ${MNEMOS_ROUTER_STORAGE_KEY:-}
+      MNEMOS_ROUTER_CONTEXTS: ${MNEMOS_ROUTER_CONTEXTS:-}
+      HUB_LOCAL_USER: ${HUB_LOCAL_USER:-}
+      HUB_LOCAL_PASSWORD_HASH: ${HUB_LOCAL_PASSWORD_HASH:-}
+      MNEMOS_GOOGLE_CLIENT_ID: ${MNEMOS_GOOGLE_CLIENT_ID:-}
+      MNEMOS_GOOGLE_CLIENT_SECRET: ${MNEMOS_GOOGLE_CLIENT_SECRET:-}
+      MNEMOS_ROUTER_ALLOWED_EMAILS: ${MNEMOS_ROUTER_ALLOWED_EMAILS:-}
+      MNEMOS_ROUTER_GITHUB_CLIENT_ID: ${MNEMOS_ROUTER_GITHUB_CLIENT_ID:-}
+      MNEMOS_ROUTER_GITHUB_CLIENT_SECRET: ${MNEMOS_ROUTER_GITHUB_CLIENT_SECRET:-}
+      HUB_ALLOWED_GITHUB_LOGINS: ${HUB_ALLOWED_GITHUB_LOGINS:-${GITHUB_USER:-}}
+      HUB_INTERNAL_KEY_WORK: ${HUB_INTERNAL_KEY_WORK:-}
+      HUB_INTERNAL_KEY_PERSONAL: ${HUB_INTERNAL_KEY_PERSONAL:-}
+      HUB_INTERNAL_KEY_SIDE: ${HUB_INTERNAL_KEY_SIDE:-}
+    volumes:
+      - ./config:/config:ro
+      - router_data:/data
 
 networks:
   internal: {}
@@ -232,3 +280,5 @@ volumes:
   gw_work: {}
   gw_personal: {}
   gw_side: {}
+  ts_mnemos: {}
+  router_data: {}

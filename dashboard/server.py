@@ -65,11 +65,13 @@ def _setting(name: str, default: str) -> str:
 LABEL_PREFIX = _setting("MNEMOS_LABEL_PREFIX", "io.mnemos")  # LaunchAgents: <prefijo>.backup, .watchdog, ...
 PROJECT = _setting("COMPOSE_PROJECT_NAME", "mnemos")  # proyecto compose (prefijo de contenedores/volúmenes)
 RESTIC_TAG = _setting("RESTIC_TAG", "mnemos")
-BACKUP_LOG = Path.home() / "Library" / "Logs" / "mnemos-backup.log"
+LOG_DIR = Path(os.environ.get("MNEMOS_LOG_DIR") or (Path.home() / "Library" / "Logs" if sys.platform == "darwin" else
+               Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "mnemos"))
+BACKUP_LOG = LOG_DIR / "mnemos-backup.log"
 BACKUP_LABEL = f"{LABEL_PREFIX}.backup"
 BACKUP_AT = (3, 17)
-OFFSITE_LOG = Path.home() / "Library" / "Logs" / "mnemos-offsite.log"
-WATCHDOG_STATUS = Path.home() / "Library" / "Logs" / "mnemos-watchdog-status.json"
+OFFSITE_LOG = LOG_DIR / "mnemos-offsite.log"
+WATCHDOG_STATUS = LOG_DIR / "mnemos-watchdog-status.json"
 WATCHDOG_LABEL = f"{LABEL_PREFIX}.watchdog"
 def config_js(skills_local: bool) -> str:
     return "window.MNEMOS = " + json.dumps(

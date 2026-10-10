@@ -20,11 +20,11 @@ PORT="${MNEMOS_DASHBOARD_PORT:-${AIHUB_DASHBOARD_PORT:-8787}}"
 URL="http://127.0.0.1:${PORT}"
 STATE="$ROOT/dev/state"
 PIDFILE="$STATE/dashboard.pid"
-if [[ -d "$HOME/Library/Logs" ]]; then LOG="$HOME/Library/Logs/mnemos-dashboard.log"; else LOG="$STATE/dashboard.log"; fi
+if [[ -d "$HOME/Library/Logs" ]]; then LOG="$HOME/Library/Logs/mnemos-dashboard.log"; else LOG="${MNEMOS_LOG_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/mnemos}/mnemos-dashboard.log"; fi
 PY="$ROOT/.venv/bin/python3"
 [[ -x "$PY" ]] || PY="$(command -v python3)"
 # Prefijo de los LaunchAgents (reverse-DNS): AIHUB_LABEL_PREFIX del entorno o de .env; default io.mnemos.
-LABEL_PREFIX="${MNEMOS_LABEL_PREFIX:-${AIHUB_LABEL_PREFIX:-$(grep -E '^(MNEMOS|AIHUB)_LABEL_PREFIX=' "$ROOT/.env" 2>/dev/null | cut -d= -f2 | cut -d' ' -f1)}}"
+LABEL_PREFIX="${MNEMOS_LABEL_PREFIX:-${AIHUB_LABEL_PREFIX:-$(grep -E '^(MNEMOS|AIHUB)_LABEL_PREFIX=' "$ROOT/.env" 2>/dev/null | cut -d= -f2 | cut -d' ' -f1 || true)}}"
 LABEL_PREFIX="${LABEL_PREFIX:-io.mnemos}"
 LABEL="$LABEL_PREFIX.dashboard"
 TEMPLATE_NAME="dashboard"
@@ -33,6 +33,9 @@ DOMAIN="gui/$(id -u)"
 TS_PORT="${MNEMOS_DASHBOARD_TS_PORT:-${AIHUB_DASHBOARD_TS_PORT:-8444}}"
 
 has_launchctl() { command -v launchctl >/dev/null; }
+# Linux: user unit from scripts/install_systemd_units.sh
+SD_UNIT="$HOME/.config/systemd/user/mnemos-dashboard.service"
+sd_installed() { command -v systemctl >/dev/null && [[ -f "$SD_UNIT" ]]; }
 agent_installed() { has_launchctl && [[ -f "$PLIST" ]]; }
 agent_loaded() { agent_installed && launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; }
 agent_pid() { launchctl print "$DOMAIN/$LABEL" 2>/dev/null | awk '$1 == "pid" && $2 == "=" {print $3; exit}'; }
@@ -58,8 +61,9 @@ stop_manual() {
 }
 
 start() {
+  if sd_installed; then stop_manual; systemctl --user start mnemos-dashboard.service; wait_up; return; fi
   if running; then echo "ya corre (pid $(current_pid), $(mode)) → $URL"; return 0; fi
-  mkdir -p "$STATE"
+  mkdir -p "$STATE" "$(dirname "$LOG")"
   if agent_installed; then
     stop_manual
     if agent_loaded; then launchctl kickstart "$DOMAIN/$LABEL"; else launchctl bootstrap "$DOMAIN" "$PLIST"; fi
@@ -77,6 +81,7 @@ start() {
 
 stop() {
   local did=""
+  if sd_installed; then systemctl --user stop mnemos-dashboard.service && did=1; fi
   if agent_loaded; then
     launchctl bootout "$DOMAIN/$LABEL" && did=1
     echo "dashboard detenido (LaunchAgent descargado; vuelve con start o en el próximo login)"
@@ -87,6 +92,7 @@ stop() {
 }
 
 restart() {
+  if sd_installed; then systemctl --user restart mnemos-dashboard.service; sleep 1; wait_up; return; fi
   if agent_loaded; then
     launchctl kickstart -k "$DOMAIN/$LABEL"
     sleep 1

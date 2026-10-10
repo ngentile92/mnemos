@@ -115,7 +115,7 @@ docker compose up -d                                          # Funnel sidecars 
 ```
 
 The full step-by-step guide (Tailscale ACLs, OAuth apps, Infisical, Vaultwarden, backups) is in
-[`docs/SETUP.md`](docs/SETUP.md); day-to-day operations in [`docs/OPERATIONS.md`](docs/OPERATIONS.md) (Spanish: `SETUP.es.md`, `OPERATIONS.es.md`).
+[`docs/SETUP.md`](docs/SETUP.md); day-to-day operations in [`docs/OPERATIONS.md`](docs/OPERATIONS.md) (Spanish: `SETUP.es.md`, `OPERATIONS.es.md`). Connecting each client: [`docs/CLIENTS.md`](docs/CLIENTS.md).
 
 **Try it locally without any account** (fake LLM, no Tailscale, no OAuth):
 

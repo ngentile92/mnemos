@@ -173,6 +173,8 @@ From mobile data **without** Tailscale: `https://hub-personal.<tailnet>.ts.net/m
 
 ## 13. Connect the assistants (one connector per context)
 
+Detailed, up-to-date steps with what is verified: [`CLIENTS.md`](CLIENTS.md).
+
 URLs: `https://hub-work.<tailnet>.ts.net/mcp`, `https://hub-personal.<tailnet>.ts.net/mcp`,
 `https://hub-side.<tailnet>.ts.net/mcp`. In all of them you log in with **your** GitHub; any other account is rejected.
 

@@ -181,9 +181,43 @@
       const r = await fetch(`/api/skill?view=${encodeURIComponent(view)}&name=${encodeURIComponent(el.dataset.name)}`, { cache: "no-store" });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || r.status);
-      box.innerHTML = `<div class="card-h"><b>${esc(j.owner)}/${esc(j.name)}/SKILL.md</b><span class="muted small">${j.files.length} file(s)</span></div><pre>${esc(j.content)}</pre>`;
+      box.innerHTML = `<div class="card-h"><b>${esc(j.owner)}/${esc(j.name)}/SKILL.md</b><span class="muted small">${j.files.length} file(s)${CFG.skills_editable ? ' <button id="ex-skill-edit">Edit</button>' : ""}</span></div><pre>${esc(j.content)}</pre>`;
+      if (CFG.skills_editable) $("ex-skill-edit").addEventListener("click", () => skillEditor(j.owner, j.content, j.name));
     } catch (e) { box.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
   });
+
+  // ---------------------------------------------------------------- editor de skills (solo modo carpeta local)
+  const OWNERS = ["shared", ...CFG.contexts.map((c) => c.name)];
+  const TEMPLATE = (n) => `---\nname: ${n}\ndescription: One sentence: what it does and when to use it.\n---\n\n# ${n}\n\nSteps to follow.\n`;
+  async function post(path, body) {
+    const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Mnemos-Write": "1" }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    return j;
+  }
+  window.mnemosPost = post;
+  function skillEditor(owner, content, edit) {
+    const box = $("ex-skill");
+    box.classList.remove("hidden");
+    box.innerHTML = `<div class="card-h"><b>${edit ? "Edit " + esc(edit) : "New skill"}</b>
+      <select id="sk-owner" ${edit ? "disabled" : ""}>${OWNERS.map((o) => `<option ${o === owner ? "selected" : ""}>${esc(o)}</option>`).join("")}</select></div>
+      <p class="muted small">Folder = <code>name</code>. <code>shared</code> is visible in every context. Validated with the same rules as the hubs.</p>
+      <textarea id="sk-text" rows="16" style="width:100%;font-family:monospace">${esc(content)}</textarea>
+      <div><button id="sk-save">Save</button> <button id="sk-cancel">Cancel</button> <span id="sk-msg" class="small"></span></div>`;
+    $("sk-cancel").addEventListener("click", () => box.classList.add("hidden"));
+    $("sk-save").addEventListener("click", async () => {
+      $("sk-msg").className = "small muted"; $("sk-msg").textContent = "saving…";
+      try {
+        const j = await post("/api/skills/save", { owner: $("sk-owner").value, content: $("sk-text").value, edit: edit || null });
+        $("sk-msg").className = "small ok"; $("sk-msg").textContent = `saved ${j.path} — the hubs pick it up within seconds`;
+        data = null; setTimeout(() => load(true), 600);
+      } catch (e) { $("sk-msg").className = "small bad"; $("sk-msg").textContent = e.message; }
+    });
+  }
+  if (CFG.skills_editable) {
+    $("ex-skill-new").classList.remove("hidden");
+    $("ex-skill-new").addEventListener("click", () => skillEditor(view === "todos" ? "shared" : view, TEMPLATE("my-skill")));
+  }
 
   function renderSecrets() {
     const s = data.secrets;

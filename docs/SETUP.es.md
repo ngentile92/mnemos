@@ -21,6 +21,8 @@ Python 3.11+, git, `gh` (opcional), 8 GB de RAM libres para Docker; Ollama si qu
 
 ## 1. Tu repo privado de skills
 
+Opcional: si usás la carpeta local (`SKILLS_DIR=./skills-local`, default en `.env.example`, editable desde el dashboard), salteá este paso y el 5.
+
 Las skills viven en un repo **privado** aparte (`<usuario>/mnemos-skills`) que `skills-sync` clona en modo
 solo lectura. Arrancalo con los ejemplos de este repo:
 

@@ -9,7 +9,8 @@ Tailscale Funnel, behind GitHub OAuth that only lets *you* in.
 
 - **Memory**: a knowledge graph + vector store ([Cognee](https://github.com/topoteretes/cognee)) per context, plus a
   `shared` dataset for things every context should know (your profile, preferences).
-- **Skills**: [Agent Skills](https://agentskills.io) (`SKILL.md` folders) synced from a private Git repo every 60 s.
+- **Skills**: [Agent Skills](https://agentskills.io) (`SKILL.md` folders) in a local folder (`SKILLS_DIR`, default for new
+  installs, create/edit them from the dashboard) or, optionally, synced from a private Git repo every 60 s.
 - **Injected credentials**: secrets live in [Infisical](https://infisical.com); the model only sees names and asks
   the gateway to make the HTTPS call. The secret is injected server-side, only towards allow-listed hosts, and the
   response comes back redacted.
@@ -93,7 +94,8 @@ never content or secrets). Also included:
 - **Three GitHub OAuth Apps** (one per context; callback `https://hub-<ctx>.<tailnet>.ts.net/auth/callback`).
 - An extraction LLM: an **OpenAI API key** or **Ollama** running on the host (`ollama pull llama3.1:8b`).
 - Python 3.11+ on the host for the bootstrap scripts, tests and dashboard.
-- A **private** GitHub repo for your skills (start from [`examples/skills/`](examples/skills/)).
+- Optional: a **private** GitHub repo for your skills (start from [`examples/skills/`](examples/skills/)); by default they
+  live in `./skills-local` (see *Skills: local folder or GitHub* below).
 
 ## Quickstart
 
@@ -130,6 +132,16 @@ docker compose -f compose.dev.yaml down -v
 ```
 
 **Unit tests:** `.venv/bin/pytest -q gateway/tests`
+
+### Skills: local folder or GitHub
+
+- **Local folder (default for new installs)**: `SKILLS_DIR=./skills-local` in `.env`. Layout
+  `skills-local/skills/<shared|ctx>/<name>/SKILL.md`; the gateways mount it read-only and pick up changes within
+  seconds. Create and edit skills in the dashboard (*Explore → Visible skills → + New skill / Edit*; only from
+  `http://127.0.0.1`, never over the tailnet). `skills-sync` just idles.
+- **GitHub (optional)**: remove `SKILLS_DIR` and set `GITHUB_USER` + `SKILLS_REPO`; `skills-sync` pulls the repo every
+  60 s with a read-only deploy key. The dashboard shows the skills but edits go through the repo.
+- Switching: change `.env`, then `docker compose up -d` (the gateways are recreated with the new mount).
 
 ## Connecting your assistants
 
@@ -258,7 +270,8 @@ host. The dashboard runs with `scripts/dashboard.sh start` (or a systemd user se
 | `gateway/` | MCP server (FastMCP): OAuth + allow-list, per-context tools, secret broker, tests |
 | `dashboard/` | Read-only live dashboard (`127.0.0.1` only) |
 | `scripts/` | Bootstrap, update (`update.sh`), compose render, smoke test, backups/restore, nightly cognify, hygiene, watchdog, admin tools (+ `launchd/` templates) |
-| `skills-sync/` | Container that keeps `/skills` in sync with your skills repo |
+| `skills-sync/` | Container that keeps `/skills` in sync with your skills repo (idle when `SKILLS_DIR` is set) |
+| `dashboard/skills_store.py` | Create/edit skills in the local folder (validated like the gateway) |
 | `config/` | Example contexts and secret policy, shared Tailscale `serve.json`, ACL snippet |
 | `dev/` | Fake OpenAI-compatible LLM, skill fixtures, Infisical e2e |
 | `examples/skills/` | Starter skills repo (`review-pr`, `debug-error`, `status-report`, `technical-docs`) + validator |

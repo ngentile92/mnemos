@@ -39,6 +39,7 @@ except ModuleNotFoundError:  # python del sistema sin deps → re-ejecutar con e
 
 STATIC = Path(__file__).resolve().parent / "static"
 sys.path.insert(0, str(ROOT / "gateway" / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hub_gateway.contexts import CONTEXTS  # noqa: E402  (config/contexts.yaml)
 
 
@@ -69,8 +70,10 @@ BACKUP_AT = (3, 17)
 OFFSITE_LOG = Path.home() / "Library" / "Logs" / "mnemos-offsite.log"
 WATCHDOG_STATUS = Path.home() / "Library" / "Logs" / "mnemos-watchdog-status.json"
 WATCHDOG_LABEL = f"{LABEL_PREFIX}.watchdog"
-CONFIG_JS = "window.MNEMOS = " + json.dumps(
-    {"contexts": [{"name": c.name, "datasets": c.own_dataset_names} for c in CONTEXTS.values()]}) + ";\n"
+def config_js(skills_local: bool) -> str:
+    return "window.MNEMOS = " + json.dumps(
+        {"contexts": [{"name": c.name, "datasets": c.own_dataset_names} for c in CONTEXTS.values()],
+         "skills_editable": skills_local}) + ";\n"
 STATIC_IMPORT: dict = {}  # opcional: conteos de secretos conocidos por contexto, si Infisical no responde
 SENSITIVE_NAME = re.compile(r"(KEY|SECRET|PASSWORD|PASSWD|TOKEN|_PW_|^PW_|_PW$|AUTH|REPOSITORY|DSN)", re.IGNORECASE)
 MODEL_VARS = ("LLM_PROVIDER", "LLM_MODEL", "EMBEDDING_PROVIDER", "EMBEDDING_MODEL")
@@ -312,6 +315,15 @@ class Hub:
 
     # -- skills (repo mnemos-skills clonado por skills-sync)
     def skills(self) -> dict:
+        from skills_store import local_root, scan  # noqa: PLC0415
+        local = local_root(ROOT, self.env)
+        if local:
+            found, errors = scan(local)
+            by_owner: dict[str, list[str]] = {o: [] for o in ("shared", *CONTEXTS)}
+            for sk in found.values():
+                by_owner.setdefault(sk.owner, []).append(sk.name)
+            return {"mode": "local", "dir": str(local), "head": "", "updated": "", "owners": by_owner,
+                    "total": len(found), "errors": errors[:10]}
         out = run(["docker", "exec", f"{PROJECT}-skills-sync-1", "sh", "-c",
                    'cd /skills && git log -1 --format="%h|%cI" && ls -d skills/*/*/SKILL.md 2>/dev/null'])
         lines = out.strip().splitlines()
@@ -321,7 +333,8 @@ class Hub:
             parts = p.split("/")
             if len(parts) == 4:
                 by_owner.setdefault(parts[1], []).append(parts[2])
-        return {"head": head, "updated": when, "owners": by_owner, "total": sum(map(len, by_owner.values()))}
+        return {"mode": "github", "head": head, "updated": when, "owners": by_owner,
+                "total": sum(map(len, by_owner.values()))}
 
     # -- backup (log del LaunchAgent + restic snapshots, cacheado largo)
     def backup(self) -> dict:
@@ -492,6 +505,14 @@ def build_allowed_hosts(host: str, port: int, tailnet_port: int = 0, dns_name: s
     return allowed
 
 
+POST_ROUTES: dict = {}  # path → fn(body) -> dict (registered by other dashboard features)
+
+
+def skills_dir() -> Path | None:
+    from skills_store import local_root
+    return local_root(ROOT, read_env(ROOT / ".env"))
+
+
 def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
     class H(BaseHTTPRequestHandler):
         server_version = "mnemos-dashboard"
@@ -540,6 +561,55 @@ def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
             except Exception as e:  # noqa: BLE001
                 return self._json(502, {"error": err(e)})
 
+        def _write_guard(self) -> str | None:
+            """Writes only from this machine's browser: loopback Host (not the tailnet name), same-origin,
+            JSON body and a custom header (a cross-site form or <img> cannot set it)."""
+            host = self.headers.get("Host", "").lower()
+            if host not in allowed_hosts or not host.split(":")[0] in ("127.0.0.1", "localhost"):
+                return "edits are only allowed from http://127.0.0.1 on this machine"
+            if self.headers.get("Origin", "") not in (f"http://{host}",):
+                return "bad origin"
+            if self.headers.get("X-Mnemos-Write") != "1" or not self.headers.get("Content-Type", "").startswith("application/json"):
+                return "bad request"
+            return None
+
+        def _body(self, limit: int = 300_000) -> dict:
+            n = int(self.headers.get("Content-Length") or 0)
+            if n <= 0 or n > limit:
+                raise ValueError("body missing or too large")
+            data = json.loads(self.rfile.read(n))
+            if not isinstance(data, dict):
+                raise ValueError("JSON object expected")
+            return data
+
+        def do_POST(self):
+            path = self.path.partition("?")[0]
+            bad = self._write_guard()
+            if bad:
+                return self._json(403, {"error": bad})
+            if demo is not None:
+                return self._json(403, {"error": "demo mode is read-only"})
+            try:
+                body = self._body()
+                if path == "/api/skills/save":
+                    root = skills_dir()
+                    if root is None:
+                        return self._json(409, {"error": "skills come from GitHub (SKILLS_REPO): edit them in that repo"})
+                    from skills_store import ensure_layout, save
+                    ensure_layout(root)
+                    edit = body.get("edit")
+                    res = save(root, str(body.get("owner", "")), str(body.get("content", "")),
+                               edit=str(edit) if edit else None)
+                    return self._json(200, {"ok": True, **res})
+                handler = POST_ROUTES.get(path)
+                if handler is None:
+                    return self._json(404, {"error": "not found"})
+                return self._json(200, handler(body))
+            except (ValueError, KeyError) as e:  # SkillError/ContextError are ValueErrors
+                return self._json(400, {"error": str(e)[:300]})
+            except Exception as e:  # noqa: BLE001
+                return self._json(500, {"error": err(e)})
+
         def do_HEAD(self):
             self.do_GET()
 
@@ -556,7 +626,7 @@ def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
                     text = hub.redact(text)
                 return self._send(200, text.encode(), "application/json; charset=utf-8")
             if path == "/config.js":  # contextos de config/contexts.yaml para la UI (solo nombres)
-                return self._send(200, CONFIG_JS.encode(), "text/javascript; charset=utf-8")
+                return self._send(200, config_js(skills_dir() is not None).encode(), "text/javascript; charset=utf-8")
             name = "index.html" if path in ("/", "/index.html") else path.lstrip("/")
             f = (STATIC / name).resolve()
             if STATIC.resolve() not in f.parents or not f.is_file():

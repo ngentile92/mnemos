@@ -27,3 +27,6 @@ compose.generated.yaml
 # backups written by scripts/mnemos_context.py (may contain secrets)
 .env.bak-*
 config/*.bak-*
+
+# local skills folder (SKILLS_DIR); your own content
+skills-local/

@@ -139,13 +139,25 @@ class SkillsMirror:
             return self.root
 
 
+class LocalSkills:
+    """SKILLS_DIR mode: the folder itself is the source of truth (no copy needed)."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+
+    def ensure(self) -> Path:
+        return self.root
+
+
 class Explorer:
     def __init__(self, env: dict[str, str], err) -> None:
         self.env = env
         self.err = err
         ds_file = ROOT / "config" / "cognee-datasets.json"  # lo genera scripts/bootstrap_cognee.py
         self.state = json.loads(ds_file.read_text()) if ds_file.exists() else {"datasets": {}, "users": {}}
-        self.skills = SkillsMirror(ROOT / "dev" / "state" / "skills-mirror")
+        from skills_store import local_root
+        local = local_root(ROOT, env)
+        self.skills = LocalSkills(local) if local else SkillsMirror(ROOT / "dev" / "state" / "skills-mirror")
         self._cache: dict[str, tuple[float, dict]] = {}
         self._admin: tuple[float, httpx.Client] | None = None
         self._lock = threading.Lock()

@@ -17,7 +17,8 @@ from pathlib import Path
 
 _UUID = re.compile(r"^[0-9a-fA-F-]{36}$")
 TOOLS = {"list": "memory_list", "history": "memory_history", "update": "memory_update",
-         "delete": "memory_delete", "undo": "memory_undo"}
+         "delete": "memory_delete", "undo": "memory_undo", "pin": "memory_pin",
+         "obsolete": "memory_mark_obsolete", "dispute": "memory_dispute"}
 
 
 class MemoryEditorOff(Exception):
@@ -95,6 +96,11 @@ def run(root: Path, env: dict[str, str], contexts: list[str], action: str, body:
         q = str(body.get("contains") or "").strip()[:200]
         if q:
             args["contains"] = q
+    elif action == "dispute":
+        corr = str(body.get("correction", "")).strip()
+        if not 5 <= len(corr) <= 1000:
+            raise ValueError("describe the correction in 5-1000 characters")
+        args = {"correction": corr}
     else:
         nid = str(body.get("id", ""))
         if not _UUID.match(nid):
@@ -105,4 +111,10 @@ def run(root: Path, env: dict[str, str], contexts: list[str], action: str, body:
             if not 3 <= len(text) <= 20000:
                 raise ValueError("text must be 3-20000 characters")
             args["text"] = text
+        elif action == "pin":
+            args["pinned"] = bool(body.get("pinned", True))
+        elif action == "obsolete":
+            args["obsolete"] = bool(body.get("obsolete", True))
+            if body.get("reason"):
+                args["reason"] = str(body["reason"])[:300]
     return GatewayMCP(discover_url(root, env, ctx), key).call(tool, args)

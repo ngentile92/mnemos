@@ -30,7 +30,7 @@
       items = j.items || [];
       $("me-count").textContent = `${items.length} of ${j.total ?? items.length}`;
       $("me-list").innerHTML = items.length ? items.map((it, i) =>
-        `<div class="note" data-i="${i}"><div class="small muted">${esc(it.dataset)} · ${esc((it.created_at || "").slice(0, 16))} · ${esc(it.source_app || "")}${it.editable ? "" : " · read-only"}</div>` +
+        `<div class="note" data-i="${i}"><div class="small muted">${esc(it.dataset)} · ${esc((it.created_at || "").slice(0, 16))} · ${esc(it.source_app || "")}${it.editable ? "" : " · read-only"}${it.pinned ? " · 📌 pinned" : ""}${it.obsolete ? " · obsolete" : ""}</div>` +
         `<div>${esc((it.text || "").slice(0, 160))}</div></div>`).join("") : '<p class="muted">No notes.</p>';
     } catch (e) { $("me-list").innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
   }
@@ -39,7 +39,8 @@
     const prov = it.provenance ? `<pre class="small">${esc(JSON.stringify(it.provenance, null, 1))}</pre>` : "";
     d.innerHTML = `<div class="small muted">id ${esc(it.id)} · ${esc(it.dataset)}</div>` +
       (it.editable ? `<textarea id="me-text" rows="10" maxlength="20000">${esc(it.text)}</textarea>
-        <div><button id="me-save">Save correction</button> <button id="me-forget">Forget</button> <button id="me-undo">Undo last change</button></div>`
+        <div><button id="me-save">Save correction</button> <button id="me-forget">Forget</button> <button id="me-undo">Undo last change</button>
+        <button id="me-pin">${it.pinned ? "Unpin" : "Pin"}</button> <button id="me-obs">${it.obsolete ? "Not obsolete" : "Mark obsolete"}</button></div>`
         : `<pre>${esc(it.text)}</pre><p class="muted small">shared notes are edited by the owner with scripts/memory_admin.py</p>`) +
       `<h3>Provenance</h3>${prov || '<p class="muted small">none recorded</p>'}<h3>History</h3><div id="me-hist" class="small muted">loading…</div><p id="me-msg" class="small"></p>`;
     if (it.editable) {
@@ -49,6 +50,9 @@
       };
       $("me-save").onclick = () => act("/api/memory/update", { text: $("me-text").value }, () => "saved (previous version kept)");
       $("me-forget").onclick = () => confirm("Forget this note? You can undo it.") && act("/api/memory/delete", {}, () => "forgotten — Undo restores it");
+      $("me-pin").onclick = () => act("/api/memory/pin", { pinned: !it.pinned }, () => (it.pinned ? "unpinned" : "pinned: shows first in searches"));
+      $("me-obs").onclick = () => act("/api/memory/obsolete", { obsolete: !it.obsolete, reason: it.obsolete ? "" : (prompt("Why is it no longer true? (optional)") || "") },
+        () => (it.obsolete ? "back in searches" : "obsolete: kept, but no longer used in searches/answers"));
       $("me-undo").onclick = () => act("/api/memory/undo", {}, (j) => "undone" + (j.id && j.id !== it.id ? ` (restored as ${j.id})` : ""));
     }
     try {
@@ -57,6 +61,26 @@
       $("me-hist").innerHTML = v.length ? v.map((x) => `<div><b>${esc(x.action)}</b> ${esc(x.replaced_at || "")} ${esc(x.by || "")}<pre>${esc((x.text || "").slice(0, 400))}</pre></div>`).join("") : "no previous versions";
     } catch (e) { $("me-hist").textContent = e.message; }
   }
+  $("me-dispute-go").onclick = async () => {
+    const box = $("me-proposals");
+    box.innerHTML = '<p class="muted">looking… (local model, can take a minute)</p>';
+    try {
+      const j = await post("/api/memory/dispute", { context: ctx(), correction: $("me-dispute").value });
+      const ps = j.proposals || [];
+      box.innerHTML = ps.length ? ps.map((p, i) => `<div class="note"><div class="small muted">${esc(p.dataset)} · ${esc(p.id)} · proposal: <b>${esc(p.action || "review manually")}</b> ${esc(p.why || "")}</div>
+        <pre>${esc(p.text)}</pre>${p.action === "update" ? `<textarea data-i="${i}" rows="4">${esc(p.proposed_text)}</textarea>` : ""}
+        ${p.action ? `<button data-apply="${i}">Apply</button>` : ""}</div>`).join("") : '<p class="muted">No note in this context says that.</p>';
+      box.querySelectorAll("[data-apply]").forEach((b) => (b.onclick = async () => {
+        const p = ps[+b.dataset.apply];
+        try {
+          if (p.action === "update") await post("/api/memory/update", { context: ctx(), id: p.id, text: box.querySelector(`textarea[data-i="${b.dataset.apply}"]`).value });
+          else await post("/api/memory/obsolete", { context: ctx(), id: p.id, obsolete: true, reason: $("me-dispute").value.slice(0, 300) });
+          b.replaceWith(Object.assign(document.createElement("span"), { textContent: "applied (Undo / Not obsolete to revert)" }));
+          load();
+        } catch (e) { b.insertAdjacentText("afterend", " error: " + e.message); }
+      }));
+    } catch (e) { box.innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
+  };
   $("me-list").addEventListener("click", (ev) => { const n = ev.target.closest(".note"); if (n) show(items[+n.dataset.i]); });
   $("me-refresh").onclick = load;
   $("me-ctx").onchange = load;

@@ -111,3 +111,15 @@ def test_editor_off_without_key(dash):
     (root / ".env").write_text("TS_TAILNET=x\n")
     r = httpx.get(f"{base}/api/memory/list", params={"context": "personal"}, timeout=30)
     assert r.status_code == 409 and "HUB_INTERNAL_KEY_PERSONAL" in r.json()["error"]
+
+
+def test_pin_obsolete_dispute_via_dashboard(dash):
+    base, rec, _ = dash
+    nid = NOTE_IDS["personal"]
+    assert post(base, "/api/memory/pin", {"context": "personal", "id": nid, "pinned": True}).status_code == 200
+    assert post(base, "/api/memory/obsolete", {"context": "personal", "id": nid, "reason": "old"}).status_code == 200
+    items = {i["id"]: i for i in httpx.get(f"{base}/api/memory/list", params={"context": "personal"}, timeout=60).json()["items"]}
+    assert items[nid]["pinned"] and items[nid]["obsolete"]
+    r = post(base, "/api/memory/dispute", {"context": "personal", "correction": "orion ya cerró"})
+    assert r.status_code == 200 and "proposals" in r.json() and not rec.patches
+    assert post(base, "/api/memory/dispute", {"context": "personal", "correction": "x"}).status_code == 400

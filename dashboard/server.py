@@ -584,7 +584,10 @@ def memory_action(action: str, body: dict) -> dict:
 POST_ROUTES: dict = {"/api/contexts/add": add_context, "/api/router/revoke": router_revoke,
                      "/api/memory/update": lambda b: memory_action("update", b),
                      "/api/memory/delete": lambda b: memory_action("delete", b),
-                     "/api/memory/undo": lambda b: memory_action("undo", b)}  # path → fn(body) -> dict
+                     "/api/memory/undo": lambda b: memory_action("undo", b),
+                     "/api/memory/pin": lambda b: memory_action("pin", b),
+                     "/api/memory/obsolete": lambda b: memory_action("obsolete", b),
+                     "/api/memory/dispute": lambda b: memory_action("dispute", b)}  # path → fn(body) -> dict
 
 
 def skills_dir() -> Path | None:

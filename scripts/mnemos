@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Single entry point: scripts/mnemos <command> [args]. Uses the repo's .venv when present.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PY="$ROOT/.venv/bin/python3"; [[ -x "$PY" ]] || PY=python3
+cmd="${1:-help}"; shift || true
+case "$cmd" in
+  expose)   exec "$PY" "$ROOT/scripts/mnemos_expose.py" "$@";;
+  context)  exec "$PY" "$ROOT/scripts/mnemos_context.py" "$@";;
+  update)   exec "$ROOT/scripts/update.sh" "$@";;
+  smoke)    exec "$PY" "$ROOT/scripts/smoke_test.py" "$@";;
+  watchdog) exec "$PY" "$ROOT/scripts/hub_watchdog.py" "$@";;
+  hygiene)  exec "$PY" "$ROOT/scripts/memory_hygiene.py" "$@";;
+  dashboard) exec "$ROOT/scripts/dashboard.sh" "$@";;
+  help|-h|--help)
+    echo "usage: scripts/mnemos {expose|context|update|smoke|watchdog|hygiene|dashboard} [args]"
+    echo "  expose [--apply|--check] [--dashboard]   publish every hub (dry run by default)"
+    echo "  context {list|add|remove} ...            manage contexts";;
+  *) echo "unknown command: $cmd (scripts/mnemos help)" >&2; exit 2;;
+esac

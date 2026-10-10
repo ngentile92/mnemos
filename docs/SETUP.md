@@ -118,6 +118,8 @@ tailscale serve status
 
 **Never** use `tailscale funnel` on the Mac: the only public pieces are the `hub-*` sidecars.
 
+Shortcut: `scripts/mnemos expose --apply` does these two `tailscale serve` lines (and checks the hubs later); it is idempotent.
+
 ## 9. Vaultwarden account
 
 1. From a tailnet device open `https://<mac>.<tailnet>.ts.net` → *Create account* (long master password, written on paper).
@@ -162,6 +164,8 @@ Idempotent.
 docker compose up -d                       # adds the 3 Funnel sidecars and the 3 gateways
 python3 scripts/smoke_test.py --quick      # Cognee OK + 401 and OAuth metadata on the 3 hostnames
 ```
+
+`scripts/mnemos expose` then shows every hub as `ok` (public DNS + `/mcp` → 401).
 
 From mobile data **without** Tailscale: `https://hub-personal.<tailnet>.ts.net/mcp` answers 401;
 `https://<mac>.<tailnet>.ts.net` (Vaultwarden) does **not** answer. The Tailscale admin shows `hub-work`,

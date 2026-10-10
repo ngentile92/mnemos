@@ -286,3 +286,19 @@ bridges:
 modified; backup kept) and `compose.generated.yaml`. No containers are started or stopped and no data is deleted.
 After `add`: create the GitHub OAuth app, `skills/<name>/` in the skills repo, `scripts/bootstrap_cognee.py`,
 `docker compose up -d`. After `remove`: `docker compose up -d --remove-orphans`.
+
+## Publishing the hubs (`scripts/mnemos expose`)
+
+One command checks and, with `--apply`, completes the exposure: Funnel for each `hub-<ctx>` (its `ts-<ctx>` +
+`gateway-<ctx>` running, public DNS resolving, `/mcp` answering 401) and tailnet-only `tailscale serve` on the host
+for Vaultwarden (:443) and Infisical (:8443) (+ dashboard :8444 with `--dashboard` or if already published).
+
+```bash
+scripts/mnemos expose            # plan only (default)
+scripts/mnemos expose --apply    # run only what is missing, then re-check
+scripts/mnemos expose --check    # exit 1 if anything is not ok
+```
+
+Idempotent: on a fully exposed instance `--apply` prints "nothing to do" and changes nothing. It never runs
+`tailscale funnel`, never rewrites a serve entry that points elsewhere (reported as CONFLICT), and stops if Funnel
+is enabled on the host itself (DANGER).

@@ -277,3 +277,11 @@ sacan), `.env` (agrega las variables nuevas con claves generadas y `__COMPLETAR_
 líneas existentes; con backup) y `compose.generated.yaml`. No levanta ni para contenedores ni borra datos.
 Después de `add`: crear la OAuth app de GitHub, `skills/<nombre>/` en el repo de skills, `scripts/bootstrap_cognee.py`
 y `docker compose up -d`. Después de `remove`: `docker compose up -d --remove-orphans`.
+
+## Publicar los hubs (`scripts/mnemos expose`)
+
+`scripts/mnemos expose` (solo plan, por defecto) / `--apply` (hace solo lo que falta y vuelve a chequear) /
+`--check` (exit 1 si algo no está). Revisa Funnel por cada `hub-<ctx>` (sidecar + gateway corriendo, DNS público,
+`/mcp` → 401) y el `tailscale serve` solo-tailnet del host (Vaultwarden :443, Infisical :8443, dashboard :8444).
+Idempotente; nunca corre `tailscale funnel`, no pisa entradas que apuntan a otro lado y se frena si el host tiene
+Funnel prendido.

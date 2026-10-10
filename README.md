@@ -133,6 +133,12 @@ docker compose -f compose.dev.yaml down -v
 
 **Unit tests:** `.venv/bin/pytest -q gateway/tests`
 
+### Login: GitHub or built-in
+
+Default: GitHub OAuth (one OAuth App per context, only `GITHUB_USER` gets in). Without GitHub: `HUB_AUTH_PROVIDER=local`
++ `HUB_LOCAL_USER` + `HUB_LOCAL_PASSWORD_HASH`: every hub becomes its own OAuth server with a login page; the clients
+connect the same way. Details and what was verified: [`docs/auth-local.md`](docs/auth-local.md).
+
 ### Skills: local folder or GitHub
 
 - **Local folder (default for new installs)**: `SKILLS_DIR=./skills-local` in `.env`. Layout

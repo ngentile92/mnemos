@@ -8,7 +8,7 @@
 # Log: ~/Library/Logs/mnemos-offsite.log (el dashboard lee "== Inicio offsite" / "Offsite OK").
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
-if [[ -d "$HOME/Library/Logs" ]]; then LOG="$HOME/Library/Logs/mnemos-offsite.log"; else LOG="dev/state/offsite.log"; fi
+if [[ -d "$HOME/Library/Logs" ]]; then LOG="$HOME/Library/Logs/mnemos-offsite.log"; else LOG="${MNEMOS_LOG_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/mnemos}/mnemos-offsite.log"; fi
 LOCK="dev/state/offsite-sync.lock"
 mkdir -p dev/state "$(dirname "$LOG")"
 STAMP="$(date +%Y%m%d-%H%M%S)"

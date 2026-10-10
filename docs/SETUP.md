@@ -245,3 +245,21 @@ and a broken container, but not losing the laptop. Copy that folder to an extern
 repo to an external target) — the offsite sync (`scripts/offsite_sync.sh`, see [OPERATIONS](OPERATIONS.md)) does this.
 
 Once a month, test a full restore into another folder or machine.
+
+## Linux (systemd)
+
+Everything runs the same on Linux with Docker Engine + Compose v2 and Tailscale. The macOS LaunchAgents become
+systemd **user** units:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -e gateway
+scripts/install_systemd_units.sh --dry-run        # print the units, change nothing
+scripts/install_systemd_units.sh                  # watchdog (15 min), backup 03:17, cognify 03:47, dashboard
+sudo loginctl enable-linger "$USER"               # keep them running while logged out
+systemctl --user list-timers 'mnemos-*'
+```
+
+`scripts/install_{watchdog,backup,cognify}_agent.sh` call it for you on Linux; `--uninstall` removes the units.
+Logs and the watchdog status go to `~/.local/state/mnemos/` (or `MNEMOS_LOG_DIR`), where the dashboard reads them.
+macOS desktop notifications from the watchdog do not exist on Linux; use the ntfy alerts (`MNEMOS_ALERT_NTFY_TOPIC`).
+CI runs this install path on Ubuntu (job `linux-install`).

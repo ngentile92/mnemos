@@ -4,6 +4,11 @@
 # Uso: scripts/install_cognify_agent.sh [--run-now]
 # Log: ~/Library/Logs/mnemos-cognify.log
 set -euo pipefail
+if [[ "$(uname -s)" == Linux ]]; then  # same job as a systemd user timer
+  args=(--only cognify)
+  [[ "${1:-}" == --uninstall ]] && args+=(--uninstall)
+  exec "$(dirname "$0")/install_systemd_units.sh" "${args[@]}"
+fi
 cd "$(dirname "$0")/.."
 HUB_DIR="$PWD"
 # Prefijo de los LaunchAgents (reverse-DNS): AIHUB_LABEL_PREFIX del entorno o de .env; default io.mnemos.

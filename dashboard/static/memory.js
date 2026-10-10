@@ -48,9 +48,8 @@
     loaded = true;
     if (!items.length) $("me-list").innerHTML = '<p class="muted"><span class="spin"></span>loading…</p>';
     try {
-      const j = await get("/api/memory/list", { context: ctx(), contains: $("me-q").value, include_shared: $("me-shared").checked ? "1" : "0" });
+      const j = await get("/api/memory/list", { context: ctx(), include_shared: $("me-shared").checked ? "1" : "0" });
       items = j.items || [];
-      $("me-count").textContent = `${items.length}${j.total > items.length ? " of " + j.total : ""}`;
       renderList();
       const cur = keepSel && items.find((i) => i.id === selId);
       if (cur && !$("me-text")) show(cur, false);
@@ -58,10 +57,50 @@
       if (items.some((i) => i.sync === "processing")) poll = setInterval(() => load(), 4000);
     } catch (e) { $("me-list").innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
   }
+  let related = [];
+  // short queries ("PR", "AI") match whole words only; longer ones match anywhere
+  const rx = (q) => {
+    const e = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return q.length <= 3 ? new RegExp(`(?<![\\p{L}\\p{N}])${e}s?(?![\\p{L}\\p{N}])`, "giu") : new RegExp(e, "giu");
+  };
+  const matches = (text, q) => rx(q).test(String(text));
+  const hl = (text, q) => {
+    if (!q) return esc(text);
+    const t = String(text), r = rx(q);
+    let out = "", last = 0, m, first = true;
+    while ((m = r.exec(t))) {
+      if (first && m.index > 80) { out = "…"; last = m.index - 60; }
+      first = false;
+      out += esc(t.slice(last, m.index)) + "<mark>" + esc(m[0]) + "</mark>"; last = m.index + m[0].length;
+    }
+    return out + esc(t.slice(last));
+  };
+  const row = (it, q, extra = "") => `<div class="me-item${it.id === selId ? " sel" : ""}" data-id="${esc(it.id)}"><div class="m"><span>${esc(when(it.created_at))}</span><span>${esc(it.source_app || "")}</span>${badges(it)}${extra}</div>` +
+      `<div class="t">${hl(it.text, q)}</div></div>`;
   function renderList() {
-    $("me-list").innerHTML = items.length ? items.map((it, i) =>
-      `<div class="me-item${it.id === selId ? " sel" : ""}" data-i="${i}"><div class="m"><span>${esc(when(it.created_at))}</span><span>${esc(it.source_app || "")}</span>${badges(it)}</div>` +
-      `<div class="t">${esc(it.text)}</div></div>`).join("") : '<p class="muted">No notes.</p>';
+    const q = $("me-q").value.trim();
+    const hits = q ? items.filter((it) => matches(it.text, q)) : items;
+    $("me-count").textContent = q ? `${hits.length} of ${items.length} match “${q}”` : `${items.length}`;
+    const hitIds = new Set(hits.map((h) => h.id));
+    const rel = q ? related.filter((r) => !hitIds.has(r.id)).map((r) => items.find((i) => i.id === r.id)).filter(Boolean) : [];
+    $("me-list").innerHTML = (hits.length ? hits.map((it) => row(it, q)).join("") : `<p class="muted">${q ? "No note contains that text." : "No notes."}</p>`) +
+      (rel.length ? `<div class="me-relh small muted">Related by meaning</div>` + rel.map((it) => row(it, "", '<span class="badge">related</span>')).join("") : "") +
+      (q && relPending ? '<p class="small muted"><span class="spin"></span>looking for related notes…</p>' : "");
+  }
+  let relT = null, relPending = false;
+  function onFilter() {
+    renderList();
+    clearTimeout(relT);
+    const q = $("me-q").value.trim();
+    related = [];
+    if (q.length < 2) return;
+    relPending = true; renderList();
+    relT = setTimeout(async () => {
+      try { related = ((await get("/api/memory/related", { context: ctx(), q, include_shared: $("me-shared").checked ? "1" : "0" })).results || []).filter((r) => r.id); }
+      catch { related = []; }
+      relPending = false;
+      if ($("me-q").value.trim() === q) renderList();
+    }, 500);
   }
 
   async function show(it, scroll = true) {
@@ -170,6 +209,7 @@
         : "";
       box.insertAdjacentHTML("beforeend", saveCard(q, ps.length > 0));
       const ck = j.checked || [];
+      if (!ck.length && !ps.length) box.insertAdjacentHTML("beforeend", '<p class="small muted">No note in this context mentions it.</p>');
       if (ck.length) box.insertAdjacentHTML("beforeend", `<details class="me-checked"><summary class="small muted">Checked ${ck.length} note${ck.length > 1 ? "s" : ""}${j.cached ? " · same answer as before (cached)" : ""}${j.timings_ms ? ` · ${((j.timings_ms.retrieval + j.timings_ms.model) / 1000).toFixed(1)} s` : ""} — why</summary>` +
         ck.map((c) => `<div class="small"><span class="${c.verdict === "proposed" ? "ok" : "muted"}">${esc(c.verdict)}</span> — ${esc(c.preview)}…</div>`).join("") + "</details>");
       box.querySelectorAll("[data-skip]").forEach((b) => (b.onclick = () => b.closest(".me-prop").remove()));
@@ -187,11 +227,11 @@
     btn.disabled = false;
   };
 
-  $("me-list").addEventListener("click", (ev) => { const n = ev.target.closest(".me-item"); if (n) show(items[+n.dataset.i]); });
+  $("me-list").addEventListener("click", (ev) => { const n = ev.target.closest(".me-item"); if (n) show(items.find((i) => i.id === n.dataset.id)); });
   $("me-refresh").onclick = () => load();
   $("me-ctx").onchange = () => { localStorage.setItem("mnemos.memctx", ctx()); selId = null; items = []; $("me-detail").innerHTML = '<p class="muted">Pick a note on the left.</p>'; load(); };
   $("me-shared").onchange = () => load();
-  $("me-q").addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
+  $("me-q").addEventListener("input", onFilter);
   $("me-dispute").addEventListener("keydown", (e) => { if (e.key === "Enter") $("me-dispute-go").click(); });
   window.addEventListener("mnemos:memoria", () => { if (!loaded) load(); });
   if (location.hash.startsWith("#memoria")) load();

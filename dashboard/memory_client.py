@@ -18,7 +18,7 @@ from pathlib import Path
 _UUID = re.compile(r"^[0-9a-fA-F-]{36}$")
 TOOLS = {"list": "memory_list", "history": "memory_history", "update": "memory_update",
          "delete": "memory_delete", "undo": "memory_undo", "pin": "memory_pin",
-         "obsolete": "memory_mark_obsolete", "dispute": "memory_dispute", "save": "memory_save"}
+         "obsolete": "memory_mark_obsolete", "dispute": "memory_dispute", "save": "memory_save", "related": "memory_search"}
 
 
 class MemoryEditorOff(Exception):
@@ -96,6 +96,11 @@ def run(root: Path, env: dict[str, str], contexts: list[str], action: str, body:
         q = str(body.get("contains") or "").strip()[:200]
         if q:
             args["contains"] = q
+    elif action == "related":
+        q = str(body.get("q") or "").strip()[:500]
+        if len(q) < 2:
+            raise ValueError("query too short")
+        args = {"query": q, "mode": "hybrid", "top_k": 10, "include_shared": bool(body.get("include_shared", True))}
     elif action == "save":
         text = str(body.get("text", "")).strip()
         if not 3 <= len(text) <= 20000:

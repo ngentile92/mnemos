@@ -132,3 +132,10 @@ def test_save_new_note_via_dashboard(dash):
     assert rec.remembers and "Quiero cada cambio en su propio PR" in rec.remembers[-1] and "dashboard" in rec.remembers[-1]
     assert post(base, "/api/memory/save", {"context": "personal", "text": "x"}).status_code == 400
     assert httpx.post(f"{base}/api/memory/save", json={"context": "personal", "text": "abcdef"}).status_code == 403
+
+
+def test_related_search_via_dashboard(dash):
+    base, _, _ = dash
+    r = httpx.get(f"{base}/api/memory/related", params={"context": "personal", "q": "orion"}, timeout=60)
+    assert r.status_code == 200 and any(x.get("id") == NOTE_IDS["personal"] for x in r.json()["results"])
+    assert httpx.get(f"{base}/api/memory/related", params={"context": "personal", "q": "x"}, timeout=30).status_code == 400

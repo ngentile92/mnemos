@@ -237,6 +237,7 @@ services:
     volumes:
       - ts_mnemos:/var/lib/tailscale
       - ./config/tailscale/funnel:/config:ro   # same serve.json: 443 → 127.0.0.1:8000 (the router)
+    ports: ["127.0.0.1:${MNEMOS_ROUTER_ADMIN_PORT:-8210}:8001"]   # grant admin for the dashboard (key-gated)
 
   hub-router:
     image: mnemos/gateway:local
@@ -250,6 +251,7 @@ services:
       MNEMOS_ROUTER_PUBLIC_URL: https://mnemos.${TS_TAILNET:-SIN-TAILNET}.ts.net
       MNEMOS_ROUTER_STORAGE_KEY: ${MNEMOS_ROUTER_STORAGE_KEY:-}
       MNEMOS_ROUTER_CONTEXTS: ${MNEMOS_ROUTER_CONTEXTS:-}
+      MNEMOS_ROUTER_ADMIN_KEY: ${MNEMOS_ROUTER_ADMIN_KEY:-}   # dashboard "Connected apps"
       HUB_LOCAL_USER: ${HUB_LOCAL_USER:-}
       HUB_LOCAL_PASSWORD_HASH: ${HUB_LOCAL_PASSWORD_HASH:-}
       MNEMOS_GOOGLE_CLIENT_ID: ${MNEMOS_GOOGLE_CLIENT_ID:-}

@@ -78,7 +78,33 @@ Never put API keys in `mcp.json`: credentials go through `secret_http_request`.
 Any client that speaks streamable HTTP + OAuth 2.1 (DCR or CIMD) works the same way: Codex CLI has connected to
 the reference instance ✅.
 
+## Single connector (optional): one URL for every context
+
+With the router enabled ([router.md](router.md)) you can add **one** connector instead of one per context:
+`https://mnemos.<tailnet>.ts.net/mcp`. Sign-in is the router's (local password by default, Google/GitHub
+optional), then a consent page where you tick the contexts this app may use (all unchecked) and, if you want,
+"switch between these contexts during a chat". The per-context connectors keep working side by side.
+
+What was verified (2026-10-10, scripted client `scripts/oauth_probe.py --contexts … --switch --call …` against a
+test router on the reference machine, routed to the **live** gateways over their internal listeners, read-only
+calls): ✅ DCR, PKCE, sign-in, consent (unchecked boxes, at least one context required), scopes
+`user ctx:<granted> [switch]`, refresh rotation, `hub_whoami`, `skills_list` routed to the granted context,
+a call for a non-granted context refused, `hub_use_context` refused outside the grant.
+
+| Client | How | Status |
+|---|---|---|
+| Cursor | `~/.cursor/mcp.json`: `"mnemos": { "url": "https://mnemos.<tailnet>.ts.net/mcp" }` | ⚠️ not tried with a real Cursor yet |
+| Claude | Settings → Connectors → Add custom connector → the URL above | ⚠️ |
+| ChatGPT | Settings → Apps → Create (developer mode), OAuth, the URL above | ⚠️ |
+| Grok | Connectors → custom MCP, the URL above | ⚠️ |
+
+Each client that connects shows up in the dashboard under **Connected apps**, where it can be revoked.
+Model hint: every tool takes `context` (omit it when the app has one context, or after `hub_use_context`).
+
 ## Confirmation checklist (for what is marked ⚠️/❓)
+
+- Single connector, per client (start with Cursor): add the URL, sign in, tick one context, run `hub_whoami`
+  (must list only that context), then `memory_search` with that context; check the dashboard's Connected apps.
 
 - Claude: add one connector, log in, run `hub_whoami`; open the same chat on mobile and run it again.
 - ChatGPT: create the app with OAuth, run `memory_search`, then try `memory_save` (note whether your plan allows it);

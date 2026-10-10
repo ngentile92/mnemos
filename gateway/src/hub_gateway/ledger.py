@@ -76,12 +76,43 @@ class Ledger:
             c.execute("ALTER TABLE notes ADD COLUMN prev_ids TEXT NOT NULL DEFAULT ''")
         if "origin" not in cols:
             c.execute("ALTER TABLE notes ADD COLUMN origin TEXT")  # JSON: where a promoted note came from
+        if "pinned" not in cols:
+            c.execute("ALTER TABLE notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+        if "obsolete_at" not in cols:
+            c.execute("ALTER TABLE notes ADD COLUMN obsolete_at TEXT")
+            c.execute("ALTER TABLE notes ADD COLUMN obsolete_reason TEXT")
         c.executescript(HISTORY_SCHEMA)
 
     def _conn(self) -> sqlite3.Connection:
         c = sqlite3.connect(self.path, timeout=10)
         c.row_factory = sqlite3.Row
         return c
+
+    # ------------------------------------------------------------------ flags (pin / obsolete)
+    def set_flags(self, data_id: str, *, by: str | None, pinned: bool | None = None,
+                  obsolete: bool | None = None, reason: str | None = None) -> bool:
+        """Pin/unpin or mark/unmark obsolete. False if the note is not in the registry."""
+        sets, args = ["updated_by=?"], [by]
+        if pinned is not None:
+            sets.append("pinned=?")
+            args.append(1 if pinned else 0)
+        if obsolete is not None:
+            sets += ["obsolete_at=?", "obsolete_reason=?"]
+            args += [now() if obsolete else None, (reason or None) if obsolete else None]
+        with self._lock, self._conn() as c:
+            cur = c.execute(f"UPDATE notes SET {', '.join(sets)} WHERE data_id=?", (*args, data_id))
+            return cur.rowcount > 0
+
+    def flags(self, ids: list[str]) -> dict[str, dict[str, Any]]:
+        """{data_id: {"pinned": bool, "obsolete": bool}} for the ids that have any flag set."""
+        ids = [i for i in ids if i]
+        if not ids:
+            return {}
+        with self._lock, self._conn() as c:
+            q = ",".join("?" * len(ids))
+            rows = c.execute(f"SELECT data_id, pinned, obsolete_at FROM notes WHERE data_id IN ({q})"
+                             " AND (pinned=1 OR obsolete_at IS NOT NULL)", ids).fetchall()
+        return {r["data_id"]: {"pinned": bool(r["pinned"]), "obsolete": r["obsolete_at"] is not None} for r in rows}
 
     # ------------------------------------------------------------------ provenance
     def record_save(self, *, dataset: str, text: str, context: str, source_app: str | None,
@@ -206,6 +237,9 @@ def _public(row: sqlite3.Row) -> dict[str, Any]:
         "updated_at": row["updated_at"] if row["updated_at"] != row["created_at"] else None,
         "updated_by": row["updated_by"],
         **({"promoted_from": json.loads(row["origin"])} if "origin" in row.keys() and row["origin"] else {}),
+        **({"pinned": True} if "pinned" in row.keys() and row["pinned"] else {}),
+        **({"obsolete": {"at": row["obsolete_at"], "reason": row["obsolete_reason"]}}
+           if "obsolete_at" in row.keys() and row["obsolete_at"] else {}),
     }
 
 

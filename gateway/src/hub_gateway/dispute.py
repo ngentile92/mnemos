@@ -32,12 +32,19 @@ shares words. Most of the time zero or one note matches.
 For each match give:
 - "n": the note number
 - "evidence": the exact words copied from that note that the correction contradicts (verbatim, 3-25 words)
-- "action": "update" (rewrite only that part) or "obsolete" (the whole note is no longer true)
-- "proposed_text": for update, the FULL note with only the evidence part changed; keep every other word.
-  Do not paste the user's sentence at the start or end.
+- "action": "update" (only that part is wrong) or "obsolete" (the whole note is no longer true)
 - "why": one short sentence in the note's language
 
-Reply JSON: {{"matches": [ ... ]}}  (empty list if no note states it)"""
+Reply JSON: {{"matches": [ ... ]}}  (empty list if no note states it). Be brief."""
+
+REWRITE = """Rewrite this note so it agrees with the correction. Change ONLY the quoted part; copy every other word
+exactly. Do not add the correction sentence at the start or the end.
+CORRECTION: {correction}
+PART TO CHANGE: "{evidence}"
+NOTE:
+{text}
+
+Reply JSON: {{"proposed_text": "the full corrected note"}}"""
 
 WS = re.compile(r"\s+")
 WORD = re.compile(r"\w+", re.UNICODE)
@@ -141,17 +148,22 @@ async def propose(url: str, model: str, correction: str, notes: list[dict[str, A
     verdict: dict[int, str] = {}
     if not notes:
         return []
-    listing = "\n\n".join(f"[{i}] {_norm(str(n.get('text', '')))[:1500]}" for i, n in enumerate(notes, 1))
-    payload = {"model": model, "stream": False, "keep_alive": KEEP_ALIVE, "format": "json",
-               "options": {"temperature": 0, "seed": 42, "num_ctx": 8192, "num_predict": 700},
-               "messages": [{"role": "user", "content": PROMPT.format(correction=correction, notes=listing)}]}
-    async with httpx.AsyncClient(timeout=timeout, transport=transport, trust_env=False) as c:
-        r = await c.post(f"{url.rstrip('/')}/api/chat", json=payload)
-        r.raise_for_status()
-    try:
-        data = json.loads(r.json().get("message", {}).get("content", "") or "{}")
-    except json.JSONDecodeError:
-        data = {}
+    listing = "\n\n".join(f"[{i}] {_norm(str(n.get('text', '')))[:1200]}" for i, n in enumerate(notes, 1))
+
+    async def ask(prompt: str, limit: int) -> dict:
+        payload = {"model": model, "stream": False, "keep_alive": KEEP_ALIVE, "format": "json",
+                   "options": {"temperature": 0, "seed": 42, "num_ctx": 8192, "num_predict": limit},
+                   "messages": [{"role": "user", "content": prompt}]}
+        async with httpx.AsyncClient(timeout=timeout, transport=transport, trust_env=False) as c:
+            r = await c.post(f"{url.rstrip('/')}/api/chat", json=payload)
+            r.raise_for_status()
+        try:
+            return json.loads(r.json().get("message", {}).get("content", "") or "{}")
+        except json.JSONDecodeError:
+            return {}
+
+    # stage 1: which note states it (short answer, fast); stage 2: rewrite only the chosen note
+    data = await ask(PROMPT.format(correction=correction, notes=listing), 300)
     out, seen = [], set()
     for m in data.get("matches") or []:
         try:
@@ -161,6 +173,18 @@ async def propose(url: str, model: str, correction: str, notes: list[dict[str, A
         if not 1 <= n <= len(notes) or n in seen:
             continue
         note = notes[n - 1]
+        if len(out) >= max_out:
+            break
+        ev = _norm(str(m.get("evidence") or ""))
+        if len(ev) < 8 or ev.lower() not in _norm(str(note.get("text", ""))).lower():
+            verdict[n] = "model suggested it, rejected: evidence not found in the note"
+            continue
+        if not relevant(correction, ev):
+            verdict[n] = "model suggested it, rejected: different subject from the correction"
+            continue
+        if m.get("action") == "update" and not m.get("proposed_text"):
+            rw = await ask(REWRITE.format(correction=correction, evidence=ev, text=_norm(str(note.get("text", "")))), 600)
+            m = {**m, "proposed_text": rw.get("proposed_text") or ""}
         ok, why = check(correction, str(note.get("text", "")), m)
         if ok and not relevant(correction, str(m.get("evidence", ""))):
             ok, why = False, "different subject from the correction"

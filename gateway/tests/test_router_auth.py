@@ -177,7 +177,10 @@ async def test_claude_ai_registration(scope):
 def _form_action_allows(csp: str, base: str, location: str) -> bool:
     """Browser rule: CSP form-action also governs the redirect after a form POST."""
     from urllib.parse import urlparse as up
-    fa = next(d for d in csp.split(";") if d.strip().startswith("form-action")).split()[1:]
+    fas = [d for d in csp.split(";") if d.strip().startswith("form-action")]
+    if not fas:  # no form-action: any redirect hop is allowed (Grok Bot/Cursor chain via www.cursor.com)
+        return True
+    fa = fas[0].split()[1:]
     loc = up(location)
     origin = f"{loc.scheme}://{loc.netloc}"
     return origin in fa or ("'self'" in fa and origin == base)
@@ -198,7 +201,7 @@ async def test_claude_full_browser_flow_reaches_callback():
                                                   "scope": "user", "resource": f"{BASE}/mcp"})
             txn = parse_qs(urlparse(a.headers["location"]).query)["txn"][0]
             page = await c.get(f"/local-login?txn={txn}")
-            assert "https://claude.ai" in page.headers["content-security-policy"]
+            assert "form-action" not in page.headers["content-security-policy"]
             consent = await c.post("/local-login", data={"txn": txn, "username": "alex", "password": PW})
             import re
             token = re.search(r'name="consent" value="([^"]+)"', consent.text).group(1)
@@ -227,3 +230,10 @@ def test_redirect_origin_is_csp_safe():
     assert redirect_origin("http://127.0.0.1:33418/callback") == "http://127.0.0.1:33418"
     assert redirect_origin("cursor://anysphere/cb") == "cursor:"
     assert redirect_origin("https://a.b; script-src *") == ""
+
+
+def test_login_and_consent_pages_have_no_form_action():
+    from hub_gateway.local_auth import LocalOAuthProvider
+    r = LocalOAuthProvider._page("x", form_targets=["https://www.cursor.com"], scripts=True)
+    csp = r.headers["content-security-policy"]
+    assert "form-action" not in csp and "frame-ancestors 'none'" in csp and "default-src 'none'" in csp

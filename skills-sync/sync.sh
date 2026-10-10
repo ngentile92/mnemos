@@ -2,6 +2,10 @@
 # Mantiene un clon del repo de skills en $DEST, actualizado cada $INTERVAL_SECONDS.
 # Si GitHub no responde, se sigue sirviendo el último clon (el loop no se corta).
 set -u
+if [ -n "${SKILLS_DIR:-}" ]; then
+  echo "SKILLS_DIR=$SKILLS_DIR: skills come from a local folder, nothing to sync (GitHub mode: unset SKILLS_DIR)"
+  exec sleep 2147483647
+fi
 REPO_URL="${REPO_URL:?definí REPO_URL, ej. git@github.com:<usuario>/mnemos-skills.git}"
 BRANCH="${BRANCH:-main}"
 DEST="${DEST:-/skills}"

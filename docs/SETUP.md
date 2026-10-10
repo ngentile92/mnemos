@@ -19,7 +19,11 @@ Tailscale, `<user>` = your GitHub login (`GITHUB_USER`). Requirements: Docker + 
 1. FileVault on: `fdesetup status` → must say `FileVault is On.`
 2. GitHub with a passkey or 2FA (it is the login for every connector).
 
-## 1. Your private skills repo
+## 1. Your private skills repo (optional)
+
+Skip this and step 5 if you keep skills in a local folder: `SKILLS_DIR=./skills-local` (the default in `.env.example`),
+edited from the dashboard. See README → *Skills: local folder or GitHub*.
+
 
 Skills live in a separate **private** repo (`<user>/mnemos-skills`) that `skills-sync` clones read-only. Start it
 from this repo's examples:

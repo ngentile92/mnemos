@@ -102,6 +102,7 @@ services:
     restart: unless-stopped
     environment:
       REPO_URL: git@github.com:${GITHUB_USER}/${SKILLS_REPO:-mnemos-skills}.git
+      SKILLS_DIR: ${SKILLS_DIR:-}            # set → local folder mode: this service just idles
       BRANCH: main
       INTERVAL_SECONDS: "60"
     volumes:
@@ -139,7 +140,7 @@ services:
       INFISICAL_CLIENT_ID: ${INF_MI_WORK_ID:-}
       INFISICAL_CLIENT_SECRET: ${INF_MI_WORK_SECRET:-}
     volumes:
-      - skills_repo:/skills:ro
+      - ${SKILLS_DIR:-skills_repo}:/skills:ro   # SKILLS_DIR=./skills-local → local folder; unset → GitHub clone
       - ./config:/config:ro
       - gw_work:/data
 
@@ -174,7 +175,7 @@ services:
       INFISICAL_CLIENT_ID: ${INF_MI_PERSONAL_ID:-}
       INFISICAL_CLIENT_SECRET: ${INF_MI_PERSONAL_SECRET:-}
     volumes:
-      - skills_repo:/skills:ro
+      - ${SKILLS_DIR:-skills_repo}:/skills:ro   # SKILLS_DIR=./skills-local → local folder; unset → GitHub clone
       - ./config:/config:ro
       - gw_personal:/data
 
@@ -209,7 +210,7 @@ services:
       INFISICAL_CLIENT_ID: ${INF_MI_SIDE_ID:-}
       INFISICAL_CLIENT_SECRET: ${INF_MI_SIDE_SECRET:-}
     volumes:
-      - skills_repo:/skills:ro
+      - ${SKILLS_DIR:-skills_repo}:/skills:ro   # SKILLS_DIR=./skills-local → local folder; unset → GitHub clone
       - ./config:/config:ro
       - gw_side:/data
 

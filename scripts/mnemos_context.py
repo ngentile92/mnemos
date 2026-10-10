@@ -52,6 +52,7 @@ def ctx_env_vars(name: str) -> list[tuple[str, str, str]]:
         (f"GH_OAUTH_{s}_SECRET", "__COMPLETAR__", ""),
         (f"HUB_JWT_SIGNING_KEY_{s}", gen(f"HUB_JWT_SIGNING_KEY_{s}"), ""),
         (f"HUB_STORAGE_KEY_{s}", gen(f"HUB_STORAGE_KEY_{s}"), "Fernet key"),
+        (f"HUB_INTERNAL_KEY_{s}", gen(f"HUB_INTERNAL_KEY_{s}"), "hub-router → gateway (docs/router.md)"),
         (f"COGNEE_PW_{s}", gen(f"COGNEE_PW_{s}"), ""),
         (f"COGNEE_KEY_{s}", "", "written by scripts/bootstrap_cognee.py"),
         (f"INF_MI_{s}_ID", "", "written by scripts/bootstrap_infisical.py (optional)"),

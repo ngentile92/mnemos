@@ -66,14 +66,15 @@ def host_actions(status: dict[str, Any], dns_name: str, wanted: dict[int, tuple[
     return out
 
 
-def hub_actions(contexts: list[str], running: set[str], public: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
-    """running: compose services in state running; public: ctx → {"dns": bool, "mcp": bool}."""
+def hub_actions(contexts: list, running: set[str], public: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """contexts: names, or (key, label, services) targets (hub_watchdog.targets, includes the router);
+    running: compose services in state running; public: key → {"dns": bool, "mcp": bool}."""
     out = []
-    for c in contexts:
-        svcs = [f"ts-{c}", f"gateway-{c}"]
+    for t in contexts:
+        c, label, svcs = t if isinstance(t, tuple) else (t, f"hub-{t}", [f"ts-{t}", f"gateway-{t}"])
         down = [s for s in svcs if s not in running]
         p = public.get(c) or {}
-        item = {"kind": "hub", "what": f"hub-{c}", "services": svcs, "down": down,
+        item = {"kind": "hub", "what": label, "services": svcs, "down": down,
                 "dns": p.get("dns"), "mcp": p.get("mcp")}
         if down:
             item.update(state="missing", cmd=["up", "-d", *svcs])
@@ -132,11 +133,12 @@ def compose_running() -> set[str]:
     return {row.get("Service") for row in rows if row.get("State") == "running"}
 
 
-def public_checks(contexts: list[str], tailnet: str) -> dict[str, dict[str, Any]]:
+def public_checks(contexts: list, tailnet: str) -> dict[str, dict[str, Any]]:
     from hub_watchdog import check_mcp, resolve_public_dns
     out = {}
-    for c in contexts:
-        host = f"hub-{c}.{tailnet}.ts.net"
+    for t in contexts:
+        c, label = (t[0], t[1]) if isinstance(t, tuple) else (t, f"hub-{t}")
+        host = f"{label}.{tailnet}.ts.net"
         out[c] = {"dns": resolve_public_dns(host)["ok"], "mcp": check_mcp(f"https://{host}")["ok"]}
     return out
 
@@ -152,10 +154,10 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     from hub_gateway.contexts import CONTEXTS
-    from hub_watchdog import read_env
+    from hub_watchdog import read_env, targets
     env = read_env(ROOT / ".env")
     tailnet = env.get("TS_TAILNET", "")
-    contexts = list(CONTEXTS)
+    contexts = targets(list(CONTEXTS), env)  # + the router (mnemos.<tailnet>) when COMPOSE_PROFILES has `router`
     ts = ts_bin()
     if not ts:
         raise SystemExit("tailscale CLI not found (see docs/SETUP.md, step 3)")

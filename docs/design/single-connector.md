@@ -176,7 +176,7 @@ must be said on the consent page.
 1. Internal listener on each gateway (`:8100`, `X-Mnemos-Internal`, per-context key) + tests; not exposed. **Done.**
 2. `hub-router` skeleton: OAuth (local, Google OIDC, GitHub) with `ctx:*` scopes and consent checkboxes, encrypted grant store. **Done.**
 3. Router tool proxy with `context` argument, scope check, provenance headers; tests + `oauth_probe.py` with scopes. **Done.**
-4. Compose/render: `hub-router` + `ts-mnemos`, internal keys in `init_env`/`mnemos_context.py`, `mnemos expose`, watchdog.
+4. Compose/render: `hub-router` + `ts-mnemos`, internal keys in `init_env`/`mnemos_context.py`, `mnemos expose`, watchdog. **Done.**
 5. In-chat switching (`switch` scope, `hub_use_context`), off by default.
 6. "Connected apps" page in the dashboard (list/revoke grants).
 7. Client trials (Cursor → Claude → ChatGPT → Grok) and docs (`CLIENTS.md`, consent screenshots).

@@ -67,6 +67,13 @@ def render(base: dict, contexts: list[str]) -> dict:
             services[t.format(c)] = _sub(copy.deepcopy(spec), c)
         for t, spec in vol_templates.items():
             volumes[t.format(c)] = copy.deepcopy(spec)
+    router = services.get("hub-router")
+    if router:  # one HUB_INTERNAL_KEY_<CTX> per context, in context order
+        env = {k: v for k, v in router["environment"].items() if not k.startswith("HUB_INTERNAL_KEY_")}
+        for c in contexts:
+            s = c.upper().replace("-", "_")
+            env[f"HUB_INTERNAL_KEY_{s}"] = f"${{HUB_INTERNAL_KEY_{s}:-}}"
+        router["environment"] = env
     return out
 
 

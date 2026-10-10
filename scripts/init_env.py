@@ -25,8 +25,10 @@ def gen(name: str) -> str:
         return secrets.token_hex(16)
     if name == "INFISICAL_AUTH_SECRET":
         return base64.b64encode(secrets.token_bytes(32)).decode()
-    if name.startswith("HUB_STORAGE_KEY_"):
+    if name.startswith("HUB_STORAGE_KEY_") or name == "MNEMOS_ROUTER_STORAGE_KEY":
         return base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()  # clave Fernet
+    if name.startswith("HUB_INTERNAL_KEY_"):
+        return secrets.token_urlsafe(32)
     if name.startswith("HUB_JWT_SIGNING_KEY_"):
         return secrets.token_hex(32)
     return secrets.token_urlsafe(24)

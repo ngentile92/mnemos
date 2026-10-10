@@ -58,3 +58,21 @@ the router and shows the contexts this app was granted). A call for a context th
 a clear error; nothing is forwarded. Allowed calls go to that context's gateway over its internal listener
 (`HUB_INTERNAL_KEY_<CTX>`, Docker network only) with `X-Mnemos-Login` / `X-Mnemos-App`, so memories saved
 through the router show e.g. `Cursor via mnemos` as their origin. Secrets stay in the gateways.
+
+## Enable it on your instance
+
+Additive and reversible: the three `hub-<ctx>` connectors are not touched.
+
+1. `python3 scripts/init_env.py` — adds `HUB_INTERNAL_KEY_<CTX>` and `MNEMOS_ROUTER_STORAGE_KEY` to `.env`
+   without changing existing values (or `scripts/mnemos_context.py add` for new contexts).
+2. Sign-in: `gateway/.venv/bin/python -m hub_gateway.local_auth hash` and put `HUB_LOCAL_USER=<you>` and
+   `HUB_LOCAL_PASSWORD_HASH=<hash>` in `.env` (and/or Google/GitHub, above). On a hub that uses GitHub login these
+   two variables are ignored by the gateways (`HUB_AUTH_PROVIDER` stays `github`).
+3. `COMPOSE_PROFILES=router` in `.env`, then `scripts/update.sh` (or `docker compose up -d`). The gateways now also
+   listen on `:8100` on the Docker network only.
+4. `scripts/mnemos expose` lists `mnemos` next to the hubs; `--apply` starts what is missing. The watchdog
+   checks `mnemos.<tailnet>.ts.net` too.
+5. In the assistant, add the connector `https://mnemos.<tailnet>.ts.net/mcp`, sign in, tick the contexts.
+
+Undo: remove `router` from `COMPOSE_PROFILES` and `docker compose rm -sf hub-router ts-mnemos` (then delete the
+`mnemos` machine in the Tailscale admin if you want the name back).

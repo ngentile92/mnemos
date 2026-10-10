@@ -24,14 +24,19 @@ Follow `README.md` → *Quickstart*; the long version is `docs/SETUP.md`. In ord
 2. `./scripts/bootstrap.sh` then `python3 -m venv .venv && .venv/bin/pip install -e "gateway[dev]"`.
 3. Fill the `__COMPLETAR__` placeholders in `.env` (ask the human for each value; they come from
    Tailscale and GitHub), choose the LLM in `cognee.env`, describe contexts in `config/contexts.yaml`.
+   If the contexts are not the example `work`/`personal`/`side`, use `scripts/mnemos context add|remove`
+   (or run `scripts/render_compose.py`) and set `COMPOSE_FILE=compose.generated.yaml` in `.env`.
 4. Add `secrets/skills_deploy_key.pub` as a read-only deploy key on the skills repo (human step).
 5. `docker compose up -d vaultwarden infisical-db infisical-redis infisical cognee skills-sync`
 6. `.venv/bin/python scripts/bootstrap_infisical.py --bootstrap` and `.venv/bin/python scripts/bootstrap_cognee.py`
 7. `docker compose up -d` and `.venv/bin/python scripts/smoke_test.py --quick` — must end in `TODO OK` / all OK.
-8. Connect each assistant to `https://hub-<context>.<tailnet>.ts.net/mcp` (README → *Connecting your assistants*).
+   Then `scripts/mnemos expose` must show every hub `ok` (`--apply` publishes what is missing).
+8. Connect each assistant to `https://hub-<context>.<tailnet>.ts.net/mcp` (`docs/CLIENTS.md`).
 9. Optional: backups (`scripts/install_backup_agent.sh`), watchdog (`scripts/install_watchdog_agent.sh`).
 
-To try without any account: README → *Try it locally* (`compose.dev.yaml`, fake LLM, no OAuth).
+To try without any account: README → *Try it locally* (`compose.dev.yaml`, fake LLM, no OAuth; ports 18000-18103,
+project `mnemos-dev`, so it can run next to a real instance). `docker compose -f compose.dev.yaml down -v` only
+removes the dev volumes.
 Later updates: `scripts/update.sh [ref]` (rolls back automatically if the smoke test fails).
 
 ## Working on the code

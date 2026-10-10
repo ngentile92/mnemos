@@ -30,7 +30,7 @@ import httpx
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "gateway" / "src"))
-from hub_gateway.contexts import CONTEXTS, DATASET_OWNER, SHARED  # noqa: E402
+from hub_gateway.contexts import BRIDGES, CONTEXTS, DATASET_OWNER, SHARED  # noqa: E402
 
 EMAIL_DOMAIN = "example.com"  # cuentas técnicas internas; Cognee exige formato email
 USERS = ["hub-admin"] + [f"ctx-{c}" for c in CONTEXTS]

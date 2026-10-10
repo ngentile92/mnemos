@@ -50,3 +50,11 @@ callback `https://mnemos.<tailnet>.ts.net/oidc/github/callback`. Fill `MNEMOS_RO
 
 `scripts/oauth_probe.py <url> --user <u> --contexts personal,side [--switch]` runs the whole flow (DCR, PKCE,
 sign-in, consent, token, MCP, refresh rotation) like a real client.
+
+## Tools
+
+The router lists the gateways' tools once, each with a required `context` argument (`hub_whoami` is answered by
+the router and shows the contexts this app was granted). A call for a context the app was not granted fails with
+a clear error; nothing is forwarded. Allowed calls go to that context's gateway over its internal listener
+(`HUB_INTERNAL_KEY_<CTX>`, Docker network only) with `X-Mnemos-Login` / `X-Mnemos-App`, so memories saved
+through the router show e.g. `Cursor via mnemos` as their origin. Secrets stay in the gateways.

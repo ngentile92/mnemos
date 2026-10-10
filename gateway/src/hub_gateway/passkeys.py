@@ -94,7 +94,7 @@ class PasskeyMixin:
     async def enroll_page(self, request: Request) -> Response:
         return self._page(scripts=True, body="""<h2>Add a passkey</h2>
 <p class="m">Confirm your user and password; your device then creates a passkey for this hub only. The password keeps working.</p>
-<form id="pk-enroll"><input name="username" autocomplete="username" placeholder="user" required>
+<form id="pk-enroll"><input name="username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="user" required>
 <input name="password" type="password" autocomplete="current-password" placeholder="password" required>
 <input name="label" placeholder="name for this passkey (optional)" maxlength="60">
 <button type="submit">Create passkey</button></form><p class="m" id="pk-msg"></p><script src="/passkey.js"></script>""")
@@ -107,17 +107,18 @@ class PasskeyMixin:
                                               ResidentKeyRequirement, UserVerificationRequirement)
 
         from .local_auth import verify_password
-        if self._locked():
-            return self._err("Too many attempts. Try again in a few minutes.", 429)
+        if msg := await self._locked_msg():
+            return self._err(msg, 429)
         try:
             body = await request.json()
         except Exception:
             return self._err("bad request")
-        user = str(body.get("username", "")).strip().lower()
+        user = self.norm_user(body.get("username"))
         ok = verify_password(str(body.get("password", "")), self.password_hash or "")
         if not (ok and self.user and hmac.compare_digest(user.encode(), self.user.encode())):
-            self._fail()
-            return self._err("Wrong user or password.", 401)
+            await self._fail()
+            msg = await self._locked_msg()
+            return self._err(msg or "Wrong user or password.", 429 if msg else 401)
         rp_id, _ = self._rp()
         creds = await self._creds()
         opts = generate_registration_options(
@@ -170,8 +171,8 @@ class PasskeyMixin:
 
     async def login_finish(self, request: Request) -> Response:
         from webauthn import verify_authentication_response
-        if self._locked():
-            return self._err("Too many attempts. Try again in a few minutes.", 429)
+        if msg := await self._locked_msg():
+            return self._err(msg, 429)
         try:
             body = await request.json()
             txn = str(body.get("txn", ""))
@@ -190,7 +191,7 @@ class PasskeyMixin:
                 credential=cred, expected_challenge=_unb(ch["challenge"]), expected_rp_id=rp_id, expected_origin=origin,
                 credential_public_key=_unb(match["public_key"]), credential_current_sign_count=match["sign_count"])
         except Exception:
-            self._fail()
+            await self._fail()
             return self._err("passkey not accepted", 401)
         match["sign_count"] = v.new_sign_count
         await self._save_creds(creds)

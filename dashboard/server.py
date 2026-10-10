@@ -568,7 +568,12 @@ def _router_admin(method: str, path: str, body: dict | None = None) -> dict:
 
 
 def router_grants() -> dict:
-    return _router_admin("GET", "/admin/grants")
+    out = _router_admin("GET", "/admin/grants")
+    try:
+        out["locked_seconds"] = int(_router_admin("GET", "/admin/lockout").get("locked_seconds", 0))
+    except ValueError:  # older router without the lockout endpoint
+        pass
+    return out
 
 
 def router_revoke(body: dict) -> dict:
@@ -578,12 +583,17 @@ def router_revoke(body: dict) -> dict:
     return _router_admin("POST", "/admin/revoke", {"client_id": cid})
 
 
+def router_unlock(body: dict) -> dict:
+    return _router_admin("POST", "/admin/lockout")
+
+
 def memory_action(action: str, body: dict) -> dict:
     from memory_client import run
     return run(ROOT, read_env(ROOT / ".env"), list(CONTEXTS), action, body)
 
 
 POST_ROUTES: dict = {"/api/contexts/add": add_context, "/api/router/revoke": router_revoke,
+                     "/api/router/unlock": router_unlock,
                      "/api/memory/update": lambda b: memory_action("update", b),
                      "/api/memory/delete": lambda b: memory_action("delete", b),
                      "/api/memory/undo": lambda b: memory_action("undo", b),

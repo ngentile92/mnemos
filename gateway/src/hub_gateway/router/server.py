@@ -181,7 +181,15 @@ def admin_app(provider: RouterOAuthProvider, key: str):
             return JSONResponse({"error": "client_id required"}, status_code=400)
         return JSONResponse({"revoked": await provider.revoke_grant(cid), "client_id": cid})
 
+    async def lockout(request: Request) -> JSONResponse:
+        if not ok(request):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        if request.method == "POST":
+            return JSONResponse({"cleared": await provider.unlock()})
+        return JSONResponse({"locked_seconds": await provider.lock_remaining()})
+
     return Starlette(routes=[Route("/admin/grants", grants, methods=["GET"]),
+                             Route("/admin/lockout", lockout, methods=["GET", "POST"]),
                              Route("/admin/revoke", revoke, methods=["POST"])])
 
 

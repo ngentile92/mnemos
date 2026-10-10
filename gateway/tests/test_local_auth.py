@@ -56,8 +56,8 @@ async def test_lockout_after_failures():
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=BASE) as c:
             for _ in range(local_auth.MAX_FAILS):
-                prov._fail()
-            assert prov._locked()
+                await prov._fail()
+            assert await prov.lock_remaining() > 0
             # even the right password is refused while locked
             meta = (await c.get("/.well-known/oauth-authorization-server")).json()
             reg = (await c.post(meta["registration_endpoint"], json={"redirect_uris": [probe_mod.REDIRECT],
@@ -68,7 +68,37 @@ async def test_lockout_after_failures():
                                                   "code_challenge_method": "S256", "state": "s"})
             txn = r.headers["location"].split("txn=")[1]
             r = await c.post("/local-login", data={"txn": txn, "username": "alex", "password": PW})
-            assert r.status_code == 200 and "Too many attempts" in r.text
+            assert r.status_code == 200 and "Too many failed attempts. Try again in 10 minutes." in r.text
+            # survives a restart (new provider, same store) and is clearable by the admin
+            prov2 = local_auth.LocalOAuthProvider(base_url=BASE, user="alex", password_hash=prov.password_hash,
+                                                  store=prov.store, passkeys=False)
+            assert await prov2.lock_remaining() > 0
+            assert await prov2.unlock() and await prov.lock_remaining() == 0
+            # mobile keyboards: "Alex " with capital and trailing space is the same user
+            r = await c.post("/local-login", data={"txn": txn, "username": " Alex ", "password": PW})
+            assert r.status_code == 302, r.text
+            page = (await c.get("/authorize", params={"response_type": "code", "client_id": reg["client_id"],
+                                                     "redirect_uri": probe_mod.REDIRECT, "code_challenge": ch,
+                                                     "code_challenge_method": "S256", "state": "s"}))
+            form = (await c.get(page.headers["location"])).text
+            assert 'autocapitalize="off"' in form and 'autocorrect="off"' in form and 'spellcheck="false"' in form
+
+
+@pytest.mark.asyncio
+async def test_wrong_password_message():
+    app, prov = make_app()
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=BASE) as c:
+            meta = (await c.get("/.well-known/oauth-authorization-server")).json()
+            reg = (await c.post(meta["registration_endpoint"], json={"redirect_uris": [probe_mod.REDIRECT],
+                                                                     "token_endpoint_auth_method": "none"})).json()
+            _, ch = probe_mod.pkce()
+            r = await c.get("/authorize", params={"response_type": "code", "client_id": reg["client_id"],
+                                                  "redirect_uri": probe_mod.REDIRECT, "code_challenge": ch,
+                                                  "code_challenge_method": "S256", "state": "s"})
+            txn = r.headers["location"].split("txn=")[1]
+            r = await c.post("/local-login", data={"txn": txn, "username": "alex", "password": "nope"})
+            assert "Wrong user or password." in r.text
 
 
 @pytest.mark.asyncio

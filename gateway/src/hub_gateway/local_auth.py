@@ -109,12 +109,10 @@ class LocalOAuthProvider(PasskeyMixin, OAuthProvider):
             revocation_options=RevocationOptions(enabled=True),
             required_scopes=SCOPES,
         )
-        self.user = (user or "").lower()
+        self.user = self.norm_user(user)
         self.password_hash = password_hash
         self.store = store
         self.resource_name = resource_name
-        self._fails: list[float] = []
-        self._locked_until = 0.0
         self.passkeys_enabled = enabled_from_env() if passkeys is None else passkeys
 
     # ------------------------------------------------------------ clients (DCR)
@@ -147,16 +145,39 @@ class LocalOAuthProvider(PasskeyMixin, OAuthProvider):
         }, collection="pending", ttl=PENDING_TTL)
         return f"{str(self.base_url).rstrip('/')}/local-login?txn={txn}"
 
-    def _locked(self) -> bool:
+    # Lockout state lives in the store, so a restart does not clear it; the admin API (dashboard) can.
+    async def _lock_state(self) -> dict:
+        st = await self.store.get("local", collection="lockout") or {}
         now = time.time()
-        self._fails = [t for t in self._fails if now - t < FAIL_WINDOW]
-        return now < self._locked_until
+        return {"fails": [t for t in st.get("fails", []) if now - t < FAIL_WINDOW], "until": float(st.get("until", 0))}
 
-    def _fail(self) -> None:
-        self._fails.append(time.time())
-        if len(self._fails) >= MAX_FAILS:
-            self._locked_until = time.time() + LOCK_S
-            self._fails.clear()
+    async def lock_remaining(self) -> int:
+        """Seconds left on the lockout (0 = not locked)."""
+        return max(0, int((await self._lock_state())["until"] - time.time()))
+
+    async def _locked_msg(self) -> str:
+        left = await self.lock_remaining()
+        if not left:
+            return ""
+        mins = max(1, -(-left // 60))
+        return f"Too many failed attempts. Try again in {mins} minute{'s' if mins > 1 else ''}."
+
+    async def _fail(self) -> None:
+        st = await self._lock_state()
+        st["fails"].append(time.time())
+        if len(st["fails"]) >= MAX_FAILS:
+            st = {"fails": [], "until": time.time() + LOCK_S}
+        await self.store.put("local", st, collection="lockout", ttl=LOCK_S + FAIL_WINDOW)
+
+    async def unlock(self) -> bool:
+        was = await self.lock_remaining() > 0
+        await self.store.put("local", {"fails": [], "until": 0}, collection="lockout", ttl=60)
+        return was
+
+    @staticmethod
+    def norm_user(u: object) -> str:
+        import unicodedata
+        return unicodedata.normalize("NFKC", str(u or "")).strip().casefold()
 
     @staticmethod
     def _page(body: str, code: int = 200, form_targets: list[str] | None = None, scripts: bool = False) -> HTMLResponse:
@@ -182,7 +203,7 @@ input,button{{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:borde
         return self._page(form_targets=[redirect_origin(pending["redirect_uri"])], scripts=bool(pk), body=f"""<h2>{html.escape(self.resource_name)}</h2>
 <p><b>{name}</b> wants to use your memory, skills and credentials. After signing in you return to <code>{dest}</code>.</p>
 {err}<form method="post" action="/local-login"><input type="hidden" name="txn" value="{html.escape(txn)}">
-<input name="username" autocomplete="username" placeholder="user" required>
+<input name="username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="user" required>
 <input name="password" type="password" autocomplete="current-password" placeholder="password" required>
 <button type="submit">Allow</button></form>{pk}<p class="m">Not you, or you did not start this? Just close this tab.</p>""")
 
@@ -199,13 +220,14 @@ input,button{{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:borde
         pending = await self.store.get(txn, collection="pending") if txn else None
         if not pending:
             return self._page(EXPIRED, 400)
-        if self._locked():
-            return await self._login_form(txn, pending, "Too many attempts. Try again in a few minutes.")
-        user = str(form.get("username", "")).strip().lower()
+        if msg := await self._locked_msg():
+            return await self._login_form(txn, pending, msg)
+        user = self.norm_user(form.get("username"))
         ok_pw = verify_password(str(form.get("password", "")), self.password_hash or "")  # always computed (timing)
         if not (ok_pw and hmac.compare_digest(user.encode(), self.user.encode())):
-            self._fail()
-            return await self._login_form(txn, pending, "Wrong user or password.")
+            await self._fail()
+            msg = await self._locked_msg()
+            return await self._login_form(txn, pending, msg or "Wrong user or password.")
         return await self._after_login(txn, pending, self.user)
 
     async def _after_login(self, txn: str, pending: dict, login: str) -> Response:

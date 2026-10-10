@@ -146,8 +146,8 @@ class RouterOAuthProvider(LocalOAuthProvider):
         pending = await self.store.get(st["txn"], collection="pending")
         if not pending:
             return self._page(EXPIRED, 400)
-        if self._locked():
-            return await self._login_form(st["txn"], pending, "Too many attempts. Try again in a few minutes.")
+        if msg := await self._locked_msg():
+            return await self._login_form(st["txn"], pending, msg)
         ident = None
         try:
             http = self.http or httpx.AsyncClient(timeout=15)
@@ -163,7 +163,7 @@ class RouterOAuthProvider(LocalOAuthProvider):
         except (httpx.HTTPError, ValueError):
             ident = None
         if not ident:
-            self._fail()
+            await self._fail()
             return await self._login_form(st["txn"], pending, f"That {idp.label} account is not allowed here.")
         return await self._after_login(st["txn"], pending, ident)
 

@@ -50,6 +50,9 @@ def login_from_token(token) -> str | None:
 
 def make_owner_check(allowed: frozenset[str]):
     def only_owner(ctx) -> bool:
-        return login_from_token(ctx.token) in allowed
+        from . import internal
+
+        # Requests through the internal listener were authenticated by the router (key-gated).
+        return internal.caller() is not None or login_from_token(ctx.token) in allowed
 
     return only_owner

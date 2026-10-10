@@ -14,6 +14,7 @@ from pydantic import Field
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from . import internal
 from .audit import Audit
 from .concurrency import DuplicateRequestIdGuard
 from .config import Settings
@@ -36,6 +37,9 @@ SHARED_EDIT_HINT = ("la memoria compartida (shared) no se borra ni se corrige de
 
 
 def _current_login(settings: Settings) -> str | None:
+    via = internal.caller()
+    if via:
+        return via["login"]
     if settings.dev_no_auth:
         return "dev-no-auth"
     from fastmcp.server.dependencies import get_access_token
@@ -51,6 +55,9 @@ _APP_RE = re.compile(r"[^A-Za-z0-9 ._()/-]")
 def _client_app() -> str | None:
     """Nombre de la app cliente según el `initialize` de MCP (p. ej. "claude-ai", "ChatGPT", "cursor-vscode").
     Es informativo (lo declara el cliente): sirve para mostrar el origen de cada memoria, no para autorizar."""
+    via = internal.caller()
+    if via and via["app"]:
+        return _APP_RE.sub("", f"{via['app']} via mnemos")[:60]
     try:
         from fastmcp.server.dependencies import get_context
 
@@ -656,25 +663,56 @@ def build_server(
     return mcp
 
 
+def _public(mcp: FastMCP, audit: Audit):
+    return internal.StripInternalHeaders(DuplicateRequestIdGuard(
+        mcp.http_app(path="/mcp"),
+        on_duplicate=lambda ids: audit.log("mcp", None, "remapped", reason="duplicate_request_id", ids=ids),
+    ))
+
+
+def _internal_app(mcp: FastMCP, key: str):
+    """Same tools, no OAuth, behind the per-context internal key (see internal.py)."""
+    from fastmcp.server.http import create_streamable_http_app
+
+    return internal.InternalKeyGate(create_streamable_http_app(server=mcp, streamable_http_path="/mcp"), key)
+
+
 def create_app():
-    """Punto de entrada ASGI (uvicorn --factory hub_gateway.app:create_app)."""
+    """Punto de entrada ASGI (uvicorn --factory hub_gateway.app:create_app). Solo el listener público."""
     logging.basicConfig(level=os.environ.get("HUB_LOG_LEVEL", "INFO"),
                         format="%(asctime)s %(levelname)s %(name)s %(message)s")
     settings = Settings.from_env()
     mcp = build_server(settings)
-    audit = Audit(settings.context, os.path.join(settings.data_dir, "audit.log"))
-    return DuplicateRequestIdGuard(
-        mcp.http_app(path="/mcp"),
-        on_duplicate=lambda ids: audit.log("mcp", None, "remapped", reason="duplicate_request_id", ids=ids),
-    )
+    return _public(mcp, Audit(settings.context, os.path.join(settings.data_dir, "audit.log")))
 
 
 def main() -> None:
+    import asyncio
+
     import uvicorn
 
+    logging.basicConfig(level=os.environ.get("HUB_LOG_LEVEL", "INFO"),
+                        format="%(asctime)s %(levelname)s %(name)s %(message)s")
     settings = Settings.from_env()
-    uvicorn.run("hub_gateway.app:create_app", factory=True, host=settings.host, port=settings.port,
-                proxy_headers=True, forwarded_allow_ips="127.0.0.1")
+    if not settings.internal_key:
+        uvicorn.run("hub_gateway.app:create_app", factory=True, host=settings.host, port=settings.port,
+                    proxy_headers=True, forwarded_allow_ips="127.0.0.1")
+        return
+    mcp = build_server(settings)
+    audit = Audit(settings.context, os.path.join(settings.data_dir, "audit.log"))
+    bind = settings.internal_host or internal.default_bind()
+    log.info("internal listener on %s:%s (router only, key required)", bind, settings.internal_port)
+    servers = [
+        uvicorn.Server(uvicorn.Config(_public(mcp, audit), host=settings.host, port=settings.port,
+                                      proxy_headers=True, forwarded_allow_ips="127.0.0.1")),
+        uvicorn.Server(uvicorn.Config(_internal_app(mcp, settings.internal_key), host=bind,
+                                      port=settings.internal_port)),
+    ]
+
+    async def serve() -> None:
+        await asyncio.gather(*(s.serve() for s in servers))
+
+    asyncio.run(serve())
 
 
 if __name__ == "__main__":

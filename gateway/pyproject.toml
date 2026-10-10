@@ -1,7 +1,7 @@
 [project]
-name = "hub-gateway"
+name = "mnemos-hub"   # distribution name (PyPI/npm "mnemos-hub"); the import package stays hub_gateway
 version = "0.1.0"
-description = "Gateway MCP por contexto del hub personal de IA (Cognee + skills + secretos por inyección)"
+description = "Mnemos: one memory, skills and credentials hub for all your AI assistants, isolated by context (MCP gateway)"
 requires-python = ">=3.11"
 dependencies = [
   "fastmcp>=4.0.10,<4.1",
@@ -16,7 +16,8 @@ dependencies = [
 dev = ["pytest>=8", "pytest-asyncio>=0.24", "respx>=0.22", "pyflakes>=3"]
 
 [project.scripts]
-hub-gateway = "hub_gateway.app:main"
+hub-gateway = "hub_gateway.app:main"   # kept: the Docker image runs it
+mnemos-hub = "hub_gateway.app:main"
 
 [build-system]
 requires = ["setuptools>=69"]

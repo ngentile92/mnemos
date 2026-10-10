@@ -133,6 +133,10 @@ docker compose -f compose.dev.yaml down -v
 
 **Unit tests:** `.venv/bin/pytest -q gateway/tests`
 
+**Name:** the project is **Mnemos**; the Python distribution is **`mnemos-hub`** (`gateway/pyproject.toml`; the import
+package is still `hub_gateway`, commands `mnemos-hub` / `hub-gateway`). `mnemos-hub` is also the reserved npm name.
+Nothing is published to PyPI or npm yet.
+
 ### Login: GitHub or built-in
 
 Default: GitHub OAuth (one OAuth App per context, only `GITHUB_USER` gets in). Without GitHub: `HUB_AUTH_PROVIDER=local`

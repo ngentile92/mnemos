@@ -76,6 +76,8 @@ deploy() {  # $1 = ref a desplegar. Ojo: dentro de `if` bash ignora set -e, por 
   fi
   if [[ -x .venv/bin/pip ]]; then
     log "pip install del gateway en .venv"
+    # the distribution was renamed hub-gateway → mnemos-hub (same import package): drop the old name once
+    if .venv/bin/pip show -q hub-gateway >/dev/null 2>&1; then .venv/bin/pip uninstall -q -y hub-gateway || true; fi
     .venv/bin/pip install -q -e ./gateway || return 1
   fi
   # Cada `build` produce un image id nuevo aunque todo venga de caché (y eso recrea los gateways): solo se

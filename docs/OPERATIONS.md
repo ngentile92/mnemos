@@ -302,3 +302,11 @@ scripts/mnemos expose --check    # exit 1 if anything is not ok
 Idempotent: on a fully exposed instance `--apply` prints "nothing to do" and changes nothing. It never runs
 `tailscale funnel`, never rewrites a serve entry that points elsewhere (reported as CONFLICT), and stops if Funnel
 is enabled on the host itself (DANGER).
+
+## Adding a context from the dashboard
+
+*Status → Add a context*: name, optional description and projects. **Preview** runs
+`scripts/mnemos_context.py add --dry-run` (writes nothing); **Create** runs it for real: `config/contexts.yaml`,
+`.env` (new variables, backups kept) and `compose.generated.yaml`. No containers are started and no account is
+touched; the output lists the remaining steps (OAuth app, `bootstrap_cognee.py`, `docker compose up -d`, connectors).
+Only from `http://127.0.0.1` on the Mac (not over the tailnet). Restart the dashboard afterwards to see the context.

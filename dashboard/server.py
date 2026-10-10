@@ -505,7 +505,40 @@ def build_allowed_hosts(host: str, port: int, tailnet_port: int = 0, dns_name: s
     return allowed
 
 
-POST_ROUTES: dict = {}  # path → fn(body) -> dict (registered by other dashboard features)
+CTX_NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,30}$")
+PROJECT_RE = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
+
+
+def add_context(body: dict) -> dict:
+    """Runs scripts/mnemos_context.py add (files only: contexts.yaml, .env, compose.generated.yaml).
+    Never starts containers or touches accounts; the output lists the remaining steps."""
+    name = str(body.get("name", "")).strip()
+    if not CTX_NAME_RE.match(name):
+        raise ValueError("name: lowercase letters, digits and dashes, starting with a letter (max 31)")
+    desc = " ".join(str(body.get("description") or "").split())[:200]
+    projects = [str(x).strip() for x in (body.get("projects") or []) if str(x).strip()]
+    bad = [x for x in projects if not PROJECT_RE.match(x)]
+    if bad or len(projects) > 10:
+        raise ValueError(f"invalid project names: {bad}" if bad else "too many projects")
+    cmd = [sys.executable, str(Path(__file__).resolve().parent.parent / "scripts" / "mnemos_context.py"),
+           "--root", str(ROOT), "add", name]
+    if desc:
+        cmd += ["--description", desc]
+    for x in projects:
+        cmd += ["--project", x]
+    dry = bool(body.get("dry_run", True))
+    if dry:
+        cmd.append("--dry-run")
+    r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=60)
+    out = (r.stdout + ("\n" + r.stderr if r.stderr.strip() else "")).strip()
+    if r.returncode != 0:
+        raise ValueError(out.splitlines()[-1] if out else f"exit {r.returncode}")
+    if not dry:
+        out += "\n\nRestart the dashboard (scripts/dashboard.sh restart) to see the new context here."
+    return {"ok": True, "dry_run": dry, "output": out}
+
+
+POST_ROUTES: dict = {"/api/contexts/add": add_context}  # path → fn(body) -> dict
 
 
 def skills_dir() -> Path | None:

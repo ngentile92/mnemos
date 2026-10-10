@@ -1,0 +1,52 @@
+# hub-router: one connector for every context
+
+Design and rationale: [design/single-connector.md](design/single-connector.md). The three per-context connectors
+keep working; the router is an *extra* URL (`https://mnemos.<tailnet>.ts.net/mcp`).
+
+## How sign-in works
+
+1. The assistant (Claude, ChatGPT, Grok, Cursor) registers itself (DCR) and opens `/authorize`.
+2. You sign in with one of the enabled methods:
+   - **Local password** (default) — the same `HUB_LOCAL_USER` / `HUB_LOCAL_PASSWORD_HASH` as
+     [auth-local.md](auth-local.md) (`python -m hub_gateway.local_auth hash`).
+   - **Google** (optional) — see below.
+   - **GitHub** (optional) — a *separate* GitHub OAuth app whose callback is the router's.
+3. A consent page lists every context with an **unchecked** checkbox, plus an opt-in "switch between these
+   contexts during a chat". At least one context is required.
+4. The token gets scopes `user ctx:<a> ctx:<b> [switch]`. The decision is stored as a **grant** for that app;
+   the dashboard lists grants and can revoke them, and revoking kills that app's tokens at once.
+
+## Environment
+
+| Variable | Meaning |
+|---|---|
+| `MNEMOS_ROUTER_PUBLIC_URL` | `https://mnemos.<tailnet>.ts.net` |
+| `MNEMOS_ROUTER_STORAGE_KEY` | Fernet key for the encrypted grant/token store (`scripts/init_env.py`) |
+| `MNEMOS_ROUTER_CONTEXTS` | optional subset, default: every context in `contexts.yaml` |
+| `HUB_LOCAL_USER`, `HUB_LOCAL_PASSWORD_HASH` | local password sign-in (leave empty to disable it) |
+| `MNEMOS_GOOGLE_CLIENT_ID`, `MNEMOS_GOOGLE_CLIENT_SECRET`, `MNEMOS_ROUTER_ALLOWED_EMAILS` | Google sign-in |
+| `MNEMOS_ROUTER_GITHUB_CLIENT_ID`, `MNEMOS_ROUTER_GITHUB_CLIENT_SECRET`, `HUB_ALLOWED_GITHUB_LOGINS` | GitHub sign-in |
+| `HUB_INTERNAL_KEY_<CTX>`, `MNEMOS_BACKEND_<CTX>` | how the router reaches each gateway's internal listener |
+
+An allowlist is mandatory for Google and GitHub: without it the router refuses to start (any account would pass).
+
+## Google sign-in (optional)
+
+Nothing is created for you. In Google Cloud Console:
+
+1. Create (or pick) a project → **APIs & Services → OAuth consent screen**: type *External*, publishing status
+   *Testing*, add your own address under *Test users*. Scopes: `openid`, `email` only.
+2. **Credentials → Create credentials → OAuth client ID → Web application**.
+   Authorized redirect URI: `https://mnemos.<tailnet>.ts.net/oidc/google/callback`.
+3. Put the client ID/secret in `.env` (`MNEMOS_GOOGLE_CLIENT_ID`, `MNEMOS_GOOGLE_CLIENT_SECRET`) and your address
+   in `MNEMOS_ROUTER_ALLOWED_EMAILS`. Only verified emails on the list are accepted.
+
+## GitHub sign-in (optional)
+
+GitHub → Settings → Developer settings → OAuth Apps → New: homepage `https://mnemos.<tailnet>.ts.net`,
+callback `https://mnemos.<tailnet>.ts.net/oidc/github/callback`. Fill `MNEMOS_ROUTER_GITHUB_CLIENT_ID/SECRET`.
+
+## Testing
+
+`scripts/oauth_probe.py <url> --user <u> --contexts personal,side [--switch]` runs the whole flow (DCR, PKCE,
+sign-in, consent, token, MCP, refresh rotation) like a real client.

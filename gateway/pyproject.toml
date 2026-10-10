@@ -18,6 +18,7 @@ dev = ["pytest>=8", "pytest-asyncio>=0.24", "respx>=0.22", "pyflakes>=3"]
 [project.scripts]
 hub-gateway = "hub_gateway.app:main"   # kept: the Docker image runs it
 mnemos-hub = "hub_gateway.app:main"
+mnemos-router = "hub_gateway.router.server:main"
 
 [build-system]
 requires = ["setuptools>=69"]

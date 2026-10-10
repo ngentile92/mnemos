@@ -17,6 +17,8 @@ from typing import Any
 
 import httpx
 
+KEEP_ALIVE = __import__("os").environ.get("HUB_OLLAMA_KEEP_ALIVE", "30m")  # keep local models warm: first call loads them (~10 s)
+
 PROMPT = """You maintain a personal memory. The user says this is the truth now:
 CORRECTION: {correction}
 
@@ -111,7 +113,7 @@ async def propose(url: str, model: str, correction: str, notes: list[dict[str, A
     if not notes:
         return []
     listing = "\n\n".join(f"[{i}] {_norm(str(n.get('text', '')))[:1500]}" for i, n in enumerate(notes, 1))
-    payload = {"model": model, "stream": False, "format": "json",
+    payload = {"model": model, "stream": False, "keep_alive": KEEP_ALIVE, "format": "json",
                "options": {"temperature": 0, "num_ctx": 8192, "num_predict": 700},
                "messages": [{"role": "user", "content": PROMPT.format(correction=correction, notes=listing)}]}
     async with httpx.AsyncClient(timeout=timeout, transport=transport, trust_env=False) as c:

@@ -97,7 +97,7 @@ async def test_tool_surface_has_no_shell(make_server):
     server, _ = make_server("personal")
     async with Client(server) as c:
         tools = {t.name: t for t in await c.list_tools()}
-    assert set(tools) == {"hub_whoami", "memory_search", "memory_save", "memory_list", "memory_update",
+    assert set(tools) == {"hub_whoami", "memory_search", "memory_save", "memory_list", "memory_update", "memory_pin", "memory_mark_obsolete", "memory_dispute",
                           "memory_delete", "memory_history", "memory_undo", "memory_answer", "memory_entity", "memory_promote", "skills_list", "skills_get", "secrets_list", "secret_http_request"}
     for name in tools:
         assert not any(w in name for w in ("forget", "shell", "exec", "prune"))

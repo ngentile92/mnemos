@@ -22,7 +22,7 @@ from .contexts import BRIDGES, SERVER_NAME_PREFIX, bridged_for, get_context
 from .instructions import server_instructions
 from .ledger import Ledger, safe
 from .local_search import LocalIndex, OllamaEmbedder, entity_docs, entity_list
-from .answer import Answerer
+from .answer import Answerer, propose_fix
 from .memory import CogneeClient, DatasetMap, MemoryError_, MemoryScope, item_summary, simplify_results
 from .secrets import InfisicalFetcher, SecretBroker, SecretPolicyError, load_policy
 from .skills import SkillError, SkillIndex, tool_equivalents
@@ -202,7 +202,21 @@ def build_server(
         for name, ds_id in pairs:
             await index.sync(name, lambda ds_id=ds_id: cognee.list_data(ds_id),
                              lambda did, ds_id=ds_id: cognee.raw_text(ds_id, did))
-        return await index.search(query, [n for n, _ in pairs], top_k, mode)
+        found = await index.search(query, [n for n, _ in pairs], top_k * 2, mode)
+        return _apply_flags(found)[:top_k]
+
+    def _apply_flags(found: list[dict[str, Any]], keep_obsolete: bool = False) -> list[dict[str, Any]]:
+        """Pinned notes first; notes marked obsolete are left out of search/answers."""
+        flags = safe(ledger.flags, [str(r.get("id") or "") for r in found]) or {}
+        out = []
+        for r in found:
+            f = flags.get(str(r.get("id") or ""), {})
+            if f.get("obsolete") and not keep_obsolete:
+                continue
+            if f.get("pinned"):
+                r = {**r, "pinned": True}
+            out.append(r)
+        return sorted(out, key=lambda r: not r.get("pinned"))
 
     @mcp.tool(annotations={**READ_ONLY, "title": "Buscar en memoria"})
     async def memory_search(
@@ -391,6 +405,8 @@ def build_server(
                     if prov:
                         it["provenance"] = prov
                         it["source_app"] = it["source_app"] or prov["source_app"]
+                        it["pinned"] = bool(prov.get("pinned"))
+                        it["obsolete"] = bool(prov.get("obsolete"))
                     it["chars"] = len(text)
                     it["text"] = text[:1500]
                     items.append(it)
@@ -582,6 +598,87 @@ def build_server(
         safe(index.remove, id) if action == "restored" else safe(index.put, id, last["dataset"], last["text"], None)
         audit.log("memory_undo", login, "ok", data_id=id, action=action, app=app)
         return {"id": id, "action": action, "dataset": last["dataset"], "text": last["text"][:1500]}
+
+    # ------------------------------------------------------------------ editor phase 2: pin, obsolete, "esto no es así"
+    async def _flag(tool: str, id: str, **kw: Any) -> dict[str, Any]:
+        login = _current_login(settings)
+        app = _client_app()
+        try:
+            name, ds_id, item = await _locate(scope(), id)
+            if not safe(ledger.set_flags, id, by=app, **kw):
+                text = await cognee.raw_text(ds_id, id) or ""
+                old = item_summary(item, name)
+                safe(ledger.record_save, dataset=name, text=text, context=ctx.name, source_app=old["source_app"],
+                     login=None, tags=old["tags"], data_id=id)
+                safe(ledger.set_flags, id, by=app, **kw)
+        except MemoryError_ as exc:
+            audit.log(tool, login, "rejected", data_id=id, reason=str(exc))
+            raise ToolError(str(exc)) from exc
+        except Exception as exc:
+            audit.log(tool, login, "error", data_id=id, error=type(exc).__name__)
+            raise ToolError("la memoria (Cognee) no respondió; probá de nuevo más tarde") from exc
+        audit.log(tool, login, "ok", data_id=id, dataset=name, app=app, **{k: v for k, v in kw.items() if k != "reason"})
+        return {"id": id, "dataset": name, **{k: v for k, v in kw.items() if v is not None}}
+
+    @mcp.tool(annotations={"title": "Fijar nota", "readOnlyHint": False, "destructiveHint": False,
+                           "openWorldHint": False})
+    async def memory_pin(
+        id: Annotated[str, Field(description="id (UUID) de la nota, sacado de memory_list")],
+        pinned: Annotated[bool, Field(description="true = fijar (sale primero en búsquedas), false = soltar")] = True,
+    ) -> dict[str, Any]:
+        """Fija una nota propia: aparece primero en memory_search/memory_answer. No cambia su texto."""
+        return await _flag("memory_pin", id, pinned=pinned)
+
+    @mcp.tool(annotations={"title": "Marcar nota obsoleta", "readOnlyHint": False, "destructiveHint": False,
+                           "openWorldHint": False})
+    async def memory_mark_obsolete(
+        id: Annotated[str, Field(description="id (UUID) de la nota")],
+        obsolete: Annotated[bool, Field(description="true = obsoleta (no se usa en búsquedas ni respuestas), false = volver")] = True,
+        reason: Annotated[str | None, Field(description="Por qué ya no vale (opcional)", max_length=300)] = None,
+    ) -> dict[str, Any]:
+        """Marca una nota propia como obsoleta: queda guardada (memory_list la muestra) pero memory_search y
+        memory_answer dejan de usarla. Reversible con obsolete=false. Preferí esto a borrar si es historia."""
+        return await _flag("memory_mark_obsolete", id, obsolete=obsolete, reason=reason)
+
+    @mcp.tool(annotations={**READ_ONLY, "title": "Esto no es así: proponer correcciones"})
+    async def memory_dispute(
+        correction: Annotated[str, Field(description="Qué está mal y cómo es en realidad, en palabras del usuario "
+                                                     "(ej. 'Ana ya no trabaja en Acme, ahora está en Beta')",
+                                         min_length=5, max_length=1000)],
+        limit: Annotated[int, Field(ge=1, le=10)] = 5,
+    ) -> dict[str, Any]:
+        """Flujo 'esto no es así': busca las notas PROPIAS que dicen lo que el usuario corrige y propone, para
+        cada una, el texto corregido (action=update) o marcarla obsoleta (action=obsolete). NO cambia nada:
+        mostrale las propuestas al usuario y aplicá solo las que confirme con memory_update o
+        memory_mark_obsolete. Sin modelo local devuelve solo las notas candidatas."""
+        login = _current_login(settings)
+        try:
+            sc = scope()
+            own = [n for n, _ in sc.editable()]
+            cands = [r for r in await _local_search(sc, correction, False, None, limit * 2, "hybrid")
+                     if r.get("dataset") in own and r.get("id")][:limit]
+            proposals = []
+            for r in cands:
+                p: dict[str, Any] = {"id": r["id"], "dataset": r["dataset"], "text": r.get("text", "")}
+                if answerer is not None:
+                    try:
+                        p.update(await propose_fix(answerer, correction, r))
+                    except Exception:  # noqa: BLE001 — the candidate is still useful
+                        log.warning("dispute proposal failed", exc_info=True)
+                        p["action"] = None
+                else:
+                    p["action"] = None
+                proposals.append(p)
+        except MemoryError_ as exc:
+            audit.log("memory_dispute", login, "rejected", reason=str(exc))
+            raise ToolError(str(exc)) from exc
+        except Exception as exc:
+            audit.log("memory_dispute", login, "error", error=type(exc).__name__)
+            raise ToolError("la memoria no respondió; probá de nuevo más tarde") from exc
+        keep = [p for p in proposals if p.get("action") != "none"]
+        audit.log("memory_dispute", login, "ok", candidates=len(proposals), proposals=len(keep))
+        return {"context": ctx.name, "correction": correction, "proposals": keep,
+                "next": "confirmá con el usuario y aplicá con memory_update (texto propuesto) o memory_mark_obsolete"}
 
     # ------------------------------------------------------------------ skills
     @mcp.tool(annotations={**READ_ONLY, "title": "Listar skills"})

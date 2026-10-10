@@ -58,3 +58,15 @@ metadata Cognee kept. `memory_search` cannot show provenance: Cognee's graph ans
 links per note). Every note that links the same name shares that node, so related notes are connected
 deterministically, even when the extraction LLM misses the entity. Changing the links in a correction
 sends the new node sets (Cognee then does a full rebuild of that note).
+
+## Pin, obsolete and "this isn't right" (editor phase 2)
+
+- `memory_pin(id, pinned)`: pinned notes come first in `memory_search` / `memory_answer` (local modes).
+- `memory_mark_obsolete(id, obsolete, reason)`: the note stays (and `memory_list` shows it) but local search and
+  `memory_answer` stop using it. Reversible. The Cognee graph (`mode="graph"`) still sees it until the note is
+  corrected or forgotten.
+- `memory_dispute(correction)`: "this isn't right". Finds the context's own notes that state what the user corrects
+  and proposes, per note, a corrected text (`update`) or `obsolete`, using the local model. It never writes: the
+  assistant (or the dashboard **Memory** tab, "This isn't right" box) applies only what the user confirms.
+
+Flags live in the ledger (`ledger.sqlite`), never in Cognee.

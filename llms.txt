@@ -14,6 +14,7 @@ memory_history, memory_undo, memory_answer, memory_entity, skills_list, skills_g
 - [AGENTS.md](AGENTS.md): step-by-step install checklist and rules for AI agents
 - [README.md](README.md): overview, requirements, quickstart, connecting assistants, configuration, updating, security
 - [docs/SETUP.md](docs/SETUP.md): full setup guide (Spanish: docs/SETUP.es.md)
+- [docs/CLIENTS.md](docs/CLIENTS.md): step-by-step connection for Claude, ChatGPT, Grok and Cursor, with what is verified
 - [docs/OPERATIONS.md](docs/OPERATIONS.md): day-to-day operations, tools and their limits (Spanish: docs/OPERATIONS.es.md)
 
 ## Reference
@@ -21,6 +22,7 @@ memory_history, memory_undo, memory_answer, memory_entity, skills_list, skills_g
 - [docs/memory-editing.md](docs/memory-editing.md): what Cognee supports for editing, provenance registry, history and undo
 - [docs/memory-trust.md](docs/memory-trust.md): what leaves your machine, what is isolated between contexts and what is not
 - [docs/client-instructions.md](docs/client-instructions.md): instructions to paste into clients that ignore MCP server instructions
+- [docs/CLIENTS.md](docs/CLIENTS.md): step-by-step connection for Claude, ChatGPT, Grok and Cursor, with what is verified
 - [docs/OPERATIONS.md](docs/OPERATIONS.md) also covers `scripts/memory_markdown.py`: export/import memory as gbrain-compatible Markdown
 - [docs/skills-gbrain.md](docs/skills-gbrain.md): skill format, including gbrain-format skills and tool equivalents
 - [config/](config/): `.example` configuration files (contexts, secret policy)

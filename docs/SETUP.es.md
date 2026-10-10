@@ -169,6 +169,8 @@ Desde datos móviles **sin** Tailscale: `https://hub-personal.<tailnet>.ts.net/m
 
 ## 13. Conectar los asistentes (un conector por contexto)
 
+Pasos detallados y qué está verificado: [`CLIENTS.md`](CLIENTS.md) (en inglés).
+
 URLs: `https://hub-work.<tailnet>.ts.net/mcp`, `https://hub-personal.<tailnet>.ts.net/mcp`,
 `https://hub-side.<tailnet>.ts.net/mcp`. En todos, el login es con **tu** GitHub; otra cuenta es rechazada.
 

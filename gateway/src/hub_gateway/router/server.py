@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from .auth import SWITCH, RouterOAuthProvider, granted_contexts
 from .config import RouterSettings
+from .proxy import Forwarder, keep_catalog
 
 log = logging.getLogger("hub.router")
 
@@ -36,14 +40,51 @@ def current_grant() -> dict[str, Any]:
             "contexts": granted_contexts(scopes), "switch": SWITCH in scopes}
 
 
-def build_router(s: RouterSettings, *, provider: RouterOAuthProvider | None = None, http=None) -> FastMCP:
+def client_app() -> str | None:
+    try:
+        from fastmcp.server.dependencies import get_context
+
+        params = get_context().session.client_params
+        info = getattr(params, "client_info", None) or getattr(params, "clientInfo", None)
+        return str(getattr(info, "name", "") or "") or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def build_router(s: RouterSettings, *, provider: RouterOAuthProvider | None = None, http=None,
+                 forwarder: Forwarder | None = None, discover_tools: bool = True) -> FastMCP:
     provider = provider or RouterOAuthProvider(
         base_url=s.public_url, contexts=s.contexts, store=build_store(s), user=s.local_user,
         password_hash=s.local_password_hash, idps=s.idps())
-    mcp = FastMCP("mnemos", auth=provider, instructions=(
+    forwarder = forwarder or Forwarder(s.backends)
+
+    async def resolve(requested: str | None):
+        g = current_grant()
+        if not requested:
+            raise ToolError(f"pass `context`: one of {g['contexts']}")
+        if requested not in g["contexts"]:
+            raise ToolError(f"this app was not granted context {requested!r}; granted: {g['contexts']}. "
+                            "Reconnect the app to change its contexts.")
+        if requested not in forwarder.backends:
+            raise ToolError(f"context {requested!r} has no gateway configured on the router")
+        log.info("route %s → %s (app=%s)", g["login"], requested, client_app())
+        return requested, g["login"], client_app()
+
+    @asynccontextmanager
+    async def lifespan(_server):
+        task = asyncio.create_task(keep_catalog(_server, forwarder, s.contexts, resolve)) if discover_tools else None
+        try:
+            yield {}
+        finally:
+            if task:
+                task.cancel()
+
+    mcp = FastMCP("mnemos", auth=provider, lifespan=lifespan, instructions=(
         "Mnemos: memory, skills and credentials, split by context. Every tool takes a `context` argument; you can "
         "only use the contexts this app was granted (see hub_whoami)."))
     mcp.provider = provider  # type: ignore[attr-defined]
+    mcp.resolve = resolve  # type: ignore[attr-defined]
+    mcp.forwarder = forwarder  # type: ignore[attr-defined]
 
     @mcp.custom_route("/healthz", methods=["GET"])
     async def healthz(_: Request) -> JSONResponse:

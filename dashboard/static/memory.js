@@ -114,6 +114,8 @@
         <button class="mbtn" id="me-pin">${it.pinned ? "Unpin" : "Pin"}</button>
         <button class="mbtn" id="me-obs">${it.obsolete ? "Not obsolete" : "Mark obsolete"}</button>
         <button class="mbtn" id="me-undo">Undo last change</button>
+        <button class="mbtn" id="me-move">Move…</button>
+        <button class="mbtn" id="me-promote">Promote to shared…</button>
         <button class="mbtn danger" id="me-forget">Forget</button></div>`
         : '<p class="muted small">Shared notes are read-only here (owner edits them with scripts/memory_admin.py).</p>'}
       <dl class="me-meta"><dt>Dataset</dt><dd>${esc(it.dataset)}</dd>
@@ -132,6 +134,8 @@
         act(e.target, "/api/memory/obsolete", { id: it.id, obsolete: !it.obsolete, reason }, it.obsolete ? "Back in searches" : "Marked obsolete ✓ — kept, but not used in answers");
       };
       $("me-undo").onclick = () => doUndo(it.id);
+      $("me-move").onclick = () => moveMode(it);
+      $("me-promote").onclick = () => promoteMode(it);
       $("me-forget").onclick = (e) => confirm("Forget this note? You can undo it.") && act(e.target, "/api/memory/delete", { id: it.id }, "Forgotten", it.id);
     }
     history(it.id);
@@ -162,6 +166,66 @@
       } catch (err) { e.target.disabled = false; e.target.textContent = "Save correction"; toast("Not saved: " + err.message); }
     };
   }
+  function confirmPanel(it, html, label, run) {
+    $("me-actions").innerHTML = `<div class="me-confirm">${html}
+      <label class="small"><input type="checkbox" id="me-ok"> I understand</label>
+      <div class="me-actions"><button class="mbtn primary" id="me-go" disabled>${esc(label)}</button><button class="mbtn" id="me-cancel">Cancel</button></div></div>`;
+    $("me-ok").onchange = () => { $("me-go").disabled = !$("me-ok").checked; };
+    $("me-cancel").onclick = () => show(it);
+    $("me-go").onclick = async (e) => {
+      e.target.disabled = true; e.target.innerHTML = `<span class="spin"></span>${esc(label)}…`;
+      try { await run(); } catch (err) { toast("Not done: " + err.message); show(it, false); }
+    };
+  }
+  function moveMode(it) {
+    const others = CTXS.filter((c) => c !== ctx());
+    confirmPanel(it, `<p><b>Move this note to another context.</b> It is copied there (tagged “moved-from-${esc(ctx())}”, origin dashboard) and then forgotten here — you can undo the forget in <b>${esc(ctx())}</b>.</p>
+      <div class="me-row"><select id="me-move-to">${others.map((c) => `<option>${esc(c)}</option>`).join("")}</select>
+      <input id="me-move-proj" placeholder="project (only for contexts with projects)" maxlength="80"></div>`, "Move note", async () => {
+      const to = $("me-move-to").value;
+      await post("/api/memory/move", { context: ctx(), id: it.id, to, text: it.text, project: $("me-move-proj").value, confirm: true });
+      toast(`Moved to ${to} ✓`, it.id); selId = null; $("me-detail").innerHTML = '<p class="muted">Pick a note on the left.</p>'; load();
+    });
+  }
+  function promoteMode(it) {
+    confirmPanel(it, `<p><b>Promote to shared.</b> A copy goes to <b>shared</b>, which <b>every context</b> (and every connected assistant) can read. The original stays here. Shared notes can't be edited from the dashboard — check nothing in it is private to ${esc(ctx())}.</p>
+      <div class="me-note small">${esc(it.text)}</div>`, "Promote to shared", async () => {
+      await post("/api/memory/promote", { context: ctx(), id: it.id, confirm: true });
+      toast("Promoted to shared ✓"); show(it, false); load();
+    });
+  }
+
+  // ------------------------------------------------ cleanup inbox (nightly hygiene proposals)
+  let inbox = [];
+  const TYPE_LABEL = { merge: "merge", contradiction: "contradiction", stale: "out of date" };
+  async function loadInbox() {
+    let j;
+    try { j = await get("/api/hygiene", {}); } catch { return; }
+    inbox = j.items || [];
+    $("me-inbox-card").classList.toggle("hidden", !inbox.length && !j.date);
+    $("me-inbox-head").textContent = j.date ? `report ${j.date} · ${inbox.length} to review${j.total > inbox.length ? ` · ${j.total - inbox.length} done` : ""}` : "";
+    $("me-inbox").innerHTML = inbox.length ? inbox.map((i, n) => `<div class="me-prop" data-k="${esc(i.key)}">
+      <div class="small muted">${esc(TYPE_LABEL[i.type] || i.type)} · ${esc(i.context)}</div><div class="why">${esc(i.title)}</div>
+      <p class="small">${esc(i.explain)}</p>
+      ${i.notes.map((x, k) => `<div class="me-inote"><span class="small muted">${i.notes.length > 1 ? (k ? (i.type === "merge" ? "older copy" : "newer") : (i.type === "merge" ? "kept" : "older")) + " · " : ""}${esc(when(x.created_at))}</span><div>${esc(x.text)}</div></div>`).join("")}
+      ${i.proposed_text ? `<div class="me-inote ok"><span class="small muted">merged text</span><div>${esc(i.proposed_text)}</div></div>` : ""}
+      <div class="me-actions">${i.actions.map((a) => `<button class="mbtn ${a.kind}" data-ia="${a.id}" data-n="${n}">${esc(a.label)}</button>`).join("")}<button class="mbtn" data-ia="dismiss" data-n="${n}">Dismiss</button></div></div>`).join("")
+      : '<p class="muted small">Nothing to review. ✓</p>';
+  }
+  $("me-inbox").addEventListener("click", async (ev) => {
+    const b = ev.target.closest("[data-ia]"); if (!b) return;
+    const it = inbox[+b.dataset.n], action = b.dataset.ia, card = b.closest(".me-prop");
+    card.querySelectorAll("button").forEach((x) => { x.disabled = true; });
+    b.innerHTML = `<span class="spin"></span>${esc(b.textContent)}`;
+    try {
+      await post("/api/hygiene/act", { context: it.context, key: it.key, action });
+      card.classList.add("me-gone");
+      setTimeout(() => loadInbox(), 250);
+      toast(action === "dismiss" ? "Dismissed" : "Done ✓ — undo from the note panel if needed");
+      if (action !== "dismiss" && it.context === ctx()) load();
+    } catch (e) { card.querySelectorAll("button").forEach((x) => { x.disabled = false; }); toast("Not done: " + e.message); loadInbox(); }
+  });
+
   async function act(btn, path, body, ok, undoId) {
     btn.disabled = true; const label = btn.textContent; btn.innerHTML = `<span class="spin"></span>${esc(label)}`;
     try { await post(path, { context: ctx(), ...body }); toast(ok, undoId); await load(); const cur = items.find((i) => i.id === selId); if (cur) show(cur, false); else $("me-detail").innerHTML = '<p class="muted">Pick a note on the left.</p>'; }
@@ -233,6 +297,6 @@
   $("me-shared").onchange = () => load();
   $("me-q").addEventListener("input", onFilter);
   $("me-dispute").addEventListener("keydown", (e) => { if (e.key === "Enter") $("me-dispute-go").click(); });
-  window.addEventListener("mnemos:memoria", () => { if (!loaded) load(); });
-  if (location.hash.startsWith("#memoria")) load();
+  window.addEventListener("mnemos:memoria", () => { if (!loaded) { load(); loadInbox(); } });
+  if (location.hash.startsWith("#memoria")) { load(); loadInbox(); }
 })();

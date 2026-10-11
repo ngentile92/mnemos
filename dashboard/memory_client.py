@@ -18,7 +18,8 @@ from pathlib import Path
 _UUID = re.compile(r"^[0-9a-fA-F-]{36}$")
 TOOLS = {"list": "memory_list", "history": "memory_history", "update": "memory_update",
          "delete": "memory_delete", "undo": "memory_undo", "pin": "memory_pin",
-         "obsolete": "memory_mark_obsolete", "dispute": "memory_dispute", "save": "memory_save", "related": "memory_search"}
+         "obsolete": "memory_mark_obsolete", "dispute": "memory_dispute", "save": "memory_save", "related": "memory_search",
+         "promote": "memory_promote"}
 
 
 class MemoryEditorOff(Exception):
@@ -108,6 +109,8 @@ def run(root: Path, env: dict[str, str], contexts: list[str], action: str, body:
         args = {"text": text}
         if body.get("project"):
             args["project"] = str(body["project"])[:80]
+        if body.get("tags"):
+            args["tags"] = [str(t)[:60] for t in body["tags"]][:5]
     elif action == "dispute":
         corr = str(body.get("correction", "")).strip()
         if not 5 <= len(corr) <= 1000:
@@ -124,6 +127,10 @@ def run(root: Path, env: dict[str, str], contexts: list[str], action: str, body:
                 raise ValueError("text must be 3-20000 characters")
             args["text"] = text
             args["background"] = True
+        elif action == "promote":
+            if body.get("confirm") is not True:
+                raise ValueError("promote needs explicit confirmation")
+            args["confirm"] = True
         elif action == "pin":
             args["pinned"] = bool(body.get("pinned", True))
         elif action == "obsolete":

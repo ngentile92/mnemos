@@ -592,8 +592,56 @@ def memory_action(action: str, body: dict) -> dict:
     return run(ROOT, read_env(ROOT / ".env"), list(CONTEXTS), action, body)
 
 
+def _ds2ctx() -> dict[str, str]:
+    return {d: c.name for c in CONTEXTS.values() for d in c.own_dataset_names}
+
+
+def _inbox():
+    import hygiene_inbox as hi
+    env = read_env(ROOT / ".env")
+    rep = hi.latest(hi.report_dir(env))
+    items = hi.build(rep, _ds2ctx()) if rep else []
+    return hi, rep, items, hi.Inbox(ROOT / "dev" / "state" / "hygiene-inbox.json")
+
+
+def hygiene_list(_q: dict | None = None) -> dict:
+    hi, rep, items, box = _inbox()
+    return {"date": (rep or {}).get("date"), "items": box.pending(items), "total": len(items),
+            "report_dir": str(hi.report_dir(read_env(ROOT / ".env"))) if not rep else None}
+
+
+def hygiene_act(body: dict) -> dict:
+    hi, _, items, box = _inbox()
+    item = next((i for i in items if i["key"] == str(body.get("key", ""))), None)
+    if not item:
+        raise ValueError("item not found (the report changed?) — refresh")
+    action = str(body.get("action", ""))
+    res = hi.act(item, action, memory_action)
+    box.mark(item["key"], action)
+    return {"done": action, "key": item["key"], "results": res}
+
+
+def memory_move(body: dict) -> dict:
+    """Copy a note to another context, then forget it in the source (undoable there). Needs confirm=true."""
+    src, dst, nid = str(body.get("context", "")), str(body.get("to", "")), str(body.get("id", ""))
+    if body.get("confirm") is not True:
+        raise ValueError("moving a note needs explicit confirmation")
+    if src == dst or dst not in CONTEXTS:
+        raise ValueError("pick a different target context")
+    text = str(body.get("text", ""))
+    found = memory_action("list", {"context": src, "contains": text[:80], "include_shared": False})
+    if not any(i.get("id") == nid and str(i.get("text", "")).strip() == text.strip() for i in found.get("items", [])):
+        raise ValueError("the note changed or is not in that context — refresh and try again")
+    saved = memory_action("save", {"context": dst, "text": text, "project": body.get("project") or "",
+                                   "tags": [f"moved-from-{src}"]})
+    gone = memory_action("delete", {"context": src, "id": nid})
+    return {"moved": nid, "from": src, "to": dst, "saved": saved, "deleted": gone}
+
+
 POST_ROUTES: dict = {"/api/contexts/add": add_context, "/api/router/revoke": router_revoke,
                      "/api/router/unlock": router_unlock,
+                     "/api/hygiene/act": hygiene_act, "/api/memory/move": memory_move,
+                     "/api/memory/promote": lambda b: memory_action("promote", b),
                      "/api/memory/update": lambda b: memory_action("update", b),
                      "/api/memory/delete": lambda b: memory_action("delete", b),
                      "/api/memory/undo": lambda b: memory_action("undo", b),
@@ -724,6 +772,13 @@ def make_handler(hub: Hub | None, allowed_hosts: set[str], demo: dict | None):
                 if hub is not None:
                     text = hub.redact(text)
                 return self._send(200, text.encode(), "application/json; charset=utf-8")
+            if path == "/api/hygiene":
+                if demo is not None:
+                    return self._json(200, (demo.get("memory") or {}).get("hygiene") or {"items": []})
+                try:
+                    return self._json(200, hygiene_list())
+                except Exception as e:  # noqa: BLE001
+                    return self._json(500, {"error": f"{type(e).__name__}: {e}"[:300]})
             if path in ("/api/memory/list", "/api/memory/history", "/api/memory/related"):
                 if demo is not None:
                     return self._json(200, (demo.get("memory") or {}).get(path.rsplit("/", 1)[1]) or {"items": []})

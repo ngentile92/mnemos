@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Mnemos</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header><div class="logo">▮▮▮</div><div><h1>Mnemos</h1><p class="muted">Your AI memory, on this computer</p></div></header>
+
+<section id="wizard" class="card hidden">
+  <h2>Welcome</h2>
+  <p class="muted">Three quick things. Nothing leaves this computer.</p>
+  <label>Your name <input id="w-owner" placeholder="e.g. Ana" maxlength="60"></label>
+  <label>Contexts <span class="muted small">— separate memories that never mix</span>
+    <input id="w-ctx" value="personal, work" maxlength="200"></label>
+  <label>Password <span class="muted small">— used later if you connect from your phone or the web</span>
+    <input id="w-pw" type="password" autocomplete="new-password" minlength="8"></label>
+  <label>Repeat password <input id="w-pw2" type="password" autocomplete="new-password"></label>
+  <p id="w-err" class="err"></p>
+  <button id="w-go" class="primary">Create my Mnemos</button>
+</section>
+
+<section id="main" class="card hidden">
+  <div class="row"><span id="dot" class="dot"></span><h2 id="state">…</h2></div>
+  <p class="muted small" id="where"></p>
+  <div class="actions">
+    <button id="start" class="primary">Start</button>
+    <button id="stop">Stop</button>
+    <button id="open">Open Mnemos page</button>
+  </div>
+  <p id="err" class="err"></p>
+  <details><summary class="muted small">Details</summary><pre id="details"></pre></details>
+</section>
+<script src="app.js"></script>
+</body></html>

@@ -4,6 +4,7 @@
     mnemos-local serve [--home ~/Mnemos] [--port 8765]        # http://127.0.0.1:8765/<ctx>/mcp
     mnemos-local stdio [--home ~/Mnemos] --context personal   # for Claude Desktop (.mcpb) / Cursor stdio
     mnemos-local token [--home ~/Mnemos]                      # print the local bearer token
+    mnemos-local set-password [--home ~/Mnemos] < password    # store a login password hash (auth.json, 0600)
 
 Everything lives in one directory (MNEMOS_HOME, default ~/Mnemos):
     contexts.yaml        contexts (same format as config/contexts.yaml)
@@ -63,6 +64,18 @@ def init_home(home: Path, contexts: list[str], owner: str = "me") -> list[str]:
     return made
 
 
+def set_password(home: Path, password: str, user: str = "me") -> None:
+    """Login password for when the hub is reached from outside this computer (built-in OAuth, Phase 2).
+    Only the scrypt hash is stored."""
+    import json
+    from .local_auth import hash_password
+    if len(password) < 8:
+        raise SystemExit("password: at least 8 characters")
+    f = home / "auth.json"
+    f.write_text(json.dumps({"user": user, "password_hash": hash_password(password)}))
+    os.chmod(f, 0o600)
+
+
 def _env(home: Path) -> None:
     if not (home / "contexts.yaml").exists():
         raise SystemExit(f"{home} is not initialised: run `mnemos-local init --home {home}`")
@@ -109,6 +122,9 @@ class TokenGate:
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             h = dict(scope.get("headers") or [])
+            if scope.get("path") == "/" and h.get(b"host") in self.hosts:  # status page: no data, no token
+                await self.app(scope, receive, send)
+                return
             auth = h.get(b"authorization", b"")
             ok = auth.startswith(b"Bearer ") and hmac.compare_digest(auth[7:].strip(), self.token)
             if h.get(b"host") not in self.hosts or not ok:
@@ -136,10 +152,19 @@ def http_app(home: Path, port: int):
                 await stack.enter_async_context(s.router.lifespan_context(s))
             yield
 
+    async def home_page(_r):
+        from starlette.responses import HTMLResponse
+        rows = "".join(f"<li><code>http://127.0.0.1:{port}/{c}/mcp</code></li>" for c in subs)
+        return HTMLResponse(f"""<!doctype html><meta charset=utf-8><title>Mnemos</title>
+<body style="font:16px system-ui;max-width:640px;margin:8vh auto;padding:0 16px">
+<h1>Mnemos is running</h1><p>Local mode · {len(subs)} contexts. Connect an app to one of:</p><ul>{rows}</ul>
+<p style="color:#666">Each address needs your local token (Mnemos Desktop fills it in for you).</p></body>""",
+                            headers={"Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
+
     async def health(_r):
         return JSONResponse({"ok": True, "contexts": list(subs), "mode": "local"})
 
-    app = Starlette(routes=[Route("/health", health), *[Mount(f"/{c}", app=s) for c, s in subs.items()]],
+    app = Starlette(routes=[Route("/", home_page), Route("/health", health), *[Mount(f"/{c}", app=s) for c, s in subs.items()]],
                     lifespan=lifespan)
     return TokenGate(app, (home / "token").read_text().strip(), port)
 
@@ -147,7 +172,7 @@ def http_app(home: Path, port: int):
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="mnemos-local", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["init", "serve", "stdio", "token"])
+    ap.add_argument("cmd", choices=["init", "serve", "stdio", "token", "set-password"])
     ap.add_argument("--home")
     ap.add_argument("--contexts", default="personal,work")
     ap.add_argument("--owner", default="me")
@@ -158,6 +183,10 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "init":
         made = init_home(home, [c.strip() for c in a.contexts.split(",") if c.strip()], a.owner)
         print(f"Mnemos home: {home}" + ("".join(f"\n  created {m}" for m in made) if made else " (already set up)"))
+        return 0
+    if a.cmd == "set-password":
+        set_password(home, sys.stdin.readline().rstrip("\n"))
+        print("password saved")
         return 0
     if a.cmd == "token":
         print((home / "token").read_text().strip())

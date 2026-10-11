@@ -91,3 +91,26 @@ def test_http_needs_token_and_local_host(home):
         assert r.status_code == 200 and "serverInfo" in r.text
     finally:
         srv.should_exit = True
+
+
+def test_set_password_and_status_page(home):
+    import json as _j
+    local.set_password(home, "correct horse battery")
+    a = _j.loads((home / "auth.json").read_text())
+    assert a["password_hash"].startswith("scrypt:") and "correct" not in (home / "auth.json").read_text()
+    assert (home / "auth.json").stat().st_mode & 0o777 == 0o600
+    with pytest.raises(SystemExit):
+        local.set_password(home, "short")
+    port = _free()
+    srv = uvicorn.Server(uvicorn.Config(local.http_app(home, port), host="127.0.0.1", port=port, log_level="warning"))
+    threading.Thread(target=srv.run, daemon=True).start()
+    for _ in range(100):
+        if srv.started:
+            break
+        time.sleep(0.05)
+    try:
+        r = httpx.get(f"http://127.0.0.1:{port}/")
+        assert r.status_code == 200 and "Mnemos is running" in r.text and (home / "token").read_text() not in r.text
+        assert httpx.get(f"http://127.0.0.1:{port}/", headers={"Host": "evil.example"}).status_code == 403
+    finally:
+        srv.should_exit = True

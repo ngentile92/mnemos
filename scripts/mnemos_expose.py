@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from urllib.parse import urlparse
 import os
 import shutil
 import subprocess
@@ -42,6 +43,17 @@ TS_CANDIDATES = ("tailscale", "/usr/local/bin/tailscale", "/opt/homebrew/bin/tai
 
 # ---------------------------------------------------------------- pure planning (tested)
 
+# Local targets Mnemos itself used before on a host port; seeing one means "ours, stale", safe to re-point.
+# 8444 is Mnemos' own dashboard port on the tailnet: any loopback target there is ours (port moved or changed).
+LEGACY_TARGETS: dict[int, set[int] | None] = {8444: None}
+
+
+def _ours_stale(port: int, current: str) -> bool:
+    u = urlparse(current)
+    return u.scheme == "http" and u.hostname in ("127.0.0.1", "localhost") and port in LEGACY_TARGETS \
+        and (LEGACY_TARGETS[port] is None or u.port in LEGACY_TARGETS[port])
+
+
 def host_actions(status: dict[str, Any], dns_name: str, wanted: dict[int, tuple[str, int]]) -> list[dict[str, Any]]:
     """Compares `tailscale serve status --json` with what we want on the host."""
     web = status.get("Web") or {}
@@ -58,6 +70,10 @@ def host_actions(status: dict[str, Any], dns_name: str, wanted: dict[int, tuple[
                                              f"tailscale funnel --https={port} off")
         elif current == target:
             item.update(state="ok")
+        elif current and _ours_stale(port, current):
+            # same service, stale local port (e.g. dashboard moved 8787 → 8790): re-point it
+            item.update(state="wrong_target", note=f"points to {current}, should be {target}",
+                        cmds=[["serve", f"--https={port}", "off"], ["serve", "--bg", f"--https={port}", target]])
         elif current:
             item.update(state="conflict", note=f"port {port} already proxies to {current}; left untouched")
         else:
@@ -97,7 +113,7 @@ def describe(i: dict[str, Any]) -> str:
     else:
         extra = "" if i["dns"] is None else f" (public DNS {'ok' if i['dns'] else 'NO'}, /mcp→401 {'ok' if i['mcp'] else 'NO'})"
         base = f"{i['what']:12} Funnel via {i['services'][0]}{extra}"
-    tail = {"ok": "ok", "missing": "MISSING", "unreachable": "UNREACHABLE", "conflict": "CONFLICT",
+    tail = {"ok": "ok", "missing": "MISSING", "unreachable": "UNREACHABLE", "conflict": "CONFLICT", "wrong_target": "WRONG PORT",
             "danger": "DANGER"}[i["state"]]
     return f"[{tail:11}] {base}" + (f" — {i['note']}" if i.get("note") else "")
 
@@ -179,11 +195,12 @@ def main(argv: list[str] | None = None) -> int:
             for i in items:
                 print(describe(i))
             raise SystemExit("Funnel is on for the host: fix that first (nothing changed)")
-        todo = [i for i in items if i["state"] in ("missing", "unreachable")]
+        todo = [i for i in items if i["state"] in ("missing", "unreachable", "wrong_target")]
         for i in todo:
             if i["kind"] == "host":
-                cmd = [ts, *i["cmd"]]
-                subprocess.run(cmd, check=True, timeout=60, capture_output=True)
+                for c in i.get("cmds") or [i["cmd"]]:
+                    cmd = [ts, *c]
+                    subprocess.run(cmd, check=True, timeout=60, capture_output=True)
             else:
                 cmd = ["docker", "compose", *i["cmd"]]
                 subprocess.run(cmd, cwd=ROOT, check=True, timeout=600)
@@ -197,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         for i in items:
             print(describe(i))
-        if not args.apply and any(i["state"] in ("missing", "unreachable") for i in items):
+        if not args.apply and any(i["state"] in ("missing", "unreachable", "wrong_target") for i in items):
             print("\nplan only: re-run with --apply to do the missing steps")
     ok = summary(items)
     return 0 if ok or not (args.check or args.apply) else 1

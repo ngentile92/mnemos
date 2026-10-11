@@ -46,3 +46,12 @@ def test_hubs():
     un = mx.hub_actions(["a"], running, {"a": {"dns": False, "mcp": True}})[0]
     assert un["state"] == "unreachable" and "--force-recreate" in un["cmd"]
     assert mx.summary([items["hub-a"]]) and not mx.summary(list(items.values()))
+
+
+def test_stale_local_target_is_fixed_not_conflict():
+    st = {"Web": {f"{DNS}:8444": {"Handlers": {"/": {"Proxy": "http://127.0.0.1:8787"}}}}}
+    i = mx.host_actions(st, DNS, {8444: ("dashboard", 8790)})[0]
+    assert i["state"] == "wrong_target" and i["cmds"][0] == ["serve", "--https=8444", "off"]
+    assert i["cmds"][1][-1] == "http://127.0.0.1:8790" and "WRONG PORT" in mx.describe(i)
+    st["Web"][f"{DNS}:8444"]["Handlers"]["/"]["Proxy"] = "https://other.example"
+    assert mx.host_actions(st, DNS, {8444: ("dashboard", 8790)})[0]["state"] == "conflict"

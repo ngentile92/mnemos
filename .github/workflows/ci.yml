@@ -65,3 +65,21 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.28.0 \
             git /repo --redact --verbose --exit-code 1
+
+  mcpb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - uses: astral-sh/setup-uv@v6
+      - name: build the Claude Desktop bundle (pinned to this commit)
+        run: scripts/build_mcpb.sh "${{ github.event.pull_request.head.sha || github.sha }}"
+      - name: launch it like Claude Desktop does and call the tools over stdio
+        run: |
+          mkdir /tmp/mx && cd /tmp/mx && unzip -q "$GITHUB_WORKSPACE/dist/mnemos.mcpb"
+          python3 -m venv /tmp/probe && /tmp/probe/bin/pip install -q fastmcp
+          sed -e 's#/tmp/mx-home#/tmp/mxh#; s#/tmp/mx-uvcache#/tmp/mxc#' "$GITHUB_WORKSPACE/scripts/mcpb_probe.py" > /tmp/probe.py
+          /tmp/probe/bin/python /tmp/probe.py | tee /tmp/out.txt
+          grep -q "search hits 1" /tmp/out.txt
+

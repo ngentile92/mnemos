@@ -1,0 +1,9 @@
+[project]
+name = "mnemos-mcpb"
+version = "0.1.0"
+requires-python = ">=3.11"
+# pinned to a commit by scripts/build_mcpb.sh (MNEMOS_REF), so the bundle is reproducible
+dependencies = ["mnemos-hub @ git+https://github.com/ngentile92/mnemos@main#subdirectory=gateway"]
+
+[tool.uv]
+package = false

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/mcpb/main/schemas/mcpb-manifest-v0.4.schema.json",
+  "manifest_version": "0.4",
+  "name": "mnemos",
+  "display_name": "Mnemos (local memory)",
+  "version": "0.1.0",
+  "description": "Your memory and skills for Claude, stored on this computer, one context at a time.",
+  "long_description": "Runs Mnemos in local mode: notes in SQLite under your Mnemos folder, no Docker, no account. Each install of this extension serves one context (e.g. personal); other contexts are not visible to it.",
+  "author": { "name": "Mnemos" },
+  "homepage": "https://github.com/ngentile92/mnemos",
+  "license": "MIT",
+  "server": {
+    "type": "uv",
+    "entry_point": "src/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "src/server.py"],
+      "env": {
+        "MNEMOS_HOME": "${user_config.home}",
+        "MNEMOS_CONTEXT": "${user_config.context}"
+      }
+    }
+  },
+  "user_config": {
+    "home": {
+      "type": "directory",
+      "title": "Mnemos folder",
+      "description": "Where your notes and skills live (created if empty).",
+      "default": "${HOME}/Mnemos",
+      "required": true
+    },
+    "context": {
+      "type": "string",
+      "title": "Context",
+      "description": "Which context Claude uses here (e.g. personal, work).",
+      "default": "personal",
+      "required": true
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32"],
+    "runtimes": { "python": ">=3.11" }
+  }
+}

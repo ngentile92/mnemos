@@ -30,3 +30,4 @@ config/*.bak-*
 
 # local skills folder (SKILLS_DIR); your own content
 skills-local/
+dist/

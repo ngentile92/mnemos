@@ -211,7 +211,8 @@ def build_server(
         return _apply_flags(found)[:top_k]
 
     def _apply_flags(found: list[dict[str, Any]], keep_obsolete: bool = False) -> list[dict[str, Any]]:
-        """Pinned notes first; notes marked obsolete are left out of search/answers."""
+        """Pinned notes first; facts outside their validity dates last (kept, marked); obsolete left out."""
+        from .ledger import validity_state
         flags = safe(ledger.flags, [str(r.get("id") or "") for r in found]) or {}
         out = []
         for r in found:
@@ -220,8 +221,14 @@ def build_server(
                 continue
             if f.get("pinned"):
                 r = {**r, "pinned": True}
+            for k in ("valid_from", "valid_until"):
+                if f.get(k):
+                    r = {**r, k: f[k]}
+            v = validity_state(f.get("valid_from"), f.get("valid_until"))
+            if v:
+                r = {**r, "validity": v}
             out.append(r)
-        return sorted(out, key=lambda r: not r.get("pinned"))
+        return sorted(out, key=lambda r: (not r.get("pinned"), bool(r.get("validity"))))
 
     @mcp.tool(annotations={**READ_ONLY, "title": "Buscar en memoria"})
     async def memory_search(
@@ -276,6 +283,10 @@ def build_server(
         try:
             sc = scope()
             notes = await _local_search(sc, question, include_shared, project, 8, "hybrid")
+            # tell the model which facts are no longer (or not yet) true, so it answers in the right tense
+            notes = [{**n, "text": (f"[YA NO VIGENTE desde {n.get('valid_until')}] " if n.get("validity") == "expired"
+                                    else f"[VIGENTE RECIÉN desde {n.get('valid_from')}] " if n.get("validity") == "future"
+                                    else "") + str(n.get("text", ""))} for n in notes]
             out = await answerer.answer(question, notes)
         except MemoryError_ as exc:
             audit.log("memory_answer", login, "rejected", reason=str(exc))
@@ -412,6 +423,10 @@ def build_server(
                         it["source_app"] = it["source_app"] or prov["source_app"]
                         it["pinned"] = bool(prov.get("pinned"))
                         it["obsolete"] = bool(prov.get("obsolete"))
+                        from .ledger import validity_state
+                        v = validity_state(prov.get("valid_from"), prov.get("valid_until"))
+                        if v:
+                            it["validity"] = v
                     sy = _syncing.get(str(d.get("id")))
                     if sy:
                         text = sy["text"]
@@ -684,6 +699,35 @@ def build_server(
         """Marca una nota propia como obsoleta: queda guardada (memory_list la muestra) pero memory_search y
         memory_answer dejan de usarla. Reversible con obsolete=false. Preferí esto a borrar si es historia."""
         return await _flag("memory_mark_obsolete", id, obsolete=obsolete, reason=reason)
+
+    @mcp.tool(annotations={"title": "Desde/hasta cuándo vale una nota", "readOnlyHint": False,
+                           "destructiveHint": False, "openWorldHint": False})
+    async def memory_set_validity(
+        id: Annotated[str, Field(description="id (UUID) de la nota")],
+        valid_from: Annotated[str | None, Field(description="Desde cuándo es cierto (AAAA-MM-DD); '' borra",
+                                                max_length=10)] = None,
+        valid_until: Annotated[str | None, Field(description="Hasta cuándo fue cierto (AAAA-MM-DD); '' borra",
+                                                 max_length=10)] = None,
+    ) -> dict[str, Any]:
+        """Validez temporal de un hecho ('desde cuándo es así'). Una nota con valid_until pasado sigue guardada
+        pero memory_search la pone al final (validity=expired) y memory_answer la trata como pasada.
+        Omití un campo para no tocarlo; '' lo borra. No cambia el texto."""
+        import datetime as _dt
+        kw: dict[str, Any] = {}
+        for k, v in (("valid_from", valid_from), ("valid_until", valid_until)):
+            if v is None:
+                continue
+            if v:
+                try:
+                    _dt.date.fromisoformat(v)
+                except ValueError:
+                    raise ToolError(f"{k}: usá AAAA-MM-DD") from None
+            kw[k] = v
+        if not kw:
+            raise ToolError("pasá valid_from y/o valid_until")
+        if kw.get("valid_from") and kw.get("valid_until") and kw["valid_from"] > kw["valid_until"]:
+            raise ToolError("valid_from es posterior a valid_until")
+        return await _flag("memory_set_validity", id, **kw)
 
     @mcp.tool(annotations={**READ_ONLY, "title": "Esto no es así: proponer correcciones"})
     async def memory_dispute(

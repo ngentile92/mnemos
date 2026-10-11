@@ -19,6 +19,8 @@ import sqlite3
 import threading
 from typing import Any
 
+UNSET: Any = object()  # 'argument not given' (None means clear)
+
 log = logging.getLogger("hub.ledger")
 
 SCHEMA = """
@@ -81,6 +83,9 @@ class Ledger:
         if "obsolete_at" not in cols:
             c.execute("ALTER TABLE notes ADD COLUMN obsolete_at TEXT")
             c.execute("ALTER TABLE notes ADD COLUMN obsolete_reason TEXT")
+        if "valid_from" not in cols:
+            c.execute("ALTER TABLE notes ADD COLUMN valid_from TEXT")   # ISO date: true since
+            c.execute("ALTER TABLE notes ADD COLUMN valid_until TEXT")  # ISO date: no longer true after
         c.executescript(HISTORY_SCHEMA)
 
     def _conn(self) -> sqlite3.Connection:
@@ -90,9 +95,14 @@ class Ledger:
 
     # ------------------------------------------------------------------ flags (pin / obsolete)
     def set_flags(self, data_id: str, *, by: str | None, pinned: bool | None = None,
-                  obsolete: bool | None = None, reason: str | None = None) -> bool:
-        """Pin/unpin or mark/unmark obsolete. False if the note is not in the registry."""
+                  obsolete: bool | None = None, reason: str | None = None,
+                  valid_from: str | None = UNSET, valid_until: str | None = UNSET) -> bool:  # type: ignore[assignment]
+        """Pin/unpin, mark/unmark obsolete, set validity dates ("" or None clears). False if not registered."""
         sets, args = ["updated_by=?"], [by]
+        for col, val in (("valid_from", valid_from), ("valid_until", valid_until)):
+            if val is not UNSET:
+                sets.append(f"{col}=?")
+                args.append(val or None)
         if pinned is not None:
             sets.append("pinned=?")
             args.append(1 if pinned else 0)
@@ -110,9 +120,11 @@ class Ledger:
             return {}
         with self._lock, self._conn() as c:
             q = ",".join("?" * len(ids))
-            rows = c.execute(f"SELECT data_id, pinned, obsolete_at FROM notes WHERE data_id IN ({q})"
-                             " AND (pinned=1 OR obsolete_at IS NOT NULL)", ids).fetchall()
-        return {r["data_id"]: {"pinned": bool(r["pinned"]), "obsolete": r["obsolete_at"] is not None} for r in rows}
+            rows = c.execute(f"SELECT data_id, pinned, obsolete_at, valid_from, valid_until FROM notes WHERE data_id IN ({q})"
+                             " AND (pinned=1 OR obsolete_at IS NOT NULL OR valid_from IS NOT NULL OR valid_until IS NOT NULL)",
+                             ids).fetchall()
+        return {r["data_id"]: {"pinned": bool(r["pinned"]), "obsolete": r["obsolete_at"] is not None,
+                               "valid_from": r["valid_from"], "valid_until": r["valid_until"]} for r in rows}
 
     # ------------------------------------------------------------------ provenance
     def record_save(self, *, dataset: str, text: str, context: str, source_app: str | None,
@@ -228,6 +240,17 @@ class Ledger:
                       " updated_by=? WHERE rowid=?", (new_data_id, prev, text_hash(text), now(), by, row["rid"]))
 
 
+def validity_state(valid_from: str | None, valid_until: str | None, today: str | None = None) -> str | None:
+    """'expired' (valid_until in the past), 'future' (valid_from ahead) or None (valid now / no dates)."""
+    import datetime as _dt
+    t = today or _dt.date.today().isoformat()
+    if valid_until and valid_until < t:
+        return "expired"
+    if valid_from and valid_from > t:
+        return "future"
+    return None
+
+
 def _public(row: sqlite3.Row) -> dict[str, Any]:
     return {
         "source_app": row["source_app"],
@@ -238,6 +261,8 @@ def _public(row: sqlite3.Row) -> dict[str, Any]:
         "updated_by": row["updated_by"],
         **({"promoted_from": json.loads(row["origin"])} if "origin" in row.keys() and row["origin"] else {}),
         **({"pinned": True} if "pinned" in row.keys() and row["pinned"] else {}),
+        **({"valid_from": row["valid_from"]} if "valid_from" in row.keys() and row["valid_from"] else {}),
+        **({"valid_until": row["valid_until"]} if "valid_until" in row.keys() and row["valid_until"] else {}),
         **({"obsolete": {"at": row["obsolete_at"], "reason": row["obsolete_reason"]}}
            if "obsolete_at" in row.keys() and row["obsolete_at"] else {}),
     }

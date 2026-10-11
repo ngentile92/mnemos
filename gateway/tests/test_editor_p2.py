@@ -120,3 +120,30 @@ async def test_history_falls_back_for_old_notes(make_server):  # noqa: F811
     async with Client(server) as c:
         h = data(await c.call_tool("memory_history", {"id": PID}))
     assert h["previous_versions"] == [] and "cognee" in h["provenance"]["source"]
+
+
+async def test_validity_deprioritizes_expired(make_server):  # noqa: F811
+    server, rec = make_server("personal")
+    async with Client(server) as c:
+        await c.call_tool("memory_set_validity", {"id": PID, "valid_from": "2024-01-01", "valid_until": "2025-06-30"})
+        hit = next(r for r in await search(c) if r.get("id") == PID)
+        assert hit["validity"] == "expired" and hit["valid_until"] == "2025-06-30"
+        res = await search(c)
+        assert res[-1]["id"] == PID or len(res) == 1  # still returned, but last
+        items = {i["id"]: i for i in data(await c.call_tool("memory_list", {}))["items"]}
+        assert items[PID]["validity"] == "expired" and items[PID]["provenance"]["valid_from"] == "2024-01-01"
+        await c.call_tool("memory_set_validity", {"id": PID, "valid_until": ""})
+        hit = next(r for r in await search(c) if r.get("id") == PID)
+        assert "validity" not in hit and hit["valid_from"] == "2024-01-01"
+        for bad in ({"id": PID, "valid_from": "ayer"}, {"id": PID},
+                    {"id": PID, "valid_from": "2026-01-02", "valid_until": "2026-01-01"}):
+            with pytest.raises(ToolError):
+                await c.call_tool("memory_set_validity", bad)
+        assert rec.texts.get(PID, "nota de personal sobre orion") == "nota de personal sobre orion"
+
+
+def test_validity_state():
+    from hub_gateway.ledger import validity_state
+    assert validity_state(None, "2026-01-01", "2026-02-01") == "expired"
+    assert validity_state("2026-03-01", None, "2026-02-01") == "future"
+    assert validity_state("2026-01-01", "2026-12-31", "2026-02-01") is None

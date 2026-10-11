@@ -70,3 +70,22 @@ sends the new node sets (Cognee then does a full rebuild of that note).
   assistant (or the dashboard **Memory** tab, "This isn't right" box) applies only what the user confirms.
 
 Flags live in the ledger (`ledger.sqlite`), never in Cognee.
+
+## Cleanup inbox, move, promote (phase 3)
+
+The Memory tab shows a **Cleanup inbox** built from the latest nightly hygiene report
+(`~/mnemos-hygiene/hygiene-*.json`, or `MNEMOS_HYGIENE_DIR`): near-duplicates to merge, notes that disagree
+(when the report ran with `--llm`) and notes that look out of date. Each item is accepted or dismissed on its own;
+accepting runs `memory_update` / `memory_delete` / `memory_mark_obsolete`, so it is versioned and undoable.
+Decisions are kept in `dev/state/hygiene-inbox.json`.
+
+**Move…** copies a note to another context (tag `moved-from-<ctx>`, origin dashboard) and then forgets it in the
+source (undo there). **Promote to shared…** calls `memory_promote` with `confirm=true`. Both ask for explicit
+confirmation.
+
+## Validity dates (phase 4)
+
+`memory_set_validity(id, valid_from, valid_until)` records since when a fact is true and until when it was
+(ISO dates, `''` clears). Expired facts (valid_until in the past) stay saved but `memory_search` puts them last
+with `validity: "expired"`, and `memory_answer` tells the model they are past. The note panel shows
+"True: since … · until …" with a date editor.

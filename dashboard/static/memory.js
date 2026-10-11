@@ -40,6 +40,8 @@
   }
   const badges = (it) => [
     it.pinned && '<span class="badge pin">📌 pinned</span>', it.obsolete && '<span class="badge obs">obsolete</span>',
+    it.validity === "expired" && `<span class="badge obs" title="no longer true after ${esc(it.provenance?.valid_until || "")}">expired</span>`,
+    it.validity === "future" && `<span class="badge proc" title="true from ${esc(it.provenance?.valid_from || "")}">not yet</span>`,
     it.sync === "processing" && '<span class="badge proc"><span class="spin"></span>processing</span>',
     it.sync === "error" && '<span class="badge obs">sync error</span>', !it.editable && '<span class="badge ro">shared · read-only</span>',
   ].filter(Boolean).join("");
@@ -121,6 +123,7 @@
       <dl class="me-meta"><dt>Dataset</dt><dd>${esc(it.dataset)}</dd>
         <dt>Saved</dt><dd>${esc(when(p.saved_at || it.created_at))} · ${esc(p.source_app || it.source_app || "unknown app")}</dd>
         ${p.updated_at ? `<dt>Last change</dt><dd>${esc(when(p.updated_at))} · ${esc(p.updated_by || "")}</dd>` : ""}
+        <dt>True</dt><dd id="me-valid">${validText(p)} ${it.editable ? '<button class="mbtn sm" id="me-valid-edit">Set dates…</button>' : ""}</dd>
         ${p.obsolete ? `<dt>Obsolete</dt><dd>${esc(when(p.obsolete.at))} ${esc(p.obsolete.reason || "")}</dd>` : ""}
         <dt>id</dt><dd class="small muted">${esc(it.id)}</dd></dl>
       <h2 style="margin-top:14px">History</h2><div id="me-hist" class="me-hist small muted"><span class="spin"></span></div>`;
@@ -135,6 +138,7 @@
       };
       $("me-undo").onclick = () => doUndo(it.id);
       $("me-move").onclick = () => moveMode(it);
+      $("me-valid-edit").onclick = () => validMode(it);
       $("me-promote").onclick = () => promoteMode(it);
       $("me-forget").onclick = (e) => confirm("Forget this note? You can undo it.") && act(e.target, "/api/memory/delete", { id: it.id }, "Forgotten", it.id);
     }
@@ -176,6 +180,22 @@
       e.target.disabled = true; e.target.innerHTML = `<span class="spin"></span>${esc(label)}…`;
       try { await run(); } catch (err) { toast("Not done: " + err.message); show(it, false); }
     };
+  }
+  function validText(p) {
+    const f = p.valid_from, u = p.valid_until;
+    if (!f && !u) return '<span class="muted">no dates (always)</span>';
+    const today = new Date().toISOString().slice(0, 10);
+    const st = u && u < today ? ' <span class="badge obs">expired</span>' : f && f > today ? ' <span class="badge proc">not yet</span>' : ' <span class="badge ok">current</span>';
+    return `${f ? "since " + esc(f) : "until"}${f && u ? " · until " : " "}${u ? esc(u) : ""}${st}`;
+  }
+  function validMode(it) {
+    const p = it.provenance || {};
+    $("me-valid").innerHTML = `<div class="me-row"><label class="small">since <input type="date" id="me-vf" value="${esc(p.valid_from || "")}"></label>
+      <label class="small">until <input type="date" id="me-vu" value="${esc(p.valid_until || "")}"></label>
+      <button class="mbtn primary sm" id="me-vsave">Save</button><button class="mbtn sm" id="me-vcancel">Cancel</button></div>
+      <div class="small muted">Leave “until” empty while it is still true. Expired facts stay saved but go last in searches and answers treat them as past.</div>`;
+    $("me-vcancel").onclick = () => show(it, false);
+    $("me-vsave").onclick = (e) => act(e.target, "/api/memory/validity", { id: it.id, valid_from: $("me-vf").value, valid_until: $("me-vu").value }, "Dates saved ✓");
   }
   function moveMode(it) {
     const others = CTXS.filter((c) => c !== ctx());

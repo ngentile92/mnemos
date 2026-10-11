@@ -19,7 +19,7 @@ _UUID = re.compile(r"^[0-9a-fA-F-]{36}$")
 TOOLS = {"list": "memory_list", "history": "memory_history", "update": "memory_update",
          "delete": "memory_delete", "undo": "memory_undo", "pin": "memory_pin",
          "obsolete": "memory_mark_obsolete", "dispute": "memory_dispute", "save": "memory_save", "related": "memory_search",
-         "promote": "memory_promote"}
+         "promote": "memory_promote", "validity": "memory_set_validity"}
 
 
 class MemoryEditorOff(Exception):
@@ -127,6 +127,13 @@ def run(root: Path, env: dict[str, str], contexts: list[str], action: str, body:
                 raise ValueError("text must be 3-20000 characters")
             args["text"] = text
             args["background"] = True
+        elif action == "validity":
+            for k in ("valid_from", "valid_until"):
+                if k in body and body[k] is not None:
+                    v = str(body[k])[:10]
+                    if v and not re.match(r"^\d{4}-\d{2}-\d{2}$", v):
+                        raise ValueError(f"{k}: use YYYY-MM-DD")
+                    args[k] = v
         elif action == "promote":
             if body.get("confirm") is not True:
                 raise ValueError("promote needs explicit confirmation")

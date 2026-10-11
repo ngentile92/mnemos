@@ -642,6 +642,7 @@ POST_ROUTES: dict = {"/api/contexts/add": add_context, "/api/router/revoke": rou
                      "/api/router/unlock": router_unlock,
                      "/api/hygiene/act": hygiene_act, "/api/memory/move": memory_move,
                      "/api/memory/promote": lambda b: memory_action("promote", b),
+                     "/api/memory/validity": lambda b: memory_action("validity", b),
                      "/api/memory/update": lambda b: memory_action("update", b),
                      "/api/memory/delete": lambda b: memory_action("delete", b),
                      "/api/memory/undo": lambda b: memory_action("undo", b),

@@ -139,3 +139,13 @@ def test_related_search_via_dashboard(dash):
     r = httpx.get(f"{base}/api/memory/related", params={"context": "personal", "q": "orion"}, timeout=60)
     assert r.status_code == 200 and any(x.get("id") == NOTE_IDS["personal"] for x in r.json()["results"])
     assert httpx.get(f"{base}/api/memory/related", params={"context": "personal", "q": "x"}, timeout=30).status_code == 400
+
+
+def test_validity_via_dashboard(dash):
+    base, _, _ = dash
+    nid = NOTE_IDS["personal"]
+    r = post(base, "/api/memory/validity", {"context": "personal", "id": nid, "valid_from": "2024-01-01", "valid_until": "2025-01-01"})
+    assert r.status_code == 200, r.text
+    it = next(i for i in httpx.get(f"{base}/api/memory/list", params={"context": "personal"}, timeout=60).json()["items"] if i["id"] == nid)
+    assert it["validity"] == "expired" and it["provenance"]["valid_until"] == "2025-01-01"
+    assert post(base, "/api/memory/validity", {"context": "personal", "id": nid, "valid_from": "01/02/2024"}).status_code == 400

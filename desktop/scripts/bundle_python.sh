@@ -4,7 +4,7 @@
 # Usage: desktop/scripts/bundle_python.sh [path-to-gateway]   (run from anywhere; macOS arm64 or x86_64)
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
-gateway="${1:-$here/../gateway}"
+gateway="$(cd "${1:-$here/../gateway}" && pwd)"
 PBS_TAG="${PBS_TAG:-20251014}"
 PY_VER="${PY_VER:-3.12.12}"
 case "$(uname -m)" in arm64|aarch64) arch=aarch64 ;; *) arch=x86_64 ;; esac

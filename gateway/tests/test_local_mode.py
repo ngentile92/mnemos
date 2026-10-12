@@ -82,6 +82,9 @@ def test_http_needs_token_and_local_host(home):
     base, tok = f"http://127.0.0.1:{port}", (home / "token").read_text()
     try:
         assert httpx.get(f"{base}/health").status_code == 401
+        b = httpx.get(f"{base}/work/mcp", headers={"Accept": "text/html,*/*"})
+        assert b.status_code == 401 and "not for your browser" in b.text and tok not in b.text
+        assert "not web pages" in httpx.get(f"{base}/").text
         assert httpx.get(f"{base}/health", headers={"Authorization": f"Bearer {tok}", "Host": "evil.example"}).status_code == 403
         assert httpx.get(f"{base}/health", headers={"Authorization": f"Bearer {tok}"}).json()["mode"] == "local"
         r = httpx.post(f"{base}/personal/mcp", headers={"Authorization": f"Bearer {tok}", "Accept": "application/json, text/event-stream",

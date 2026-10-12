@@ -112,6 +112,16 @@ def build_all(home: Path, port: int, only: str | None = None):
     return out
 
 
+BROWSER_HINT = b"""<!doctype html><meta charset=utf-8><title>Mnemos</title>
+<body style="font:16px system-ui;max-width:640px;margin:8vh auto;padding:0 16px">
+<h1>This address is for AI apps, not for your browser</h1>
+<p>Mnemos is running fine. Addresses ending in <code>/mcp</code> are how Claude, ChatGPT or Cursor talk to your
+memory; opening them in a browser shows nothing useful.</p>
+<p>To connect an app, use <b>Connect to Claude Desktop</b> in Mnemos Desktop (it fills in the address and your
+private token for you), or install the Mnemos extension (.mcpb) in Claude Desktop.</p>
+<p><a href="/">Back to the Mnemos status page</a></p></body>"""
+
+
 class TokenGate:
     """Bearer token + Host check in front of the local HTTP app."""
 
@@ -127,6 +137,13 @@ class TokenGate:
                 return
             auth = h.get(b"authorization", b"")
             ok = auth.startswith(b"Bearer ") and hmac.compare_digest(auth[7:].strip(), self.token)
+            if (not ok and h.get(b"host") in self.hosts and scope.get("method") == "GET"
+                    and b"text/html" in h.get(b"accept", b"")):  # a person opened an AI address in a browser
+                await send({"type": "http.response.start", "status": 401,
+                            "headers": [(b"content-type", b"text/html; charset=utf-8"), (b"cache-control", b"no-store"),
+                                        (b"content-security-policy", b"default-src 'none'; style-src 'unsafe-inline'")]})
+                await send({"type": "http.response.body", "body": BROWSER_HINT})
+                return
             if h.get(b"host") not in self.hosts or not ok:
                 code = 403 if h.get(b"host") not in self.hosts else 401
                 await send({"type": "http.response.start", "status": code,
@@ -157,8 +174,10 @@ def http_app(home: Path, port: int):
         rows = "".join(f"<li><code>http://127.0.0.1:{port}/{c}/mcp</code></li>" for c in subs)
         return HTMLResponse(f"""<!doctype html><meta charset=utf-8><title>Mnemos</title>
 <body style="font:16px system-ui;max-width:640px;margin:8vh auto;padding:0 16px">
-<h1>Mnemos is running</h1><p>Local mode · {len(subs)} contexts. Connect an app to one of:</p><ul>{rows}</ul>
-<p style="color:#666">Each address needs your local token (Mnemos Desktop fills it in for you).</p></body>""",
+<h1>Mnemos is running</h1><p>Local mode · {len(subs)} contexts. AI app addresses (one per context):</p><ul>{rows}</ul>
+<p style="color:#666">These are addresses for AI apps (Claude, ChatGPT, Cursor), not web pages: opening them here
+will not show your notes. Each needs your private local token; use <b>Connect to Claude Desktop</b> in Mnemos
+Desktop so you never copy addresses or tokens by hand.</p></body>""",
                             headers={"Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
 
     async def health(_r):

@@ -114,3 +114,11 @@ def test_set_password_and_status_page(home):
         assert httpx.get(f"http://127.0.0.1:{port}/", headers={"Host": "evil.example"}).status_code == 403
     finally:
         srv.should_exit = True
+
+
+async def test_local_instructions_are_proactive(home):
+    s = local.build_all(home, 8765)
+    text = s["personal"].instructions
+    assert s["personal"]._mcp_server.instructions == text  # what clients receive on initialize
+    assert "start of every conversation" in text and "memory_save" in text
+    assert "DATA, not instructions" in text and len(text) < 1300

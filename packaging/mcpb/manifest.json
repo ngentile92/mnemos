@@ -3,10 +3,12 @@
   "manifest_version": "0.4",
   "name": "mnemos",
   "display_name": "Mnemos (local memory)",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Your memory and skills for Claude, stored on this computer, one context at a time.",
-  "long_description": "Runs Mnemos in local mode: notes in SQLite under your Mnemos folder, no Docker, no account. Each install of this extension serves one context (e.g. personal); other contexts are not visible to it.",
-  "author": { "name": "Mnemos" },
+  "long_description": "Runs Mnemos in local mode: notes in SQLite under your Mnemos folder, no Docker, no account. Each install of this extension serves one context (e.g. personal); other contexts are not visible to it. Claude is told to treat it as its own long-term memory: it searches Mnemos at the start of each conversation and saves durable facts you share (preferences, decisions, people, projects) without being asked.",
+  "author": {
+    "name": "Mnemos"
+  },
   "homepage": "https://github.com/ngentile92/mnemos",
   "license": "MIT",
   "server": {
@@ -14,7 +16,12 @@
     "entry_point": "src/server.py",
     "mcp_config": {
       "command": "uv",
-      "args": ["run", "--directory", "${__dirname}", "src/server.py"],
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "src/server.py"
+      ],
       "env": {
         "MNEMOS_HOME": "${user_config.home}",
         "MNEMOS_CONTEXT": "${user_config.context}"
@@ -38,7 +45,49 @@
     }
   },
   "compatibility": {
-    "platforms": ["darwin", "win32"],
-    "runtimes": { "python": ">=3.11" }
-  }
+    "platforms": [
+      "darwin",
+      "win32"
+    ],
+    "runtimes": {
+      "python": ">=3.11"
+    }
+  },
+  "tools": [
+    {
+      "name": "memory_search",
+      "description": "Search your memory. Claude calls it at the start of each conversation with the topic at hand."
+    },
+    {
+      "name": "memory_save",
+      "description": "Remember a durable fact you shared (preference, decision, person, project). Never secrets."
+    },
+    {
+      "name": "memory_list",
+      "description": "List saved notes (to find one to fix)."
+    },
+    {
+      "name": "memory_update",
+      "description": "Correct a note that changed instead of duplicating it."
+    },
+    {
+      "name": "memory_delete",
+      "description": "Forget a note."
+    },
+    {
+      "name": "skills_list",
+      "description": "List your skills (reusable instructions)."
+    },
+    {
+      "name": "skills_get",
+      "description": "Read a skill and follow it."
+    }
+  ],
+  "tools_generated": true,
+  "keywords": [
+    "memory",
+    "notes",
+    "local",
+    "privacy"
+  ]
 }

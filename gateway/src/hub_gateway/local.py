@@ -88,6 +88,7 @@ def build_all(home: Path, port: int, only: str | None = None):
     from .app import build_server
     from .config import Settings
     from .contexts import ALL_DATASET_NAMES, CONTEXTS
+    from .instructions import local_instructions
     from .localstore import LocalNoteStore, dataset_id
     from .memory import DatasetMap, MemoryScope
     from .secrets import SecretBroker
@@ -109,6 +110,7 @@ def build_all(home: Path, port: int, only: str | None = None):
                       host="127.0.0.1", port=port, auth_provider="local")
         store = LocalNoteStore(home / "data" / "notes", MemoryScope(spec, dmap).allowed_ids(), names)
         out[name] = build_server(st, cognee=store, datasets=dmap, broker=SecretBroker({}, None))
+        out[name].instructions = local_instructions(spec)  # proactive: this is the user's own memory
     return out
 
 

@@ -92,12 +92,46 @@ jobs:
         with: { workspaces: desktop/src-tauri }
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
-      - name: build unsigned macOS app (no Apple signing yet)
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: bundle a relocatable Python with mnemos-hub preinstalled (no uv needed by users)
+        run: desktop/scripts/bundle_python.sh gateway
+      - name: build unsigned macOS app + dmg (no Apple signing yet)
         working-directory: desktop
-        run: npx -y @tauri-apps/cli@2 build --bundles app
+        run: npx -y @tauri-apps/cli@2 build --bundles app,dmg --config src-tauri/tauri.bundle.conf.json
+      - name: smoke test the packaged app without uv or Python on PATH
+        run: |
+          set -x
+          APP=desktop/src-tauri/target/release/bundle/macos/Mnemos.app
+          PY="$APP/Contents/Resources/python/bin/python3"
+          test -x "$PY"
+          for u in $(which -a uv 2>/dev/null); do sudo rm -f "$u"; done
+          rm -f ~/.local/bin/uv ~/.cargo/bin/uv
+          export HOME_T="$RUNNER_TEMP/mnemos-home"
+          env -i HOME="$HOME" PATH=/usr/bin:/bin "$PY" -I -m hub_gateway.local init --home "$HOME_T" --contexts personal,work
+          # launch the real app binary; MNEMOS_AUTOSTART makes it start the hub with its bundled runtime
+          env -i HOME="$HOME" PATH=/usr/bin:/bin MNEMOS_HOME="$HOME_T" MNEMOS_AUTOSTART=1 \
+            "$(ls -d "$APP"/Contents/MacOS/* | head -1)" > "$RUNNER_TEMP/app.log" 2>&1 &
+          for i in $(seq 1 60); do curl -fs http://127.0.0.1:8765/ | grep -q "Mnemos is running" && break; sleep 2; done
+          curl -fs http://127.0.0.1:8765/ | grep "Mnemos is running"
+          ps aux | grep -v grep | grep "Resources/python/bin/python3 -I -m hub_gateway.local serve"
+          TOK=$(cat "$HOME_T/token")
+          curl -fs -X POST http://127.0.0.1:8765/personal/mcp -H "Authorization: Bearer $TOK" \
+            -H "Accept: application/json, text/event-stream" -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
+            | grep serverInfo
+          cat "$HOME_T/hub.log" "$RUNNER_TEMP/app.log" || true
+          pkill -f "Mnemos.app/Contents/MacOS" || true
+      - name: package artifact (zip keeps the .app bundle intact)
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent desktop/src-tauri/target/release/bundle/macos/Mnemos.app dist/Mnemos-macos-unsigned.app.zip
+          cp desktop/src-tauri/target/release/bundle/dmg/*.dmg dist/Mnemos-macos-unsigned.dmg
+          ls -lh dist
       - uses: actions/upload-artifact@v4
         with:
           name: Mnemos-macos-unsigned
-          path: desktop/src-tauri/target/release/bundle/macos/Mnemos.app
-          retention-days: 7
-
+          path: |
+            dist/Mnemos-macos-unsigned.dmg
+            dist/Mnemos-macos-unsigned.app.zip
+          retention-days: 14

@@ -7,12 +7,14 @@ use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{Manager, RunEvent, State};
 
 const PORT: u16 = 8765;
-// Phase 1 replaces this with a bundled sidecar; for the MVP the hub is installed on demand by uv.
+// Release builds ship a relocatable Python with mnemos-hub preinstalled in Resources/python
+// (desktop/scripts/bundle_python.sh, CI). Dev builds without it fall back to uv.
+static BUNDLED_PY: OnceLock<Option<PathBuf>> = OnceLock::new();
 const HUB_SPEC: &str = "mnemos-hub @ git+https://github.com/ngentile92/mnemos@main#subdirectory=gateway";
 
 struct Hub(Mutex<Option<Child>>);
@@ -25,6 +27,81 @@ struct Status {
     home: String,
     url: String,
     runtime: Option<String>,
+    contexts: Vec<String>,
+}
+
+/// Context names from contexts.yaml (the `  name:` keys under `contexts:`).
+fn contexts() -> Vec<String> {
+    let text = std::fs::read_to_string(home().join("contexts.yaml")).unwrap_or_default();
+    let mut inside = false;
+    let mut out = vec![];
+    for line in text.lines() {
+        if line.starts_with("contexts:") {
+            inside = true;
+            continue;
+        }
+        if inside && !line.is_empty() && !line.starts_with(' ') {
+            inside = false;
+        }
+        if inside && line.starts_with("  ") && !line.starts_with("   ") {
+            if let Some(name) = line.trim().strip_suffix(':') {
+                if valid_ctx(name) {
+                    out.push(name.to_string());
+                }
+            }
+        }
+    }
+    out
+}
+
+fn claude_config_path() -> PathBuf {
+    let h = PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".into()));
+    if let Ok(p) = std::env::var("MNEMOS_CLAUDE_CONFIG") {
+        return PathBuf::from(p);
+    }
+    if cfg!(target_os = "macos") {
+        h.join("Library/Application Support/Claude/claude_desktop_config.json")
+    } else if cfg!(windows) {
+        PathBuf::from(std::env::var("APPDATA").unwrap_or_default()).join("Claude/claude_desktop_config.json")
+    } else {
+        h.join(".config/Claude/claude_desktop_config.json")
+    }
+}
+
+/// Add (or replace) a `mnemos-<ctx>` stdio server in Claude Desktop's config, backing the file up first.
+/// stdio needs no URL or token: Claude Desktop launches this app's own runtime directly.
+#[tauri::command]
+fn connect_claude(context: String) -> Result<String, String> {
+    if !contexts().contains(&context) {
+        return Err(format!("unknown context: {context}"));
+    }
+    let (prog, mut args) = hub_program()?;
+    args.extend(["stdio", "--home", &home().display().to_string(), "--context", &context].map(String::from));
+    let path = claude_config_path();
+    let mut cfg: serde_json::Value = match std::fs::read_to_string(&path) {
+        Ok(t) if !t.trim().is_empty() => {
+            serde_json::from_str(&t).map_err(|e| format!("Claude config is not valid JSON ({e}); not touching it"))?
+        }
+        _ => serde_json::json!({}),
+    };
+    if !cfg.is_object() {
+        return Err("Claude config is not a JSON object; not touching it".into());
+    }
+    if path.exists() {
+        let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        std::fs::copy(&path, path.with_extension(format!("json.mnemos-backup-{stamp}"))).map_err(|e| e.to_string())?;
+    } else if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    let servers = cfg.as_object_mut().unwrap().entry("mcpServers").or_insert_with(|| serde_json::json!({}));
+    if !servers.is_object() {
+        return Err("mcpServers in the Claude config is not an object; not touching it".into());
+    }
+    servers.as_object_mut().unwrap().insert(format!("mnemos-{context}"), serde_json::json!({"command": prog, "args": args}));
+    let tmp = path.with_extension("json.mnemos-tmp");
+    std::fs::write(&tmp, serde_json::to_string_pretty(&cfg).unwrap() + "\n").map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
+    Ok(format!("Added mnemos-{context} to Claude Desktop. Quit and reopen Claude Desktop to use it."))
 }
 
 fn home() -> PathBuf {
@@ -44,20 +121,28 @@ fn find_uv() -> Option<String> {
     c.into_iter().find(|p| std::path::Path::new(p).is_file())
 }
 
+fn bundled_python() -> Option<PathBuf> {
+    BUNDLED_PY.get().cloned().flatten()
+}
+
+/// (program, args before the subcommand) to run mnemos-local: dev override, bundled Python, then uv.
+fn hub_program() -> Result<(String, Vec<String>), String> {
+    if let Ok(c) = std::env::var("MNEMOS_HUB_CMD") {
+        let mut parts = c.split_whitespace().map(String::from);
+        let prog = parts.next().ok_or("empty MNEMOS_HUB_CMD")?;
+        return Ok((prog, parts.collect()));
+    }
+    if let Some(py) = bundled_python() {
+        return Ok((py.display().to_string(), vec!["-I".into(), "-m".into(), "hub_gateway.local".into()]));
+    }
+    let uv = find_uv().ok_or("Mnemos runtime missing: reinstall Mnemos Desktop (dev builds need uv)")?;
+    Ok((uv, ["tool", "run", "--from", HUB_SPEC, "mnemos-local"].iter().map(|s| s.to_string()).collect()))
+}
+
 fn hub_command(args: &[&str]) -> Result<Command, String> {
-    // MNEMOS_HUB_CMD (dev): e.g. "/path/to/venv/bin/mnemos-local"
-    let mut cmd = if let Ok(c) = std::env::var("MNEMOS_HUB_CMD") {
-        let mut parts = c.split_whitespace();
-        let mut cmd = Command::new(parts.next().ok_or("empty MNEMOS_HUB_CMD")?);
-        cmd.args(parts);
-        cmd
-    } else {
-        let uv = find_uv().ok_or("uv not found: install it from https://docs.astral.sh/uv/ (Phase 1 bundles it)")?;
-        let mut cmd = Command::new(uv);
-        cmd.args(["tool", "run", "--from", HUB_SPEC, "mnemos-local"]);
-        cmd
-    };
-    cmd.args(args);
+    let (prog, pre) = hub_program()?;
+    let mut cmd = Command::new(prog);
+    cmd.args(pre).args(args);
     Ok(cmd)
 }
 
@@ -89,7 +174,8 @@ fn status(hub: State<Hub>) -> Status {
         healthy: healthy(),
         home: home().display().to_string(),
         url: format!("http://127.0.0.1:{PORT}/"),
-        runtime: std::env::var("MNEMOS_HUB_CMD").ok().or_else(find_uv),
+        runtime: hub_program().ok().map(|(p, _)| p),
+        contexts: contexts(),
     }
 }
 
@@ -159,7 +245,18 @@ fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Hub(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup])
+        .setup(|app| {
+            let py = app.path().resource_dir().ok().map(|r| r.join("python/bin/python3")).filter(|p| p.is_file());
+            let _ = BUNDLED_PY.set(py);
+            // MNEMOS_AUTOSTART=1: start the hub on launch (used by the CI smoke test of the packaged app)
+            if std::env::var("MNEMOS_AUTOSTART").as_deref() == Ok("1") && home().join("contexts.yaml").exists() {
+                if let Err(e) = start_hub(app.state::<Hub>()) {
+                    eprintln!("autostart failed: {e}");
+                }
+            }
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude])
         .build(tauri::generate_context!())
         .expect("error while building Mnemos Desktop");
     app.run(|handle, event| {

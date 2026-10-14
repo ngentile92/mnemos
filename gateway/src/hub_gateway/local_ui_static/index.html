@@ -19,6 +19,7 @@
     <a href="#memoria" class="tab active" data-view="memoria" role="tab">Notes</a>
     <a href="#graph" class="tab" data-view="graph" role="tab">Graph</a>
     <a href="#skills" class="tab" data-view="skills" role="tab">Skills</a>
+    <a href="#import" class="tab" data-view="import" role="tab">Import</a>
   </nav>
 </header>
 <section id="login" class="card login hidden">
@@ -71,6 +72,29 @@
     <div class="card me-listcard"><div class="card-h"><h2>Skills</h2></div><div id="s-list"></div></div>
     <div class="card me-detailcard"><div id="s-detail"><p class="muted">Pick a skill on the left.</p></div></div>
   </section>
+</main>
+<main id="view-import" class="view hidden">
+  <section class="card me-bar"><label class="small muted" style="margin:0">Import into <select id="i-ctx" aria-label="Context"></select></label>
+    <span class="muted small me-hint">Nothing is saved until you review the list and click “Save”. Duplicates are skipped.</span></section>
+  <section class="imp-grid">
+    <div class="card"><div class="card-h"><h2>From ChatGPT</h2></div>
+      <p class="small muted">ChatGPT → Settings → Data controls → Export data. You get an email with a .zip: pick that file (or the conversations.json inside). Only things you said about yourself are proposed.</p>
+      <input type="file" id="i-gpt-file" accept=".zip,.json">
+      <p class="small muted">Or paste your ChatGPT memories (Settings → Personalization → Memory → Manage):</p>
+      <textarea id="i-gpt-text" placeholder="One memory per line"></textarea>
+      <button class="mbtn primary" id="i-gpt-go">Review</button></div>
+    <div class="card"><div class="card-h"><h2>From Claude</h2></div>
+      <p class="small muted">In Claude, ask: <i>“List everything you remember about me, one fact per line.”</i> Copy the answer and paste it here.</p>
+      <textarea id="i-claude-text" placeholder="Paste Claude's answer"></textarea>
+      <button class="mbtn primary" id="i-claude-go">Review</button></div>
+    <div class="card"><div class="card-h"><h2>From a folder of notes</h2></div>
+      <p class="small muted">Markdown or text notes (Obsidian, Notes exports…). Pick the folder; each note (or each section of a long one) becomes a memory.</p>
+      <input type="file" id="i-md" webkitdirectory multiple>
+      <button class="mbtn primary" id="i-md-go">Review</button></div>
+  </section>
+  <section class="card hidden" id="i-review"><div class="card-h"><h2>Review</h2><span class="muted small" id="i-sum"></span></div>
+    <div class="me-actions"><button class="mbtn primary" id="i-save">Save selected</button><button class="mbtn" id="i-all">Select all new</button><button class="mbtn" id="i-none">Select none</button></div>
+    <div id="i-list"></div></section>
 </main>
 </div>
 <script src="/ui/vendor/cytoscape.min.js"></script>

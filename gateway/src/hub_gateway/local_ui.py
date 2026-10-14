@@ -26,6 +26,7 @@ TOOLS = {"list": "memory_list", "history": "memory_history", "update": "memory_u
          "related": "memory_search", "promote": "memory_promote", "validity": "memory_set_validity"}
 COOKIE = "mnemos_ui"
 SESSION_TTL = 12 * 3600
+MAX_UPLOAD = 300 * 1024 * 1024
 TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8"}
 CSP = ("default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; "
        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'")
@@ -229,6 +230,41 @@ class UI:
         items = r.get("skills") or r.get("items") or []
         return {"skills": [{**s, "editable": s.get("owner") == ctx} for s in items]}
 
+    async def _existing(self, ctx: str) -> list[str]:
+        items = (await self.action("list", {"context": ctx, "include_shared": False})).get("items", [])
+        return [str(i.get("text", "")) for i in items]
+
+    async def import_preview(self, ctx: str, body: dict, raw: bytes | None = None) -> dict:
+        from . import local_import as li
+        if ctx not in self.servers:
+            raise ValueError(f"unknown context {ctx!r}")
+        source = str(body.get("source", ""))
+        cands = li.chatgpt_bytes(raw) if raw is not None else li.candidates(source, body)
+        out = li.preview(cands, await self._existing(ctx))
+        return {**out, "source": source, "context": ctx}
+
+    async def import_commit(self, body: dict) -> dict:
+        from . import local_import as li
+        ctx, source = str(body.get("context", "")), str(body.get("source", ""))
+        if ctx not in self.servers or source not in li.SOURCES:
+            raise ValueError("unknown context or source")
+        notes = [str(t).strip()[:li.MAX_NOTE] for t in (body.get("notes") or [])][:li.MAX_CANDIDATES]
+        existing = await self._existing(ctx)
+        seen = {li.norm(t) for t in existing}
+        saved = skipped = 0
+        errors: list[str] = []
+        for text in notes:
+            if len(text) < 8 or li.norm(text) in seen:  # re-check: a second click or a parallel import
+                skipped += 1
+                continue
+            try:
+                await self.call(ctx, "memory_save", {"text": text, "tags": [f"import-{source}"]})
+                seen.add(li.norm(text))
+                saved += 1
+            except Exception as e:  # noqa: BLE001 — keep going, report at the end
+                errors.append(str(e)[:120])
+        return {"saved": saved, "skipped": skipped, "errors": errors[:5], "failed": len(errors)}
+
     def routes(self):
         from starlette.responses import FileResponse, JSONResponse, Response
         from starlette.routing import Route
@@ -270,6 +306,17 @@ class UI:
             if not self._authed(request):
                 return j(401, {"error": "locked: open it from Mnemos Desktop or type your password"})
             path = request.url.path[len("/api/"):]
+            if path == "import/upload" and request.method == "POST":
+                if request.headers.get("x-mnemos-write") != "1":
+                    return j(403, {"error": "missing X-Mnemos-Write"})
+                data = await request.body()
+                if len(data) > MAX_UPLOAD:
+                    return j(413, {"error": "file too big (max 300 MB)"})
+                try:
+                    return j(200, await self.import_preview(str(request.query_params.get("context", "")),
+                                                            {"source": "chatgpt"}, raw=data))
+                except ValueError as e:
+                    return j(400, {"error": str(e)[:300]})
             if request.method == "POST":
                 if request.headers.get("x-mnemos-write") != "1":
                     return j(403, {"error": "missing X-Mnemos-Write"})
@@ -307,6 +354,10 @@ class UI:
                     save_skill(self.home, ctx, str(body.get("name", "")), str(body.get("description", "")),
                                str(body.get("body", "")))
                     return j(200, {"saved": True})
+                if path == "import/preview" and request.method == "POST":
+                    return j(200, await self.import_preview(str(body.get("context", "")), body))
+                if path == "import/commit" and request.method == "POST":
+                    return j(200, await self.import_commit(body))
                 hook = self.hooks.get((request.method, path))
                 if hook:
                     return j(200, await hook(body))

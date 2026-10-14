@@ -38,7 +38,7 @@
   function boot(s) {
     window.MNEMOS = { contexts: s.contexts.map((name) => ({ name })) };
     $("app").classList.remove("hidden"); $("tabs").classList.remove("hidden");
-    for (const id of ["g-ctx", "s-ctx"]) $(id).innerHTML = s.contexts.map((c) => `<option>${esc(c)}</option>`).join("");
+    for (const id of ["g-ctx", "s-ctx", "i-ctx"]) $(id).innerHTML = s.contexts.map((c) => `<option>${esc(c)}</option>`).join("");
     const sc = document.createElement("script");
     sc.src = "/ui/memory.js";
     sc.onload = () => route();
@@ -48,7 +48,7 @@
   const loaded = {};
   function route() {
     const v = (location.hash.slice(1).split(/[?&]/)[0] || "memoria").replace(/^k=.*/, "memoria");
-    const view = ["memoria", "graph", "skills"].includes(v) ? v : "memoria";
+    const view = ["memoria", "graph", "skills", "import"].includes(v) ? v : "memoria";
     document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.id !== "view-" + view));
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
     if (!loaded[view]) {
@@ -132,6 +132,56 @@
   $("s-list").addEventListener("click", (ev) => { const n = ev.target.closest(".me-item"); if (n) showSkill(skills[+n.dataset.i]); });
   $("s-ctx").onchange = loadSkills;
   $("s-new").onclick = () => editor("", "", "", true, true);
+
+  // ------------------------------------------------ import
+  let review = null;
+  function showReview(r) {
+    review = r;
+    $("i-review").classList.remove("hidden");
+    $("i-sum").textContent = `${r.new} new · ${r.duplicates} duplicates skipped${r.truncated ? " · only the first 2000 shown" : ""}`;
+    $("i-list").innerHTML = r.items.length ? r.items.map((it, i) => `<label class="imp-item${it.duplicate ? " dup" : ""}"><input type="checkbox" data-i="${i}" ${it.duplicate ? "" : "checked"}>
+      <span>${esc(it.text)}${it.duplicate ? ` <span class="badge obs">${esc(it.duplicate)}</span>` : ""}</span></label>`).join("")
+      : '<p class="muted">Nothing to import found in that input.</p>';
+    $("i-review").scrollIntoView({ behavior: "smooth" });
+  }
+  async function previewJSON(source, extra, btn) {
+    btn.disabled = true; const l = btn.textContent; btn.innerHTML = '<span class="spin"></span>Reading…';
+    try { showReview(await api("/api/import/preview", { context: $("i-ctx").value, source, ...extra })); }
+    catch (e) { alert("Could not read it: " + e.message); }
+    btn.disabled = false; btn.textContent = l;
+  }
+  $("i-gpt-go").onclick = async (e) => {
+    const f = $("i-gpt-file").files[0], btn = e.target;
+    if (!f) return previewJSON("chatgpt", { text: $("i-gpt-text").value }, btn);
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Reading the export…';
+    try {
+      const r = await fetch("/api/import/upload?" + new URLSearchParams({ context: $("i-ctx").value }), { method: "POST", headers: { "X-Mnemos-Write": "1" }, body: f });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+      showReview({ ...j, source: "chatgpt" });
+    } catch (err) { alert("Could not read it: " + err.message); }
+    btn.disabled = false; btn.textContent = "Review";
+  };
+  $("i-claude-go").onclick = (e) => previewJSON("claude", { text: $("i-claude-text").value }, e.target);
+  $("i-md-go").onclick = async (e) => {
+    const fs = [...$("i-md").files].filter((f) => /\.(md|markdown|txt)$/i.test(f.name) && f.size < 2e6).slice(0, 5000);
+    if (!fs.length) return alert("Pick a folder with .md or .txt notes.");
+    const files = await Promise.all(fs.map(async (f) => ({ name: f.webkitRelativePath || f.name, text: await f.text() })));
+    previewJSON("markdown", { files }, e.target);
+  };
+  $("i-all").onclick = () => $("i-list").querySelectorAll("input").forEach((c) => { c.checked = !review.items[+c.dataset.i].duplicate; });
+  $("i-none").onclick = () => $("i-list").querySelectorAll("input").forEach((c) => { c.checked = false; });
+  $("i-save").onclick = async (e) => {
+    const notes = [...$("i-list").querySelectorAll("input:checked")].map((c) => review.items[+c.dataset.i].text);
+    if (!notes.length) return;
+    const btn = e.target; btn.disabled = true; btn.innerHTML = `<span class="spin"></span>Saving ${notes.length}…`;
+    try {
+      const r = await api("/api/import/commit", { context: $("i-ctx").value, source: review.source || "text", notes });
+      $("i-sum").textContent = `Saved ${r.saved} ✓${r.skipped ? ` · ${r.skipped} already there` : ""}${r.failed ? ` · ${r.failed} failed (${r.errors[0]})` : ""}`;
+      $("i-list").innerHTML = '<p class="muted">Done. See them in Notes (tag “import”).</p>';
+    } catch (err) { alert("Not saved: " + err.message); }
+    btn.disabled = false; btn.textContent = "Save selected";
+  };
 
   start();
 })();

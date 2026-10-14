@@ -92,6 +92,7 @@ def test_skills_create_list_read(client, home):
 
 def test_entity_graph():
     assert {"Ana García", "Lisbon", "#travel"} <= entities("Ana García moved to Lisbon in May. #travel")
+    assert "Ana" in entities("Ana's daughter plays") and "Ana's" not in entities("Ana's daughter plays")
     items = [{"id": "1", "text": "Ana works with Pedro on Project Atlas."}, {"id": "2", "text": "Pedro and Ana met in Madrid."},
              {"id": "3", "text": "Old", "obsolete": True}]
     g = build_graph(items)

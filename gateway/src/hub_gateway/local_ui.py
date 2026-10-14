@@ -103,7 +103,7 @@ def entities(text: str) -> set[str]:
     """Capitalised names (people, places, projects, products) and #tags in one note. Heuristic on purpose."""
     out = set()
     for m in _CAP.finditer(text):
-        name = re.sub(r"\s+", " ", m.group(1)).strip(" .'’-")
+        name = re.sub(r"['’]s$", "", re.sub(r"\s+", " ", m.group(1)).strip(" .'’-"))  # Ana's → Ana
         words = name.split()
         while words and words[0].lower() in STOP:
             words = words[1:]

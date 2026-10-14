@@ -396,7 +396,7 @@ def build_server(
         contains: Annotated[str | None, Field(description="Filtrar por texto (sin distinguir mayúsculas)", max_length=200)] = None,
         project: Annotated[str | None, Field(description="Solo contexto side: limitar a un proyecto")] = None,
         include_shared: Annotated[bool, Field(description="Incluir notas de shared (solo lectura)")] = False,
-        limit: Annotated[int, Field(ge=1, le=100)] = 20,
+        limit: Annotated[int, Field(ge=1, le=500)] = 20,
     ) -> dict[str, Any]:
         """Lista las notas guardadas (más nuevas primero) con su id, dataset, fecha, origen (provenance: app,
         usuario, contexto y fechas de guardado/corrección) y texto.

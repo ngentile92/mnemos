@@ -104,7 +104,7 @@ def build_all(home: Path, port: int, only: str | None = None):
         st = Settings(context=name, public_url=f"http://127.0.0.1:{port}/{name}", dev_no_auth=True,
                       allowed_logins=frozenset(), github_client_id=None, github_client_secret=None,
                       jwt_signing_key=None, storage_encryption_key=None, data_dir=str(data), cognee_url="",
-                      cognee_api_key=None, datasets_file="", skills_root=str(home / "skills"),
+                      cognee_api_key=None, datasets_file="", skills_root=str(home),  # SkillIndex scans <root>/skills/<owner>/
                       secret_policy_file=str(home / "secret-policy.yaml"), infisical_url=None,
                       infisical_client_id=None, infisical_client_secret=None, infisical_environment="prod",
                       host="127.0.0.1", port=port, auth_provider="local")
@@ -134,7 +134,9 @@ class TokenGate:
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             h = dict(scope.get("headers") or [])
-            if scope.get("path") == "/" and h.get(b"host") in self.hosts:  # status page: no data, no token
+            p = scope.get("path") or ""
+            ui = p in ("/", "/app") or p.startswith(("/ui/", "/api/"))  # status page + local app: own cookie auth
+            if ui and h.get(b"host") in self.hosts:
                 await self.app(scope, receive, send)
                 return
             auth = h.get(b"authorization", b"")
@@ -177,6 +179,7 @@ def http_app(home: Path, port: int):
         return HTMLResponse(f"""<!doctype html><meta charset=utf-8><title>Mnemos</title>
 <body style="font:16px system-ui;max-width:640px;margin:8vh auto;padding:0 16px">
 <h1>Mnemos is running</h1><p>Local mode · {len(subs)} contexts. AI app addresses (one per context):</p><ul>{rows}</ul>
+<p><a href="/app">Open my memory</a> (notes, graph, skills)</p>
 <p style="color:#666">These are addresses for AI apps (Claude, ChatGPT, Cursor), not web pages: opening them here
 will not show your notes. Each needs your private local token; use <b>Connect to Claude Desktop</b> in Mnemos
 Desktop so you never copy addresses or tokens by hand.</p></body>""",
@@ -185,9 +188,13 @@ Desktop so you never copy addresses or tokens by hand.</p></body>""",
     async def health(_r):
         return JSONResponse({"ok": True, "contexts": list(subs), "mode": "local"})
 
-    app = Starlette(routes=[Route("/", home_page), Route("/health", health), *[Mount(f"/{c}", app=s) for c, s in subs.items()]],
-                    lifespan=lifespan)
-    return TokenGate(app, (home / "token").read_text().strip(), port)
+    from .local_ui import UI
+    token = (home / "token").read_text().strip()
+    ui = UI(servers, home, token)
+    app = Starlette(routes=[Route("/", home_page), Route("/health", health), *ui.routes(),
+                            *[Mount(f"/{c}", app=s) for c, s in subs.items()]], lifespan=lifespan)
+    app.state.ui = ui
+    return TokenGate(app, token, port)
 
 
 def main(argv: list[str] | None = None) -> int:

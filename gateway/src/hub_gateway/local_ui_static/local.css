@@ -1,0 +1,6 @@
+.login{max-width:440px;margin:10vh auto;padding:22px}
+.login .me-row{display:flex;gap:8px;margin-top:10px}.login input{flex:1}
+.err{color:var(--down)}
+.hidden{display:none!important}
+label.small{display:block;margin:10px 0 4px}label.small input,label.small textarea{display:block;width:100%;margin-top:4px;box-sizing:border-box}
+#cy{min-height:62vh}

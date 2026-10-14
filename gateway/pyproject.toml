@@ -32,3 +32,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.setuptools.package-data]
+hub_gateway = ["local_ui_static/*", "local_ui_static/vendor/*"]

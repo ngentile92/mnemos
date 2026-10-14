@@ -33,7 +33,7 @@ async function run(btn, fn) {
 
 $("start").onclick = (e) => run(e.target, () => invoke("start_hub"));
 $("stop").onclick = (e) => run(e.target, () => invoke("stop_hub"));
-$("open").onclick = () => window.__TAURI__.opener.openUrl(last.url);
+$("open").onclick = (e) => run(e.target, async () => window.__TAURI__.opener.openUrl(await invoke("memory_url")));
 $("w-go").onclick = async (e) => {
   const pw = $("w-pw").value;
   $("w-err").textContent = "";

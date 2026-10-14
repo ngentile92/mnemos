@@ -115,6 +115,8 @@ jobs:
           for i in $(seq 1 60); do curl -fs http://127.0.0.1:8765/ | grep -q "Mnemos is running" && break; sleep 2; done
           curl -fs http://127.0.0.1:8765/ | grep "Mnemos is running"
           ps aux | grep -v grep | grep "Resources/python/bin/python3 -I -m hub_gateway.local serve"
+          curl -fs http://127.0.0.1:8765/app | grep "My memory"
+          curl -fs http://127.0.0.1:8765/ui/memory.js > /dev/null
           TOK=$(cat "$HOME_T/token")
           curl -fs -X POST http://127.0.0.1:8765/personal/mcp -H "Authorization: Bearer $TOK" \
             -H "Accept: application/json, text/event-stream" -H "Content-Type: application/json" \

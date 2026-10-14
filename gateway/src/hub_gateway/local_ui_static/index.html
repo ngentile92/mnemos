@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mnemos · My memory</title>
+<link rel="stylesheet" href="/ui/style.css">
+<link rel="stylesheet" href="/ui/local.css">
+<link rel="icon" href="data:,">
+</head>
+<body>
+<div class="bg-glow"></div>
+<header class="top">
+  <div class="brand">
+    <div class="logo"><span></span><span></span><span></span></div>
+    <div><h1>Mnemos</h1><p class="sub">Your memory, on this computer</p></div>
+  </div>
+  <nav class="tabs hidden" id="tabs" role="tablist">
+    <a href="#memoria" class="tab active" data-view="memoria" role="tab">Notes</a>
+    <a href="#graph" class="tab" data-view="graph" role="tab">Graph</a>
+    <a href="#skills" class="tab" data-view="skills" role="tab">Skills</a>
+  </nav>
+</header>
+<section id="login" class="card login hidden">
+  <h2>Unlock your memory</h2>
+  <p class="muted small">Open it from Mnemos Desktop (“Open my memory”), or type the password you chose in the app.</p>
+  <div class="me-row"><input id="login-pw" type="password" autocomplete="current-password" placeholder="Password">
+  <button id="login-go" class="mbtn primary">Open</button></div>
+  <p id="login-err" class="err small"></p>
+</section>
+<div id="app" class="hidden">
+<main id="view-memoria" class="view">
+  <section class="card me-bar">
+    <select id="me-ctx" aria-label="Context"></select>
+    <input id="me-q" type="search" placeholder="Filter notes…" maxlength="200">
+    <label class="small muted"><input type="checkbox" id="me-shared" checked> show shared (read-only)</label>
+    <button id="me-refresh" class="mbtn">Refresh</button>
+    <span class="muted small me-hint">Every change is versioned (Undo)</span>
+  </section>
+  <section class="card me-dispute">
+    <div class="card-h"><h2>Add or correct something</h2></div>
+    <p class="muted small me-help">Write a fact in one sentence. Mnemos first looks for a note that says otherwise:
+      <b>if one does</b>, it proposes a minimal fix you can apply; <b>if none does</b>, you can save it as a new note.
+      Nothing is written until you click.</p>
+    <div class="me-row"><input id="me-dispute" maxlength="1000" placeholder="e.g. I'm not looking for a new job these days · I want every change in its own PR">
+    <button id="me-dispute-go" class="mbtn primary">Check</button></div>
+    <div id="me-proposals"></div>
+  </section>
+  <section class="card me-inbox hidden" id="me-inbox-card"><div class="card-h"><h2>Cleanup inbox</h2><span class="muted small" id="me-inbox-head"></span></div>
+    <p class="muted small me-help">Proposals from the nightly hygiene run: near-duplicates to merge, notes that disagree, notes that look out of date. Accept or dismiss each one; every change is versioned (Undo in the note panel).</p>
+    <div id="me-inbox"></div></section>
+  <section class="me-grid">
+    <div class="card me-listcard"><div class="card-h"><h2>Notes</h2><span class="muted small" id="me-count"></span></div><div id="me-list"></div></div>
+    <div class="card me-detailcard"><div id="me-detail"><p class="muted">Pick a note on the left.</p></div></div>
+  </section>
+  <div id="me-toast" class="me-toast hidden" role="status"></div>
+</main>
+<main id="view-graph" class="view hidden">
+  <section class="card me-bar"><select id="g-ctx" aria-label="Context"></select>
+    <input id="g-q" type="search" placeholder="Find a person, project or topic…" maxlength="80">
+    <button id="g-fit" class="mbtn">Fit</button>
+    <span class="muted small me-hint">Names and topics found in your notes; lines join things mentioned together.</span></section>
+  <section class="card graphcard"><div class="graphwrap"><div id="cy"></div>
+    <aside id="g-node" class="nodepanel"><p class="muted">Tap a name to see the notes that mention it.</p></aside></div></section>
+</main>
+<main id="view-skills" class="view hidden">
+  <section class="card me-bar"><select id="s-ctx" aria-label="Context"></select>
+    <button id="s-new" class="mbtn primary">+ New skill</button>
+    <span class="muted small me-hint">Skills are reusable instructions your AI follows (e.g. “how I like emails written”).</span></section>
+  <section class="me-grid">
+    <div class="card me-listcard"><div class="card-h"><h2>Skills</h2></div><div id="s-list"></div></div>
+    <div class="card me-detailcard"><div id="s-detail"><p class="muted">Pick a skill on the left.</p></div></div>
+  </section>
+</main>
+</div>
+<script src="/ui/vendor/cytoscape.min.js"></script>
+<script src="/ui/local.js"></script>
+</body>
+</html>

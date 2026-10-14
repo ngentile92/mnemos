@@ -201,6 +201,14 @@ fn start_hub(hub: State<Hub>) -> Result<(), String> {
     Ok(())
 }
 
+/// The local app with a one-time unlock: the token travels in the URL fragment (never sent to a server log)
+/// and the page swaps it for a session cookie.
+#[tauri::command]
+fn memory_url() -> Result<String, String> {
+    let tok = std::fs::read_to_string(home().join("token")).map_err(|_| "Mnemos is not set up yet".to_string())?;
+    Ok(format!("http://127.0.0.1:{PORT}/app#k={}", tok.trim()))
+}
+
 #[tauri::command]
 fn stop_hub(hub: State<Hub>) -> Result<(), String> {
     if let Some(mut child) = hub.0.lock().unwrap().take() {
@@ -256,7 +264,7 @@ fn main() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude])
+        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude, memory_url])
         .build(tauri::generate_context!())
         .expect("error while building Mnemos Desktop");
     app.run(|handle, event| {

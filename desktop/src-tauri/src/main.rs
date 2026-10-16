@@ -9,7 +9,9 @@ use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
-use tauri::{Manager, RunEvent, State};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::{Manager, RunEvent, State, WindowEvent};
 
 const PORT: u16 = 8765;
 // Release builds ship a relocatable Python with mnemos-hub preinstalled in Resources/python
@@ -111,6 +113,83 @@ fn home() -> PathBuf {
     PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".into())).join("Mnemos")
 }
 
+const KC_SERVICE: &str = "io.mnemos.desktop";
+
+/// The local bearer token lives in the macOS Keychain (not in ~/Mnemos/token). First run after an upgrade moves
+/// the file into the Keychain. MNEMOS_NO_KEYCHAIN=1 keeps the file (CI, CLI users).
+fn token() -> Result<String, String> {
+    let file = home().join("token");
+    if std::env::var("MNEMOS_NO_KEYCHAIN").as_deref() == Ok("1") || !cfg!(target_os = "macos") {
+        return std::fs::read_to_string(&file).map(|t| t.trim().to_string()).map_err(|_| "Mnemos is not set up yet".into());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use security_framework::passwords::{get_generic_password, set_generic_password};
+        let acct = home().display().to_string();
+        if let Ok(t) = std::fs::read_to_string(&file) {
+            let t = t.trim().to_string();
+            if set_generic_password(KC_SERVICE, &acct, t.as_bytes()).is_ok()
+                && get_generic_password(KC_SERVICE, &acct).ok().as_deref() == Some(t.as_bytes())
+            {
+                let _ = std::fs::remove_file(&file);
+            }
+            return Ok(t);
+        }
+        if let Ok(b) = get_generic_password(KC_SERVICE, &acct) {
+            return String::from_utf8(b).map_err(|e| e.to_string());
+        }
+        // lost (e.g. Keychain reset): a fresh token only affects the local page; Claude uses stdio, no token
+        if home().join("contexts.yaml").exists() {
+            let t: String = std::iter::repeat_with(|| format!("{:08x}", rand_u32())).take(6).collect();
+            set_generic_password(KC_SERVICE, &acct, t.as_bytes()).map_err(|e| e.to_string())?;
+            return Ok(t);
+        }
+    }
+    Err("Mnemos is not set up yet".into())
+}
+
+#[cfg(target_os = "macos")]
+fn rand_u32() -> u32 {
+    let mut b = [0u8; 4];
+    let _ = std::fs::File::open("/dev/urandom").and_then(|mut f| std::io::Read::read_exact(&mut f, &mut b));
+    u32::from_le_bytes(b)
+}
+
+fn login_plist() -> PathBuf {
+    PathBuf::from(std::env::var("HOME").unwrap_or_default()).join("Library/LaunchAgents/io.mnemos.desktop.plist")
+}
+
+/// Start Mnemos when you log in (a LaunchAgent that opens the app in the background, menu bar only).
+#[tauri::command]
+fn set_login_item(enabled: bool) -> Result<bool, String> {
+    let p = login_plist();
+    if !enabled {
+        let _ = std::fs::remove_file(&p);
+        return Ok(false);
+    }
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let x = exe.display().to_string().replace('&', "&amp;").replace('<', "&lt;");
+    let plist = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>io.mnemos.desktop</string>
+<key>ProgramArguments</key><array><string>{x}</string><string>--background</string></array>
+<key>RunAtLoad</key><true/>
+<key>ProcessType</key><string>Interactive</string>
+</dict></plist>
+"#);
+    if let Some(d) = p.parent() {
+        std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&p, plist).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+#[tauri::command]
+fn login_item() -> bool {
+    login_plist().exists()
+}
+
 /// GUI apps on macOS do not get the shell PATH: look in the usual places.
 fn find_uv() -> Option<String> {
     let h = std::env::var("HOME").unwrap_or_default();
@@ -192,9 +271,11 @@ fn start_hub(hub: State<Hub>) -> Result<(), String> {
     }
     let h = home();
     let log = std::fs::File::create(h.join("hub.log")).map_err(|e| e.to_string())?;
+    let tok = token()?;
     let child = hub_command(&["serve", "--home", &h.display().to_string(), "--port", &PORT.to_string()])?
         .stdout(log.try_clone().map_err(|e| e.to_string())?)
         .stderr(log)
+        .env("MNEMOS_TOKEN", tok)
         .spawn()
         .map_err(|e| format!("could not start the hub: {e}"))?;
     *g = Some(child);
@@ -205,8 +286,7 @@ fn start_hub(hub: State<Hub>) -> Result<(), String> {
 /// and the page swaps it for a session cookie.
 #[tauri::command]
 fn memory_url() -> Result<String, String> {
-    let tok = std::fs::read_to_string(home().join("token")).map_err(|_| "Mnemos is not set up yet".to_string())?;
-    Ok(format!("http://127.0.0.1:{PORT}/app#k={}", tok.trim()))
+    Ok(format!("http://127.0.0.1:{PORT}/app#k={}", token()?))
 }
 
 #[tauri::command]
@@ -246,7 +326,16 @@ fn setup(contexts: Vec<String>, owner: String, password: String) -> Result<Strin
     if !res.status.success() {
         return Err(String::from_utf8_lossy(&res.stderr).lines().last().unwrap_or("password failed").to_string());
     }
+    let _ = token(); // move the new token into the Keychain
+    let _ = set_login_item(true); // a memory that is off is no memory: start with the Mac (toggle in the app)
     Ok(h)
+}
+
+fn show_main(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
 }
 
 fn main() {
@@ -256,18 +345,55 @@ fn main() {
         .setup(|app| {
             let py = app.path().resource_dir().ok().map(|r| r.join("python/bin/python3")).filter(|p| p.is_file());
             let _ = BUNDLED_PY.set(py);
-            // MNEMOS_AUTOSTART=1: start the hub on launch (used by the CI smoke test of the packaged app)
-            if std::env::var("MNEMOS_AUTOSTART").as_deref() == Ok("1") && home().join("contexts.yaml").exists() {
+            // always start the hub when set up (MNEMOS_AUTOSTART=0 to skip); --background = menu bar only
+            if std::env::var("MNEMOS_AUTOSTART").as_deref() != Ok("0") && home().join("contexts.yaml").exists() {
                 if let Err(e) = start_hub(app.state::<Hub>()) {
                     eprintln!("autostart failed: {e}");
                 }
             }
+            if std::env::args().any(|a| a == "--background") {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.hide();
+                }
+            }
+            let open = MenuItem::with_id(app, "open", "Open my memory", true, None::<&str>)?;
+            let show = MenuItem::with_id(app, "show", "Show Mnemos", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit Mnemos", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open, &show, &quit])?;
+            let mut tray = TrayIconBuilder::with_id("mnemos").tooltip("Mnemos").menu(&menu);
+            if let Some(icon) = app.default_window_icon() {
+                tray = tray.icon(icon.clone());
+            }
+            tray.on_menu_event(|app, ev| match ev.id.as_ref() {
+                "open" => {
+                    use tauri_plugin_opener::OpenerExt;
+                    if let Ok(u) = memory_url() {
+                        let _ = app.opener().open_url(u, None::<&str>);
+                    }
+                }
+                "show" => show_main(app),
+                "quit" => app.exit(0),
+                _ => {}
+            })
+            .build(app)?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude, memory_url])
+        .on_window_event(|w, e| {
+            // closing the window keeps Mnemos running in the menu bar; Quit is in the menu
+            if let WindowEvent::CloseRequested { api, .. } = e {
+                let _ = w.hide();
+                api.prevent_close();
+            }
+        })
+        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude, memory_url,
+                                                 set_login_item, login_item])
         .build(tauri::generate_context!())
         .expect("error while building Mnemos Desktop");
     app.run(|handle, event| {
+        #[cfg(target_os = "macos")]
+        if let RunEvent::Reopen { .. } = event {
+            show_main(handle);
+        }
         if let RunEvent::Exit = event {
             // never leave the hub running after quitting the app
             if let Some(mut child) = handle.state::<Hub>().0.lock().unwrap().take() {

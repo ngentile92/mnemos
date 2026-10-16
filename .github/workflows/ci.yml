@@ -110,7 +110,7 @@ jobs:
           export HOME_T="$RUNNER_TEMP/mnemos-home"
           env -i HOME="$HOME" PATH=/usr/bin:/bin "$PY" -I -m hub_gateway.local init --home "$HOME_T" --contexts personal,work
           # launch the real app binary; MNEMOS_AUTOSTART makes it start the hub with its bundled runtime
-          env -i HOME="$HOME" PATH=/usr/bin:/bin MNEMOS_HOME="$HOME_T" MNEMOS_AUTOSTART=1 \
+          env -i HOME="$HOME" PATH=/usr/bin:/bin MNEMOS_HOME="$HOME_T" MNEMOS_AUTOSTART=1 MNEMOS_NO_KEYCHAIN=1 \
             "$(ls -d "$APP"/Contents/MacOS/* | head -1)" > "$RUNNER_TEMP/app.log" 2>&1 &
           for i in $(seq 1 60); do curl -fs http://127.0.0.1:8765/ | grep -q "Mnemos is running" && break; sleep 2; done
           curl -fs http://127.0.0.1:8765/ | grep "Mnemos is running"

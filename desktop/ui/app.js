@@ -48,5 +48,7 @@ $("w-go").onclick = async (e) => {
   e.target.disabled = false; e.target.textContent = "Create my Mnemos";
   await refresh();
 };
+$("login").onchange = async (e) => { try { e.target.checked = await invoke("set_login_item", { enabled: e.target.checked }); } catch (err) { $("err").textContent = String(err); } };
+invoke("login_item").then((v) => { $("login").checked = v; });
 refresh();
 setInterval(refresh, 2000);

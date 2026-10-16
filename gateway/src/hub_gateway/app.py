@@ -396,6 +396,7 @@ def build_server(
     async def _save_check(name: str, ds_id: str, text: str) -> list[dict[str, Any]]:
         """Local mode: near-duplicates (token Jaccard >= 0.8, like the importer) and related notes that may
         contradict the new one (shared topic, or a semantic hit when embeddings are on). Never blocks on errors."""
+        from .local_hygiene import lexical_conflict
         from .local_import import _tokens, norm
         try:
             await index.sync(name, lambda: cognee.list_data(ds_id), lambda did: cognee.raw_text(ds_id, did))
@@ -406,7 +407,9 @@ def build_server(
         for h in hits:
             th = _tokens(h["text"])
             j = len(tn & th) / len(tn | th) if tn and th else float(norm(text) == norm(h["text"]))
-            kind = "duplicate" if j >= 0.8 else "related" if (j >= 0.3 or "semantic" in h.get("match", "")) else None
+            clash = lexical_conflict(text, h["text"])  # "2 dogs" vs "3 dogs": same words, not a duplicate
+            kind = ("duplicate" if j >= 0.8 and not clash else "related"
+                    if (j >= 0.3 or "semantic" in h.get("match", "")) else None)
             if kind:
                 out.append({"id": h["id"], "kind": kind, "similarity": round(j, 2), "text": h["text"][:300]})
         return sorted(out, key=lambda n: -n["similarity"])[:3]

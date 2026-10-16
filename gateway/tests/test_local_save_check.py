@@ -34,5 +34,7 @@ async def test_duplicate_and_related(home):
         assert r["status"] != "duplicate"
         r = data(await p.call_tool("memory_save", {"text": "Ana ahora vive en Lisboa con su perro Toby"}))
         assert r["saved_to"] and r["similar_notes"] and r["similar_notes"][0]["kind"] == "related"
+        r = data(await p.call_tool("memory_save", {"text": "Ana vive en Madrid desde 2021 con su perro Toby"}))
+        assert r["saved_to"] and r["similar_notes"]  # different year: related, not a duplicate
         who = data(await p.call_tool("hub_whoami", {}))
         assert who["login"] == "local-owner"

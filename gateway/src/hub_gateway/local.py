@@ -3,6 +3,7 @@
     mnemos-local init  [--home ~/Mnemos] [--contexts personal,work] [--owner Name]
     mnemos-local serve [--home ~/Mnemos] [--port 8765]        # http://127.0.0.1:8765/<ctx>/mcp
     mnemos-local stdio [--home ~/Mnemos] --context personal   # for Claude Desktop (.mcpb) / Cursor stdio
+    mnemos-local hygiene [--home ~/Mnemos]                    # cleanup proposals now (serve runs it nightly)
     mnemos-local token [--home ~/Mnemos]                      # print the local bearer token
     mnemos-local set-password [--home ~/Mnemos] < password    # store a login password hash (auth.json, 0600)
 
@@ -22,6 +23,7 @@ Optional: HUB_OLLAMA_URL + HUB_EMBED_MODEL for semantic search, HUB_ANSWER_MODEL
 from __future__ import annotations
 
 import argparse
+import asyncio
 import contextlib
 import hmac
 import os
@@ -171,7 +173,13 @@ def http_app(home: Path, port: int):
         async with contextlib.AsyncExitStack() as stack:
             for s in subs.values():
                 await stack.enter_async_context(s.router.lifespan_context(s))
+            task = None
+            if os.environ.get("MNEMOS_HYGIENE", "1") != "0":
+                from .local_hygiene import nightly
+                task = asyncio.create_task(nightly(home, list(subs), ui.call))
             yield
+            if task:
+                task.cancel()
 
     async def home_page(_r):
         from starlette.responses import HTMLResponse
@@ -191,6 +199,15 @@ Desktop so you never copy addresses or tokens by hand.</p></body>""",
     from .local_ui import UI
     token = (home / "token").read_text().strip()
     ui = UI(servers, home, token)
+    from . import local_hygiene as lh
+
+    async def _pending(_b):
+        return lh.pending(home)
+
+    async def _act(b):
+        return await lh.act(home, b, ui.call)
+    ui.hooks[("GET", "hygiene")] = _pending
+    ui.hooks[("POST", "hygiene/act")] = _act
     app = Starlette(routes=[Route("/", home_page), Route("/health", health), *ui.routes(),
                             *[Mount(f"/{c}", app=s) for c, s in subs.items()]], lifespan=lifespan)
     app.state.ui = ui
@@ -200,7 +217,7 @@ Desktop so you never copy addresses or tokens by hand.</p></body>""",
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="mnemos-local", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["init", "serve", "stdio", "token", "set-password"])
+    ap.add_argument("cmd", choices=["init", "serve", "stdio", "token", "set-password", "hygiene"])
     ap.add_argument("--home")
     ap.add_argument("--contexts", default="personal,work")
     ap.add_argument("--owner", default="me")
@@ -215,6 +232,13 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "set-password":
         set_password(home, sys.stdin.readline().rstrip("\n"))
         print("password saved")
+        return 0
+    if a.cmd == "hygiene":  # one cleanup pass now (serve also runs it nightly)
+        from .local_hygiene import run
+        from .local_ui import UI
+        servers = build_all(home, a.port)
+        rep = asyncio.run(run(home, list(servers), UI(servers, home, "").call))
+        print(f"{len(rep['items'])} cleanup proposals ({rep['mode']}) → {home / 'data' / 'hygiene.json'}")
         return 0
     if a.cmd == "token":
         print((home / "token").read_text().strip())

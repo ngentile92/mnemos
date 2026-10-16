@@ -272,7 +272,9 @@
     const b = ev.target, c = $("me-save-ctx").value;
     b.disabled = true; b.innerHTML = '<span class="spin"></span>Saving…';
     try {
-      await post("/api/memory/save", { context: c, text: $("me-save-text").value, project: $("me-save-proj").value });
+      const sv = await post("/api/memory/save", { context: c, text: $("me-save-text").value, project: $("me-save-proj").value });
+      if (sv.status === "duplicate") { b.disabled = false; b.textContent = "Save as new note"; toast("Already saved: a near-identical note exists"); return; }
+      if (sv.similar_notes && sv.similar_notes.length) toast("Saved ✓ — similar notes exist; check they don't contradict it");
       b.closest(".me-save").innerHTML = `<span class="small">Saved as a new note in <b>${esc(c)}</b> ✓ (it appears in the list in a few seconds)</span>`;
       toast("Saved as new note ✓");
       if (c === ctx()) setTimeout(() => load(), 2500);

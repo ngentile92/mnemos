@@ -2,6 +2,10 @@
 
 **One brain for all your AIs.**
 
+> **Just want it on your Mac?** Download **[Mnemos-macos.dmg](https://github.com/ngentile92/mnemos/releases/latest/download/Mnemos-macos.dmg)**
+> (no Docker, nothing else to install) and follow the [one-page install guide](docs/INSTALL-mac.md).
+> Claude Desktop extension: [mnemos.mcpb](https://github.com/ngentile92/mnemos/releases/latest/download/mnemos.mcpb).
+
 Mnemos is a self-hosted MCP hub that gives Claude, ChatGPT, Grok and Cursor the **same long-term memory, the same
 skills and access to your API credentials without ever showing them the keys**, isolated by context (for example
 work / personal / side projects). It runs on your own machine with Docker and is reachable from anywhere through

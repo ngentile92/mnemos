@@ -1,0 +1,59 @@
+name: release
+# Push a tag like v0.2.0 → builds the Mac app (.dmg + .app.zip) and the Claude Desktop extension (.mcpb) and
+# publishes them on GitHub Releases with fixed asset names, so .../releases/latest/download/<name> always works.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag: { description: "existing tag to (re)publish", required: true }
+permissions:
+  contents: write
+jobs:
+  mcpb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.tag || github.ref }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - run: scripts/build_mcpb.sh "$(git rev-parse HEAD)"
+      - uses: actions/upload-artifact@v4
+        with: { name: mcpb, path: dist/mnemos.mcpb }
+  desktop:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.tag || github.ref }}" }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: desktop/scripts/bundle_python.sh gateway
+      - working-directory: desktop
+        run: npx -y @tauri-apps/cli@2 build --bundles app,dmg --config src-tauri/tauri.bundle.conf.json
+      - name: smoke test the packaged hub (no uv / Python on PATH)
+        run: |
+          PY=desktop/src-tauri/target/release/bundle/macos/Mnemos.app/Contents/Resources/python/bin/python3
+          env -i HOME="$HOME" PATH=/usr/bin:/bin "$PY" -I -m hub_gateway.local init --home "$RUNNER_TEMP/h" --contexts personal
+      - run: |
+          mkdir -p dist
+          ditto -c -k --keepParent desktop/src-tauri/target/release/bundle/macos/Mnemos.app dist/Mnemos-macos.app.zip
+          cp desktop/src-tauri/target/release/bundle/dmg/*.dmg dist/Mnemos-macos.dmg
+      - uses: actions/upload-artifact@v4
+        with: { name: desktop, path: "dist/*" }
+  publish:
+    needs: [mcpb, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          ls -l dist
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Mnemos $TAG" --notes-file docs/release-notes.md
+          gh release upload "$TAG" dist/Mnemos-macos.dmg dist/Mnemos-macos.app.zip dist/mnemos.mcpb --clobber

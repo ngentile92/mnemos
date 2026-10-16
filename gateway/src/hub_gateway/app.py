@@ -44,7 +44,7 @@ def _current_login(settings: Settings) -> str | None:
     if via:
         return via["login"]
     if settings.dev_no_auth:
-        return "dev-no-auth"
+        return "local-owner" if settings.auth_provider == "local" else "dev-no-auth"
     from fastmcp.server.dependencies import get_access_token
 
     from .auth import login_from_token
@@ -127,6 +127,7 @@ def build_server(
     answerer = answerer or Answerer.from_env()
     _syncing: dict[str, dict[str, Any]] = {}  # background corrections still being re-processed by Cognee
     _tasks: set = set()
+    local_mode = settings.dev_no_auth and settings.auth_provider == "local"  # mnemos-local / Desktop
     index = index or LocalIndex(os.path.join(settings.data_dir, "search.sqlite"), OllamaEmbedder.from_env())
     skills = skills or SkillIndex(settings.skills_root, settings.context)
     cognee = cognee or CogneeClient(
@@ -345,6 +346,8 @@ def build_server(
             description="'context' (default) guarda en el contexto activo; 'shared' lo ve todo contexto")] = "context",
         project: Annotated[str | None, Field(description="Obligatorio en contextos con proyectos (los lista hub_whoami)")] = None,
         tags: Annotated[list[str] | None, Field(description="Etiquetas opcionales (node sets)", max_length=5)] = None,
+        allow_duplicate: Annotated[bool, Field(
+            description="Modo local: guardar aunque ya exista una nota casi igual")] = False,
     ) -> dict[str, Any]:
         """Guarda un hecho en la memoria de largo plazo. Por defecto va al contexto activo.
         Usá target='shared' solo si el dato sirve en todos los contextos. Escribí [[Nombre]] para
@@ -359,6 +362,15 @@ def build_server(
             links = wikilinks(text)
             if links:
                 meta["links"] = links
+            similar_notes: list[dict[str, Any]] = []
+            if local_mode:
+                similar_notes = await _save_check(name, ds_id, text)
+                dup = next((n for n in similar_notes if n["kind"] == "duplicate"), None)
+                if dup and not allow_duplicate:
+                    audit.log("memory_save", login, "duplicate", dataset=name)
+                    return {"saved_to": None, "status": "duplicate", "duplicate_of": dup,
+                            "note": "ya hay una nota casi igual; no guardé nada. Si la nueva la corrige usá "
+                                    "memory_update con ese id, o repetí con allow_duplicate=true"}
             res = await cognee.remember(text, ds_id, node_set=_node_sets(clean_tags, text), metadata=meta)
         except MemoryError_ as exc:
             audit.log("memory_save", login, "rejected", reason=str(exc))
@@ -371,8 +383,33 @@ def build_server(
         safe(ledger.record_save, dataset=name, text=text, context=ctx.name, source_app=app, login=login,
              tags=clean_tags, data_id=_returned_id(res))
         audit.log("memory_save", login, "ok", dataset=name, chars=len(text), app=app)
-        return {"saved_to": name, "status": status or "accepted", "source_app": app,
-                "note": "la extracción al grafo corre en segundo plano; puede tardar en aparecer en búsquedas"}
+        out = {"saved_to": name, "status": status or "accepted", "source_app": app,
+               "note": "la extracción al grafo corre en segundo plano; puede tardar en aparecer en búsquedas"}
+        if local_mode:
+            out["note"] = "guardado"
+            if similar_notes:
+                out["similar_notes"] = similar_notes
+                out["note"] = ("guardado. Hay notas parecidas: si alguna dice lo contrario o quedó vieja, "
+                               "corregila con memory_update o marcala con memory_mark_obsolete")
+        return out
+
+    async def _save_check(name: str, ds_id: str, text: str) -> list[dict[str, Any]]:
+        """Local mode: near-duplicates (token Jaccard >= 0.8, like the importer) and related notes that may
+        contradict the new one (shared topic, or a semantic hit when embeddings are on). Never blocks on errors."""
+        from .local_import import _tokens, norm
+        try:
+            await index.sync(name, lambda: cognee.list_data(ds_id), lambda did: cognee.raw_text(ds_id, did))
+            hits = await index.search(text, [name], 5, "hybrid")
+        except Exception:  # noqa: BLE001 — the check is advisory
+            return []
+        tn, out = _tokens(text), []
+        for h in hits:
+            th = _tokens(h["text"])
+            j = len(tn & th) / len(tn | th) if tn and th else float(norm(text) == norm(h["text"]))
+            kind = "duplicate" if j >= 0.8 else "related" if (j >= 0.3 or "semantic" in h.get("match", "")) else None
+            if kind:
+                out.append({"id": h["id"], "kind": kind, "similarity": round(j, 2), "text": h["text"][:300]})
+        return sorted(out, key=lambda n: -n["similarity"])[:3]
 
     async def _locate(sc: MemoryScope, data_id: str) -> tuple[str, str, dict[str, Any]]:
         """Busca la nota en los datasets PROPIOS del contexto. Nunca toca datasets ajenos."""

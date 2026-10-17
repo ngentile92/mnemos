@@ -3,7 +3,7 @@
   "manifest_version": "0.4",
   "name": "mnemos",
   "display_name": "Mnemos (local memory)",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Your memory and skills for Claude, stored on this computer, one context at a time.",
   "long_description": "Runs Mnemos in local mode: notes in SQLite under your Mnemos folder, no Docker, no account. Each install of this extension serves one context (e.g. personal); other contexts are not visible to it. Claude is told to treat it as its own long-term memory: it searches Mnemos at the start of each conversation and saves durable facts you share (preferences, decisions, people, projects) without being asked.",
   "author": {

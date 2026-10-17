@@ -56,6 +56,16 @@ jobs:
           export XDG_RUNTIME_DIR="/run/user/$(id -u)"
           systemctl --user status 'mnemos-*' --no-pager || true
           tail -50 ~/.local/state/mnemos/*.log || true
+  packages:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - name: PyPI dry run (sdist + wheel, metadata check)
+        run: pip install -q build twine && python -m build gateway --outdir dist && twine check --strict dist/*
+      - name: npm dry run
+        run: cd packaging/npm && npm pack --dry-run
   gitleaks:
     runs-on: ubuntu-24.04
     steps:

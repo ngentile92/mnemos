@@ -30,8 +30,10 @@ echo "friend-pass-123" | to 120 "$BIN" --setup personal,work Ana || fail "setup"
 [ -f "$HOME/Library/LaunchAgents/io.mnemos.desktop.plist" ] || fail "start-at-login not set"
 if [ "${MNEMOS_NO_KEYCHAIN:-}" != 1 ]; then
   [ ! -f "$MNEMOS_HOME/token" ] || fail "token still on disk (should be in the Keychain)"
-  TOK="$(to 15 security find-generic-password -s io.mnemos.desktop -a "$MNEMOS_HOME" -w)" || fail "token not in Keychain"
-else TOK="$(cat "$MNEMOS_HOME/token")"; fi
+  # only Mnemos itself may read the item (the `security` CLI would get an access prompt); the hub starting
+  # below and --open-memory both prove the app reads it back
+  echo "token moved to the Keychain"
+fi
 
 step "open the app (hub starts by itself)"
 "$BIN" > "$T/app.log" 2>&1 & APP_PID=$!
@@ -57,7 +59,7 @@ N="$(curl -fs -b "$T/c" "http://127.0.0.1:$PORT/api/memory/list?context=personal
 [ "$N" = 4 ] || fail "expected 4 notes, got $N"
 
 step "memory screen screenshots"
-to 20 open "http://127.0.0.1:$PORT/app#k=$TOK" || true; sleep 6; shot 2-memory
+to 30 "$BIN" --open-memory || fail "open my memory (token from Keychain)"; sleep 6; shot 2-memory
 
 step "Connect to Claude Desktop (same code as the button)"
 to 30 "$BIN" --connect-claude personal || fail "connect"

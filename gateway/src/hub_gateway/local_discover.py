@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -31,9 +32,11 @@ from typing import Any, Callable
 
 from . import local_import as li
 
+log = logging.getLogger("hub.discover")
+
 CODE_DIRS = ("code", "dev", "projects", "src", "repos", "work", "Developer", "Documents/GitHub", "Documents/code")
 MAX_DEPTH, MAX_FILES, MAX_FILE_BYTES, MAX_SOURCE_BYTES = 4, 2000, 2_000_000, 60_000_000
-MAX_PER_SOURCE, SCAN_BUDGET_S, PREVIEW_BUDGET_S = 400, 15.0, 180.0
+MAX_PER_SOURCE, SCAN_BUDGET_S, PREVIEW_BUDGET_S = 400, 15.0, 300.0
 SKIP_DIRS = {"node_modules", ".git", ".venv", "venv", "__pycache__", "dist", "build", "target", ".next", "Library"}
 CODE_KINDS = {"claude_code", "claude_md", "agents_md", "cursor_rules", "cursor_chats"}
 LABELS = {"claude_code": "Claude Code conversations", "claude_md": "Claude instructions (CLAUDE.md)",
@@ -260,14 +263,16 @@ _TASKY = re.compile(r"(`|\(\)|\{|\}|=>|::|\.(?:py|js|ts|tsx|json|md|yml|yaml|sh|
                     r"este|esta|esto|ahora|ac[aá])\w*)", re.I)
 
 
-def facts_from_messages(msgs: list[str]) -> list[str]:
+def facts_from_messages(msgs: list[str], strict: bool = True) -> list[str]:
+    """First-person sentences. strict=False keeps the task-like ones too (for a model to judge)."""
     out = []
     for text in msgs:
         if len(text) > 4000:  # long pastes are documents/code, not facts about the person
             continue
         for s in li._sentences(text):
             s = s.strip()
-            if 15 <= len(s) <= 300 and li._FACT.search(s) and not li._QUESTION.search(s) and not _TASKY.search(s):
+            if (15 <= len(s) <= 300 and li._FACT.search(s) and not li._QUESTION.search(s)
+                    and not (strict and _TASKY.search(s))):
                 out.append(s)
     return list(dict.fromkeys(out))
 
@@ -308,62 +313,106 @@ def read_source(src: dict, deadline: float) -> tuple[list[str], list[str]]:
     return [], msgs
 
 
-# ------------------------------------------------------------------ optional local LLM
-def ollama_model() -> tuple[str, str] | None:
-    """(url, model) when a local Ollama answers: HUB_OLLAMA_URL/HUB_ANSWER_MODEL, else autodetect on :11434."""
-    if os.environ.get("MNEMOS_DISCOVER_LLM") == "0":
-        return None
-    url = (os.environ.get("HUB_OLLAMA_URL") or "http://127.0.0.1:11434").rstrip("/")
-    try:
-        import httpx
-        tags = httpx.get(url + "/api/tags", timeout=1.5).json().get("models") or []
-    except Exception:  # noqa: BLE001 — no Ollama: heuristics
-        return None
-    names = [str(m.get("name", "")) for m in tags if "embed" not in str(m.get("name", ""))]
-    want = os.environ.get("HUB_ANSWER_MODEL")
-    if want and want in names:
-        return url, want
-    for pref in ("llama3.1", "llama3.2", "qwen2.5", "qwen3", "mistral", "gemma"):
-        m = next((n for n in names if n.startswith(pref)), None)
-        if m:
-            return url, m
-    return (url, names[0]) if names else None
-
-
+# ------------------------------------------------------------------ optional LLM (local_engine picks it)
 PROMPT = ("Below are messages a person wrote to AI assistants. Extract only DURABLE facts about the person: who they "
-          "are, their work and projects, people they mention, tools they use, lasting preferences. No secrets, no "
-          'one-off tasks, no code. Reply JSON only: {"facts": ["...", "..."]}, in the language the person writes.\n\n')
+          "are, their work and projects, people they mention, tools they use, lasting preferences. Each fact is one "
+          "short sentence that makes sense on its own. No secrets, no one-off tasks, no code, nothing about the "
+          'assistant. Reply JSON only: {"facts": ["...", "..."]}, in the language the person writes.\n\n')
 
 
-async def llm_facts(url: str, model: str, msgs: list[str], calls: int = 6) -> list[str]:
-    import httpx
+async def llm_facts(llm: Any, msgs: list[str], calls: int = 6, size: int = 5000) -> list[str]:
+    """llm: an engine with async json(prompt) -> dict (Built-in, Ollama or API)."""
     batches, cur = [], ""
     for m in msgs:
         m = m.strip()[:1200]
-        if not m or has_secret(m):
+        if not m or has_secret(m):  # never hand a secret to any model
             continue
-        if len(cur) + len(m) > 6000:
+        if len(cur) + len(m) > size:
             batches.append(cur)
             cur = ""
         cur += m + "\n---\n"
     if cur:
         batches.append(cur)
     out: list[str] = []
-    async with httpx.AsyncClient(timeout=90) as c:
-        for b in batches[-calls:]:
-            try:
-                r = await c.post(url + "/api/generate", json={"model": model, "prompt": PROMPT + b, "stream": False,
-                                                             "format": "json", "options": {"temperature": 0}})
-                facts = json.loads(r.json().get("response") or "{}").get("facts") or []
-                out += [f.strip() for f in facts if isinstance(f, str) and 10 <= len(f.strip()) <= 300]
-            except Exception:  # noqa: BLE001
-                continue
+    for b in batches[-calls:]:  # newest messages last
+        try:
+            facts = (await llm.json(PROMPT + b)).get("facts") or []
+        except Exception:  # noqa: BLE001 — one bad call does not stop the import
+            continue
+        out += [f.strip() for f in facts if isinstance(f, str) and 10 <= len(f.strip()) <= 300]
+    return list(dict.fromkeys(out))
+
+
+CLASSIFY = ("Is this sentence, written by a person to an AI assistant, a DURABLE fact about the person's life worth "
+            "remembering for months (identity, family, friends, home, job, projects, tools they use, lasting tastes)? "
+            "Requests, tasks, bugs, code, today's plans and opinions about code are NOT.\n"
+            'Examples:\n"I live in Lyon." -> {"durable": true}\n"Fix the tests please" -> {"durable": false}\n'
+            '"I have an error in main.py" -> {"durable": false}\n"Mi esposa se llama Ana." -> {"durable": true}\n'
+            '"I want you to add logging" -> {"durable": false}\n"I use Neovim every day." -> {"durable": true}\n'
+            "Reply JSON only.\nSentence: ")
+MAX_CLASSIFY = 200  # per source; the rest falls back to the rules
+
+
+async def llm_filter(llm: Any, msgs: list[str], deadline: float) -> list[str]:
+    """Small models (built-in) are better judges than writers: the rules propose first-person sentences (loosely)
+    and the model keeps the durable ones. Past the cap or the deadline the strict rules decide."""
+    strict = set(facts_from_messages(msgs))
+    loose = facts_from_messages(msgs, strict=False)
+    loose = [t for t in loose if t in strict][::-1] + [t for t in loose if t not in strict][::-1]  # newest first
+    out: list[str] = []
+    for i, t in enumerate(loose):
+        if i >= MAX_CLASSIFY or time.monotonic() > deadline:
+            out += [x for x in loose[i:] if x in strict]
+            break
+        if has_secret(t):
+            continue
+        try:
+            d = (await llm.json(CLASSIFY + json.dumps(t, ensure_ascii=False))).get("durable")
+        except Exception:  # noqa: BLE001
+            d = t in strict
+        if d is True or str(d).lower() == "true":
+            out.append(t)
     return out
+
+
+SEM_DUP = 0.92  # cosine, built-in/Ollama embeddings: same fact in other words
+
+
+async def semantic_dupes(items: list[dict], pool: dict[str, list[str]], embedder: Any) -> int:
+    """Mark items that say the same as an existing note (or an earlier item) in their context. Returns how many."""
+    import math
+
+    from .local_hygiene import lexical_conflict
+    texts = [i["text"] for i in items if not i["duplicate"]]
+    if not embedder or not texts:
+        return 0
+    ctxs = {i["context"] for i in items}
+    olds = [(c, t) for c in ctxs for t in pool.get(c, [])][:2000]
+    vecs = await embedder.embed([t for _, t in olds] + texts)
+
+    def unit(v: list[float]) -> list[float]:
+        n = math.sqrt(sum(x * x for x in v)) or 1.0
+        return [x / n for x in v]
+    vecs = [unit(v) for v in vecs]
+    seen: list[tuple[str, str, list[float]]] = [(c, t, v) for (c, t), v in zip(olds, vecs)]
+    k, marked = len(olds), 0
+    for it in items:
+        if it["duplicate"]:
+            continue
+        v = vecs[k]
+        k += 1
+        best = max(((sum(a * b for a, b in zip(v, w)), t) for c, t, w in seen if c == it["context"]), default=(0, ""))
+        if best[0] >= SEM_DUP and not lexical_conflict(it["text"], best[1]):  # "2 dogs" vs "3 dogs"
+            it["duplicate"] = best[1][:300]
+            marked += 1
+        else:
+            seen.append((it["context"], it["text"], v))
+    return marked
 
 
 # ------------------------------------------------------------------ preview
 async def preview(sources: list[dict], existing: dict[str, list[str]], progress: Callable[[dict], None],
-                  llm: tuple[str, str] | None = None, budget: float = PREVIEW_BUDGET_S) -> dict:
+                  llm: Any = None, budget: float = PREVIEW_BUDGET_S, embedder: Any = None) -> dict:
     """sources: scanned entries with the chosen "context"; existing: {context: [note texts]}. Writes nothing."""
     deadline = time.monotonic() + budget
     items: list[dict] = []
@@ -373,8 +422,11 @@ async def preview(sources: list[dict], existing: dict[str, list[str]], progress:
         notes, msgs = await asyncio.to_thread(read_source, src, deadline)
         facts = facts_from_messages(msgs)
         if llm and msgs and time.monotonic() < deadline:
-            progress({"phase": f"Finding facts in {src['label']} (Ollama {llm[1]})", "done": i, "total": len(sources)})
-            facts = (await llm_facts(llm[0], llm[1], msgs)) or facts
+            progress({"phase": f"Finding facts in {src['label']} ({llm.name})", "done": i, "total": len(sources)})
+            if getattr(llm, "mode", "extract") == "classify":
+                facts = await llm_filter(llm, msgs, deadline)
+            else:
+                facts = (await llm_facts(llm, msgs)) or facts
         cands = notes + facts
         kept = [t for t in cands if not has_secret(t)]
         ctx = src.get("context") or ""
@@ -384,8 +436,17 @@ async def preview(sources: list[dict], existing: dict[str, list[str]], progress:
             items.append({**it, "context": ctx, "source": src["kind"], "source_label": src["label"]})
         stats.append({"id": src["id"], "label": src["label"], "messages": len(msgs), "candidates": len(kept),
                       "new": pv["new"], "secrets_dropped": len(cands) - len(kept)})
+    sem = 0
+    if embedder:
+        progress({"phase": f"Checking for repeats ({embedder.name})", "done": len(sources), "total": len(sources)})
+        try:
+            sem = await semantic_dupes(items, existing, embedder)
+        except Exception as e:  # noqa: BLE001 — lexical dedupe already ran
+            log.warning("semantic dedupe skipped: %s", type(e).__name__)
     progress({"phase": "Ready to review", "done": len(sources), "total": len(sources)})
-    return {"items": items, "sources": stats, "llm": llm[1] if llm else None,
+    return {"items": items, "sources": stats, "llm": llm.name if llm else None,
+            "engine": {"kind": llm.kind, "name": llm.name} if llm else {"kind": "rules", "name": "Rules"},
+            "semantic_duplicates": sem,
             "new": sum(1 for i in items if not i["duplicate"]), "duplicates": sum(1 for i in items if i["duplicate"]),
             "timed_out": time.monotonic() > deadline}
 
@@ -393,8 +454,10 @@ async def preview(sources: list[dict], existing: dict[str, list[str]], progress:
 class Discover:
     """Per-hub state: the last scan (the only paths that may ever be read) and one preview job."""
 
-    def __init__(self, ui: Any, home_dir: Path | None = None) -> None:
+    def __init__(self, ui: Any, home_dir: Path | None = None, engine: Any = None) -> None:
+        from . import local_engine
         self.ui, self.home_dir = ui, home_dir
+        self.engine = engine or local_engine.get(ui.home)
         self.sources: dict[str, dict] = {}
         self.job: dict[str, Any] = {"state": "idle"}
         self.task: asyncio.Task | None = None
@@ -405,8 +468,9 @@ class Discover:
     async def scan(self, _body: dict) -> dict:
         found = await asyncio.to_thread(scan, self._home(), list(self.ui.servers))
         self.sources = {s["id"]: s for s in found}
-        llm = await asyncio.to_thread(ollama_model)
-        return {"sources": public(found), "contexts": list(self.ui.servers), "llm": llm[1] if llm else None}
+        llm = await asyncio.to_thread(self.engine.llm, "import")
+        return {"sources": public(found), "contexts": list(self.ui.servers), "llm": llm.name if llm else None,
+                "engine": {"kind": llm.kind, "name": llm.name} if llm else {"kind": "rules", "name": "Rules"}}
 
     async def start(self, body: dict) -> dict:
         if self.task and not self.task.done():
@@ -424,8 +488,9 @@ class Discover:
 
         async def run() -> None:
             try:
-                llm = await asyncio.to_thread(ollama_model) if body.get("use_llm", True) else None
-                res = await preview(chosen, existing, self.job.update, llm)
+                llm = await asyncio.to_thread(self.engine.llm, "import") if body.get("use_llm", True) else None
+                emb = await asyncio.to_thread(self.engine.embedder)
+                res = await preview(chosen, existing, self.job.update, llm, embedder=emb)
                 self.job = {**self.job, "state": "done", "result": res}
             except Exception as e:  # noqa: BLE001
                 self.job = {"state": "error", "error": str(e)[:300]}

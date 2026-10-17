@@ -15,9 +15,11 @@ rm -rf "$out/python" && mkdir -p "$out"
 echo "downloading $url"
 curl -fsSL "$url" | tar -xz -C "$out"
 py="$out/python/bin/python3"
-"$py" -m pip install --no-cache-dir --disable-pip-version-check -q "$gateway"
+# [local-ai] = llama-cpp-python, built here (Metal on Apple Silicon; no -march=native so it runs on every Mac)
+CMAKE_ARGS="${CMAKE_ARGS:--DGGML_NATIVE=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAVA_BUILD=OFF}" \
+  "$py" -m pip install --no-cache-dir --disable-pip-version-check -q "$gateway[local-ai]"
 # trim: tests, caches, headers, Tk/IDLE (nothing the hub uses)
 find "$out/python" -name __pycache__ -type d -prune -exec rm -rf {} +
 rm -rf "$out/python/include" "$out/python/share" "$out/python/lib/python3."*/{test,idlelib,tkinter,turtledemo,ensurepip}
-"$py" -I -c "import hub_gateway.local, fastmcp; print('bundled python ok:', fastmcp.__version__)"
+"$py" -I -c "import hub_gateway.local, fastmcp, llama_cpp; print('bundled python ok:', fastmcp.__version__, 'llama.cpp', llama_cpp.__version__)"
 du -sh "$out/python"

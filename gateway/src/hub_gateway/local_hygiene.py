@@ -1,8 +1,10 @@
 """Nightly memory cleanup for local mode (mnemos-local / Desktop): proposals only, never edits on its own.
 
 Finds, per context and dataset: near-duplicates (token Jaccard >= 0.8, same rule as import / check-on-save) →
-"merge"; related notes that may disagree → "contradiction" (asks local Ollama when HUB_ANSWER_MODEL is set,
-otherwise a lexical rule: same topic but different numbers or a negation on one side); notes not touched for a
+"merge"; related notes that may disagree → "contradiction" (asks the engine local_engine picks for "hygiene":
+API if enabled, Ollama, or the built-in model; otherwise a lexical rule: same topic but different numbers or a
+negation on one side). With embeddings (built-in or Ollama) "near"/"related" also count meaning, not only shared
+words (SEM_NEAR / SEM_RELATED cosine); notes not touched for a
 year → "stale". Items use the hub's cleanup-inbox format, so the Memory screen shows them unchanged. The user
 accepts or dismisses each one; accepting goes through the normal tools (history + undo).
 Report: <home>/data/hygiene.json; decisions: <home>/data/hygiene-state.json (both 0600).
@@ -63,24 +65,37 @@ def _note(n: dict) -> dict:
     return {"id": n["id"], "text": n.get("text", ""), "created_at": n.get("created_at"), "source_app": n.get("source_app")}
 
 
+JUDGE = ("Two notes from someone's personal memory. Do they CONTRADICT each other (cannot both be true now)? "
+         'Reply JSON only: {"contradict": true|false, "why": "<short reason>"}\nA: ')
+SEM_NEAR, SEM_RELATED = 0.93, 0.75
+
+
+def llm_judge(llm: Any) -> Callable[[str, str], Awaitable[str | None]]:
+    """A judge from an engine LLM (Built-in, Ollama or API): None = they do not contradict."""
+    async def judge(a: str, b: str) -> str | None:
+        j = await llm.json(JUDGE + a[:800] + "\nB: " + b[:800])
+        c = j.get("contradict")
+        return str(j.get("why") or "They disagree.")[:300] if c is True or str(c).lower() == "true" else None
+    return judge
+
+
 async def ollama_judge(a: str, b: str) -> str | None:
-    """Ask local Ollama whether two notes contradict. None = no / unavailable."""
+    """Kept for callers of the old API: the env-configured Ollama (HUB_OLLAMA_URL + HUB_ANSWER_MODEL)."""
+    from .local_engine import OllamaLLM
     model, url = os.environ.get("HUB_ANSWER_MODEL"), os.environ.get("HUB_OLLAMA_URL")
     if not model or not url:
         raise LookupError
-    import httpx
-    prompt = ("Two notes from someone's personal memory. Do they CONTRADICT each other (cannot both be true now)? "
-              'Reply JSON only: {"contradict": true|false, "why": "<short>"}\nA: ' + a[:800] + "\nB: " + b[:800])
-    async with httpx.AsyncClient(timeout=60) as c:
-        r = await c.post(url.rstrip("/") + "/api/generate",
-                         json={"model": model, "prompt": prompt, "stream": False, "format": "json"})
-        r.raise_for_status()
-        j = json.loads(r.json().get("response") or "{}")
-    return str(j.get("why") or "They disagree.")[:300] if j.get("contradict") else None
+    return await llm_judge(OllamaLLM(url, model))(a, b)
 
 
-def analyze_notes(ctx: str, notes: list[dict], today: dt.date) -> tuple[list[dict], list[tuple[dict, dict]]]:
-    """→ (merge + stale items, related pairs to judge for contradictions)."""
+def _cos(a: list[float], b: list[float]) -> float:
+    na, nb = sum(x * x for x in a) ** 0.5 or 1.0, sum(x * x for x in b) ** 0.5 or 1.0
+    return sum(x * y for x, y in zip(a, b)) / (na * nb)
+
+
+def analyze_notes(ctx: str, notes: list[dict], today: dt.date,
+                  vecs: dict[str, list[float]] | None = None) -> tuple[list[dict], list[tuple[dict, dict]]]:
+    """→ (merge + stale items, related pairs to judge for contradictions). vecs: note id → embedding (optional)."""
     out, related, used = [], [], set()
     live = [n for n in notes if n.get("editable", True) and not n.get("obsolete")]
     by_ds: dict[str, list[dict]] = {}
@@ -93,16 +108,18 @@ def analyze_notes(ctx: str, notes: list[dict], today: dt.date) -> tuple[list[dic
                 if len(related) >= MAX_PAIRS:
                     break
                 j = jaccard(a["text"], b["text"])
-                if j >= NEAR and lexical_conflict(a["text"], b["text"]):
+                cos = _cos(vecs[a["id"]], vecs[b["id"]]) if vecs and a["id"] in vecs and b["id"] in vecs else 0.0
+                near = j >= NEAR or cos >= SEM_NEAR
+                if near and lexical_conflict(a["text"], b["text"]):
                     related.append((b, a))
-                elif j >= NEAR and a["id"] not in used and b["id"] not in used:
+                elif near and a["id"] not in used and b["id"] not in used:
                     used |= {a["id"], b["id"]}
                     out.append({"key": _key("merge", a["id"], b["id"]), "type": "merge", "context": ctx,
                                 "title": "Almost the same note twice",
                                 "explain": "Keep one note with the text of both; the older copy is forgotten (undoable).",
                                 "notes": [_note(a), _note(b)], "proposed_text": merged(a["text"], b["text"]),
                                 "actions": [{"id": "accept", "label": "Merge", "kind": "primary"}]})
-                elif j >= RELATED:
+                elif j >= RELATED or cos >= SEM_RELATED:
                     related.append((b, a))  # (older, newer)
     cutoff = (today - dt.timedelta(days=STALE_DAYS)).isoformat()
     old = [n for n in live if _when(n) and _when(n) < cutoff and not n.get("pinned") and n["id"] not in used]
@@ -114,20 +131,39 @@ def analyze_notes(ctx: str, notes: list[dict], today: dt.date) -> tuple[list[dic
 
 
 async def run(home: Path, contexts: list[str], call: Call, today: dt.date | None = None,
-              judge: Callable[[str, str], Awaitable[str | None]] | None = ollama_judge) -> dict:
+              judge: Any = "auto", embedder: Any = "auto") -> dict:
+    """judge/embedder "auto" = whatever local_engine has for hygiene (None = lexical / no embeddings)."""
     today = today or dt.date.today()
     items: list[dict] = []
     llm = True
+    mode = "lexical"
+    if judge == "auto" or embedder == "auto":
+        from . import local_engine
+        eng = local_engine.get(home)
+        if judge == "auto":
+            e = await asyncio.to_thread(eng.llm, "hygiene")
+            judge, mode = (llm_judge(e), e.name) if e else (None, "lexical")
+        if embedder == "auto":
+            embedder = await asyncio.to_thread(eng.embedder)
+    elif judge:
+        mode = "llm"
     for ctx in contexts:
         notes = (await call(ctx, "memory_list", {"limit": 500})).get("items") or []
-        found, related = analyze_notes(ctx, notes, today)
+        vecs = None
+        if embedder:
+            live = [n for n in notes if n.get("editable", True) and not n.get("obsolete")][:500]
+            try:
+                vecs = dict(zip([n["id"] for n in live], await embedder.embed([n["text"] for n in live])))
+            except Exception as exc:  # noqa: BLE001 — words only
+                log.warning("hygiene embeddings unavailable: %s", type(exc).__name__)
+        found, related = analyze_notes(ctx, notes, today, vecs)
         for older, newer in related[:40]:
             why = None
             if llm and judge:
                 try:
                     why = await judge(older["text"], newer["text"])
-                except Exception:  # noqa: BLE001 — no Ollama: fall back to the lexical rule
-                    llm = False
+                except Exception:  # noqa: BLE001 — engine down: fall back to the lexical rule
+                    llm, mode = False, "lexical"
             if not (llm and judge):
                 why = lexical_conflict(older["text"], newer["text"])
             if why:
@@ -136,8 +172,7 @@ async def run(home: Path, contexts: list[str], call: Call, today: dt.date | None
                               "actions": [{"id": "keep_newer", "label": "Newer is right", "kind": "primary"},
                                           {"id": "keep_older", "label": "Older is right", "kind": ""}]})
         items += found
-    rep = {"date": today.isoformat(), "mode": "llm" if (llm and judge and os.environ.get("HUB_ANSWER_MODEL")) else "lexical",
-           "items": items}
+    rep = {"date": today.isoformat(), "mode": mode, "items": items}
     _write(home / "data" / "hygiene.json", rep)
     return rep
 

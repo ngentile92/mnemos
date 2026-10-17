@@ -17,7 +17,9 @@ Everything lives in one directory (MNEMOS_HOME, default ~/Mnemos):
 
 HTTP listens on 127.0.0.1 only and needs `Authorization: Bearer <token>`; Host must be 127.0.0.1/localhost
 (DNS-rebinding guard). stdio needs no auth: the client that spawned the process owns it.
-Optional: HUB_OLLAMA_URL + HUB_EMBED_MODEL for semantic search, HUB_ANSWER_MODEL for memory_answer.
+Smart parts (import facts, cleanup, semantic search): local_engine picks API (opt-in) / Ollama / the built-in
+model (downloaded into <home>/models from the app) / rules. HUB_OLLAMA_URL + HUB_EMBED_MODEL, HUB_ANSWER_MODEL
+still point at a specific Ollama.
 """
 
 from __future__ import annotations
@@ -91,10 +93,14 @@ def build_all(home: Path, port: int, only: str | None = None):
     from .config import Settings
     from .contexts import ALL_DATASET_NAMES, CONTEXTS
     from .instructions import local_instructions
+    from . import local_engine
+    from .local_engine import EmbedProxy
+    from .local_search import LocalIndex
     from .localstore import LocalNoteStore, dataset_id
     from .memory import DatasetMap, MemoryScope
     from .secrets import SecretBroker
 
+    engine = local_engine.get(home)
     dmap = DatasetMap({n: dataset_id(n) for n in ALL_DATASET_NAMES})
     names = {dataset_id(n): n for n in ALL_DATASET_NAMES}
     out = {}
@@ -111,7 +117,8 @@ def build_all(home: Path, port: int, only: str | None = None):
                       infisical_client_id=None, infisical_client_secret=None, infisical_environment="prod",
                       host="127.0.0.1", port=port, auth_provider="local")
         store = LocalNoteStore(home / "data" / "notes", MemoryScope(spec, dmap).allowed_ids(), names)
-        out[name] = build_server(st, cognee=store, datasets=dmap, broker=SecretBroker({}, None))
+        index = LocalIndex(str(data / "search.sqlite"), EmbedProxy(engine))  # built-in/Ollama embeddings when present
+        out[name] = build_server(st, cognee=store, datasets=dmap, broker=SecretBroker({}, None), index=index)
         out[name].instructions = local_instructions(spec)  # proactive: this is the user's own memory
     return out
 
@@ -208,6 +215,8 @@ Desktop so you never copy addresses or tokens by hand.</p></body>""",
         return await lh.act(home, b, ui.call)
     ui.hooks[("GET", "hygiene")] = _pending
     ui.hooks[("POST", "hygiene/act")] = _act
+    from . import local_engine
+    local_engine.get(home).install(ui)
     from .local_discover import Discover
     Discover(ui).install()
     app = Starlette(routes=[Route("/", home_page), Route("/health", health), *ui.routes(),

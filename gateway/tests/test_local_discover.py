@@ -144,14 +144,33 @@ async def test_only_scanned_sources_can_be_read(hub, tmp_path):
         await d.undo({"batch": "../../etc"})
 
 
-async def test_llm_path(monkeypatch, tmp_path):
-    src = {"id": "x", "kind": "claude_code", "label": "L", "context": "work", "paths": []}
-    h = fake_home(tmp_path / "home")
-    src["paths"] = [str(p) for p in (h / ".claude" / "projects").rglob("*.jsonl")]
+class FakeLLM:
+    kind, name = "builtin", "Built-in · fake"
 
-    async def fake(url, model, msgs, calls=6):
-        assert all(SECRET not in m for m in msgs) or True
-        return ["Ana is a data engineer at Acme.", f"Ana's key is {SECRET}"]
-    monkeypatch.setattr(ld, "llm_facts", fake)
-    res = await ld.preview([src], {}, lambda p: None, llm=("http://x", "m"))
+    def __init__(self):
+        self.prompts = []
+
+    async def json(self, prompt):
+        self.prompts.append(prompt)
+        return {"facts": ["Ana is a data engineer at Acme.", f"Ana's key is {SECRET}", "short"]}
+
+
+class FakeEmbedder:
+    kind, name, model = "builtin", "Built-in · fake-embed", "fake"
+
+    async def embed(self, texts):  # "same meaning" = same first word
+        return [[1.0, 0.0] if t.split()[0] in ("Ana", "Ana's") else [0.0, 1.0] for t in texts]
+
+
+async def test_llm_path_and_semantic_dedupe(tmp_path):
+    h = fake_home(tmp_path / "home")
+    src = {"id": "x", "kind": "claude_code", "label": "L", "context": "work",
+           "paths": [str(p) for p in (h / ".claude" / "projects").rglob("*.jsonl")]}
+    llm = FakeLLM()
+    res = await ld.preview([src], {}, lambda p: None, llm=llm)
     assert [i["text"] for i in res["items"]] == ["Ana is a data engineer at Acme."]
+    assert res["engine"] == {"kind": "builtin", "name": "Built-in · fake"}
+    assert llm.prompts and all(SECRET not in p for p in llm.prompts)  # secrets never reach a model
+    res = await ld.preview([src], {"work": ["Ana works as a data engineer for Acme Corp"]}, lambda p: None, llm=llm,
+                           embedder=FakeEmbedder())
+    assert res["semantic_duplicates"] == 1 and res["new"] == 0

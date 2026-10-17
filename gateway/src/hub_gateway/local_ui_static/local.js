@@ -44,11 +44,12 @@
     sc.onload = () => route();
     document.body.appendChild(sc);
     window.addEventListener("hashchange", route);
+    loadEngine();
   }
   const loaded = {};
   function route() {
     const v = (location.hash.slice(1).split(/[?&]/)[0] || "memoria").replace(/^k=.*/, "memoria");
-    const view = ["memoria", "graph", "skills", "import"].includes(v) ? v : "memoria";
+    const view = ["memoria", "graph", "skills", "import", "settings"].includes(v) ? v : "memoria";
     document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.id !== "view-" + view));
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
     if (!loaded[view]) {
@@ -57,6 +58,7 @@
       if (view === "graph") loadGraph();
       if (view === "skills") loadSkills();
     }
+    if (view === "settings") loadEngine();
   }
 
   // ------------------------------------------------ graph
@@ -192,7 +194,10 @@
     try {
       const r = await api("/api/discover/scan"); dSources = r.sources; dCtxs = r.contexts;
       $("d-sum").textContent = `Found ${dSources.length} source${dSources.length === 1 ? "" : "s"}`;
-      $("d-llm").textContent = r.llm ? `Facts are extracted with Ollama (${r.llm}) on this computer.` : "No Ollama found: simple extraction (first-person facts and instruction files).";
+      const en = r.engine || { kind: "rules" };
+      $("d-llm").textContent = en.kind === "api" ? `Facts are found with ${en.name}: the selected text is sent to that provider.`
+        : en.kind === "rules" ? "Simple extraction (first-person facts and instruction files). For better results: Settings → Improve my memory."
+        : `Facts are found with ${en.name}, on this computer.`;
       $("d-sources").innerHTML = dSources.length ? dSources.map((s, i) => `<label class="imp-item"><input type="checkbox" data-i="${i}" checked>
         <span style="flex:1"><b>${esc(s.label)}</b> · ${s.count} ${esc(s.unit)} · ${kb(s.bytes)}<br><span class="small muted">${esc(s.where)}</span></span>
         <select data-c="${i}" aria-label="Context">${dCtxs.map((c) => `<option ${c === s.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>`).join("")
@@ -263,5 +268,71 @@
   window.addEventListener("mnemos:memoria", emptyCheck);
   window.addEventListener("hashchange", async () => { if (location.hash === "#import" && !dSources.length && !dAuto && await emptyCheck()) { dAuto = true; dScan(); } });
 
+  
+  // ---------------------------------------------------------------- engine: built-in model, Ollama, API key
+  const LABEL = { rules: "Rules", builtin: "Built-in", ollama: "Ollama", api: "API" };
+  const gb = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + " GB" : Math.round(n / 1e6) + " MB";
+  let eng = null, engPoll = null;
+  async function loadEngine() {
+    try { eng = await api("/api/engine"); } catch { return; }
+    const a = eng.active, b = eng.builtin, d = b.download || {};
+    const top = a.import.kind !== "rules" ? a.import : a.hygiene;
+    $("eng-badge").textContent = "Engine: " + LABEL[top.kind];
+    $("eng-badge").title = `Import: ${a.import.name} · Cleanup: ${a.hygiene.name} · Search: ${a.search.name}`;
+    $("st-active").innerHTML = [["Import (finding facts)", a.import], ["Cleanup (duplicates, notes that disagree)", a.hygiene], ["Search and duplicate check", a.search]]
+      .map(([k, e]) => `<div class="me-actions"><span class="badge">${LABEL[e.kind] || e.kind}</span><span class="small"><b>${esc(k)}</b> · ${esc(e.name)}${e.kind === "api" ? " · text leaves this Mac" : ""}</span></div>`).join("");
+    $("st-models").innerHTML = b.models.map((m) => `<p class="small">${m.present ? "✓" : "○"} ${esc(m.name)} · ${gb(m.size)} · ${esc(m.license || "")} <span class="muted">(${m.role === "llm" ? "facts and cleanup" : "search and duplicates"})</span></p>`).join("");
+    const busy = d.state === "downloading";
+    $("st-bstate").textContent = !b.runtime ? "not included in this install" : b.ready ? "installed" : busy ? "downloading" : b.choice === "declined" ? "not downloaded (you said not now)" : "not downloaded";
+    $("st-dl").classList.toggle("hidden", b.ready || !b.runtime); $("st-dl").disabled = busy;
+    $("st-dl").textContent = d.state === "error" ? "Retry the download (it resumes)" : `Improve my memory (download ${gb(b.size)})`;
+    $("st-rm").classList.toggle("hidden", !b.ready && !(b.models.some((m) => m.present)));
+    $("st-bmsg").textContent = d.state === "error" ? "Download failed: " + (d.error || "") + " — Mnemos keeps using simple rules." : "";
+    $("st-ollama").textContent = eng.ollama ? `Ollama is running (${eng.ollama}) and is used first for import and cleanup.` : "Ollama: not running (optional).";
+    for (const [bar, ph, box] of [["st-bar", "st-phase", "st-progress"], ["eo-bar", "eo-phase", "eo-progress"]]) {
+      $(box).classList.toggle("hidden", !busy);
+      if (busy) { $(bar).value = d.total ? d.done / d.total : 0; $(ph).textContent = `${d.file || ""} · ${gb(d.done || 0)} of ${gb(d.total || 0)}`; }
+    }
+    $("eo-size").textContent = gb(b.size);
+    $("eng-offer").classList.toggle("hidden", !(b.runtime && !b.ready && (b.choice === "ask" || busy || (b.choice === "on" && d.state === "error"))));
+    $("eo-go").disabled = busy; $("eo-no").classList.toggle("hidden", busy);
+    $("eo-go").textContent = d.state === "error" ? "Retry (resumes)" : "Download";
+    $("eo-msg").textContent = d.state === "error" ? "Download failed: " + (d.error || "") : "";
+    if (b.ready && d.state === "ready") $("eo-msg").textContent = "";
+    const p = eng.api;
+    if (document.activeElement?.closest?.("#view-settings") == null) {
+      $("st-prov").value = p.provider || ""; $("st-model").value = p.model || "";
+      $("st-model").placeholder = p.defaults[$("st-prov").value] || "";
+      $("st-key").placeholder = p.has_key ? "saved in the Keychain (type to replace)" : "sk-…";
+      $("st-f-import").checked = p.import; $("st-f-hygiene").checked = p.hygiene;
+    }
+    clearTimeout(engPoll);
+    if (busy) engPoll = setTimeout(loadEngine, 1000);
+  }
+  async function engDownload(btn) {
+    btn.disabled = true;
+    try { await api("/api/engine/download", {}); } catch (e) { $("st-bmsg").textContent = e.message; }
+    loadEngine();
+  }
+  $("st-dl").onclick = () => engDownload($("st-dl"));
+  $("eo-go").onclick = () => engDownload($("eo-go"));
+  $("eo-no").onclick = async () => { await api("/api/engine/decline", {}); loadEngine(); };
+  $("st-rm").onclick = async () => { if (!confirm("Remove the built-in model? Mnemos goes back to simple rules (or Ollama).")) return; await api("/api/engine/remove", {}); loadEngine(); };
+  $("st-prov").onchange = () => { $("st-model").placeholder = (eng?.api.defaults || {})[$("st-prov").value] || ""; };
+  async function apiSave(extra) {
+    $("st-amsg").textContent = "";
+    try {
+      eng = await api("/api/engine/api", { provider: $("st-prov").value || null, key: $("st-key").value, model: $("st-model").value,
+        import: $("st-f-import").checked, hygiene: $("st-f-hygiene").checked, ...extra });
+      $("st-key").value = ""; $("st-amsg").textContent = "Saved ✓"; document.activeElement?.blur?.(); loadEngine();
+    } catch (e) { $("st-amsg").textContent = e.message; }
+  }
+  $("st-save").onclick = () => apiSave({});
+  $("st-clear").onclick = () => { $("st-prov").value = ""; $("st-f-import").checked = $("st-f-hygiene").checked = false; apiSave({ provider: null }); };
+  $("st-test").onclick = async () => {
+    $("st-amsg").textContent = "Testing…";
+    try { const r = await api("/api/engine/api/test", {}); $("st-amsg").textContent = r.ok ? "The key works ✓" : "Did not work: " + (r.error || "no answer"); }
+    catch (e) { $("st-amsg").textContent = e.message; }
+  };
   start();
 })();

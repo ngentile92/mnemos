@@ -6,6 +6,18 @@
 set -euo pipefail
 DMG="$1"; SHOTS="${2:-$PWD/shots}"; mkdir -p "$SHOTS"
 T="$(mktemp -d)"; export MNEMOS_HOME="$T/Mnemos" MNEMOS_CLAUDE_CONFIG="$T/claude/claude_desktop_config.json"
+# built-in model: a 1 MB test GGUF instead of the real 1.4 GB pair (same download/checksum/runtime path)
+/usr/bin/python3 - "$T/models.json" <<'PY'
+import json, sys
+url = ("https://huggingface.co/ggml-org/models-moved/resolve/499bc8821c6b12b4e53c5bffcb21ec206f212d81/"
+       "tinyllamas/stories260K.gguf")
+json.dump([{"role": r, "name": f"tiny test model ({r})", "file": f"{r}.gguf", "size": 1185376, "url": url,
+            "sha256": "270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d"} for r in ("llm", "embed")],
+          open(sys.argv[1], "w"))
+PY
+export MNEMOS_MODELS_MANIFEST="$T/models.json" MNEMOS_OLLAMA=0 MNEMOS_SCAN_HOME="$T/scan"
+mkdir -p "$T/scan/.claude/projects/-Users-ana-code-x"
+echo '{"type":"user","message":{"role":"user","content":"I work at Acme as a nurse."}}' > "$T/scan/.claude/projects/-Users-ana-code-x/s.jsonl"
 APP=/Applications/Mnemos.app; BIN="$APP/Contents/MacOS/mnemos-desktop"; PORT=8765
 step() { printf '\n== %s\n' "$*"; }
 fail() { echo "FRIEND TEST FAILED: $*"; cat "$MNEMOS_HOME/hub.log" 2>/dev/null | tail -30 || true; exit 1; }
@@ -53,6 +65,28 @@ PREV="$(api import/preview '{"context":"personal","source":"claude","text":"- An
 echo "$PREV" | head -c 600; echo
 NOTES="$(echo "$PREV" | /usr/bin/python3 -c 'import json,sys;d=json.load(sys.stdin);print(json.dumps([c["text"] for c in d["items"] if not c["duplicate"]]))')"
 api import/commit "{\"context\":\"personal\",\"source\":\"claude\",\"notes\":$NOTES}" | grep -q '"saved": *3' || fail "import did not save 3 notes"
+
+step "engine: Rules first; built-in model download (progress, checksum) switches import/cleanup/search to Built-in"
+eng() { curl -fs -b "$T/c" "http://127.0.0.1:$PORT/api/engine"; }
+jq_() { /usr/bin/python3 -c "import json,sys;d=json.load(sys.stdin);print($1)"; }
+[ "$(eng | jq_ 'd["active"]["import"]["kind"], d["builtin"]["runtime"], d["builtin"]["choice"]')" = "rules True ask" ] || { eng; fail "engine before download"; }
+api engine/download '{}' >/dev/null || fail "start download"
+for _ in $(seq 60); do S="$(eng | jq_ 'd["builtin"]["download"]["state"]')"; [ "$S" = downloading ] || break; sleep 2; done
+[ "$S" = ready ] || { eng; fail "model download: $S"; }
+[ "$(eng | jq_ 'd["active"]["import"]["kind"], d["active"]["hygiene"]["kind"], d["active"]["search"]["kind"]')" = "builtin builtin builtin" ] || { eng; fail "engine after download"; }
+ls -l "$MNEMOS_HOME/models"
+curl -fs -b "$T/c" "http://127.0.0.1:$PORT/api/discover/scan" | grep -q '"kind": *"builtin"' || fail "scan does not report the built-in engine"
+SEL="$(curl -fs -b "$T/c" "http://127.0.0.1:$PORT/api/discover/scan" | jq_ 'json.dumps({"sources":[{"id":s["id"],"context":"work"} for s in d["sources"]]})')"
+api discover/preview "$SEL" >/dev/null || fail "discover preview"
+for _ in $(seq 60); do R="$(curl -fs -b "$T/c" "http://127.0.0.1:$PORT/api/discover/status")"; echo "$R" | grep -q '"state": *"running"' || break; sleep 2; done
+echo "$R" | jq_ 'd["state"], d["result"]["engine"]' | tr '\n' ' ' | grep -q "^done .*builtin" || { echo "$R" | head -c 800; fail "preview with the built-in model"; }
+echo "built-in model loaded and used (llama.cpp in the bundled Python)"
+
+step "API key: kept in the Keychain (or 0600 file), per-feature, then forgotten"
+api engine/api '{"provider":"openai","key":"sk-friendtest-0000000000","import":true,"hygiene":false}' | jq_ 'd["api"]["has_key"], d["active"]["import"]["kind"], d["active"]["hygiene"]["kind"]' | tr '\n' ' ' | grep -q "True api builtin" || fail "api key settings"
+grep -q friendtest "$MNEMOS_HOME/engine.json" && fail "API key written to engine.json"
+if [ "${MNEMOS_NO_KEYCHAIN:-}" != 1 ]; then security find-generic-password -s io.mnemos.desktop.apikey >/dev/null || fail "API key not in the Keychain"; fi
+api engine/api '{"provider":null}' | jq_ 'd["api"]["has_key"], d["active"]["import"]["kind"]' | tr '\n' ' ' | grep -q "False builtin" || fail "forget api key"
 
 step "save a note, then the same note again → duplicate warning"
 api memory/save '{"context":"personal","text":"Ana prefers green tea in the morning"}' | grep -qv duplicate || fail "first save"

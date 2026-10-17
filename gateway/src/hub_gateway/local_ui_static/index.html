@@ -20,6 +20,8 @@
     <a href="#graph" class="tab" data-view="graph" role="tab">Graph</a>
     <a href="#skills" class="tab" data-view="skills" role="tab">Skills</a>
     <a href="#import" class="tab" data-view="import" role="tab">Import</a>
+    <a href="#settings" class="tab" data-view="settings" role="tab">Settings</a>
+    <a href="#settings" class="badge" id="eng-badge" title="Which engine finds facts and cleans up your memory" style="align-self:center;margin-left:6px"></a>
   </nav>
 </header>
 <section id="login" class="card login hidden">
@@ -31,6 +33,11 @@
 </section>
 <div id="app" class="hidden">
 <main id="view-memoria" class="view">
+  <section class="card hidden" id="eng-offer" style="margin:14px 36px"><h2>Improve my memory</h2>
+    <p class="small muted">Download a small private AI model (<b id="eo-size"></b>, once) so Mnemos finds better facts when importing, spots duplicates that use different words, and catches notes that disagree. It runs on this Mac: nothing is sent anywhere. Without it Mnemos keeps working with simple rules.</p>
+    <div class="me-actions"><button class="mbtn primary" id="eo-go">Download</button><button class="mbtn" id="eo-no">Not now</button><span class="muted small" id="eo-msg"></span></div>
+    <div class="hidden" id="eo-progress"><progress id="eo-bar" max="1" value="0" style="width:100%"></progress><p class="small muted" id="eo-phase"></p></div>
+  </section>
   <section class="card hidden" id="empty-cta" style="margin:14px 36px"><h2>Your memory is empty</h2>
     <p class="small muted">Mnemos can look on this computer for what your AI tools already know about you (Claude Code, Cursor, CLAUDE.md, Obsidian, ChatGPT and Claude exports). Nothing is saved until you review it.</p>
     <a class="mbtn primary" href="#import" id="empty-scan">Scan this Mac</a></section>
@@ -74,6 +81,30 @@
   <section class="me-grid">
     <div class="card me-listcard"><div class="card-h"><h2>Skills</h2></div><div id="s-list"></div></div>
     <div class="card me-detailcard"><div id="s-detail"><p class="muted">Pick a skill on the left.</p></div></div>
+  </section>
+</main>
+<main id="view-settings" class="view hidden">
+  <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Engine</h2><span class="muted small">what does the smart parts</span></div>
+    <div id="st-active"></div>
+    <p class="small muted">Order: an API key you enabled for that feature → Ollama (if running) → the built-in model → simple rules. Search similarity never uses an API.</p>
+  </section>
+  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Built-in model</h2><span class="muted small" id="st-bstate"></span></div>
+    <p class="small muted">Runs on this Mac (Apple Silicon: uses the GPU). Stored in your Mnemos folder; nothing is sent anywhere.</p>
+    <div id="st-models"></div>
+    <div class="me-actions"><button class="mbtn primary" id="st-dl">Improve my memory (download)</button><button class="mbtn danger hidden" id="st-rm">Remove the model</button><span class="muted small" id="st-bmsg"></span></div>
+    <div class="hidden" id="st-progress"><progress id="st-bar" max="1" value="0" style="width:100%"></progress><p class="small muted" id="st-phase"></p></div>
+    <p class="small muted" id="st-ollama"></p>
+  </section>
+  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Use an API key (optional)</h2></div>
+    <p class="small" style="border:1px solid rgba(251,191,36,.45);border-radius:9px;padding:8px 10px;color:var(--warn)">With an API key, the text being imported or cleaned up <b>leaves this Mac</b> and is sent to OpenAI or Anthropic under their terms. Only the features you tick below use it. The key is kept in the macOS Keychain.</p>
+    <div class="me-actions" style="flex-wrap:wrap">
+      <label class="small">Provider <select id="st-prov"><option value="">None</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option></select></label>
+      <label class="small">Key <input id="st-key" type="password" autocomplete="off" spellcheck="false" style="width:260px" placeholder="sk-…"></label>
+      <label class="small">Model <input id="st-model" style="width:170px" spellcheck="false"></label>
+    </div>
+    <div class="me-actions"><label class="small" style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="st-f-import" style="width:auto"> Use it to find facts when importing</label>
+      <label class="small" style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="st-f-hygiene" style="width:auto"> Use it for cleanup (notes that disagree)</label></div>
+    <div class="me-actions"><button class="mbtn primary" id="st-save">Save</button><button class="mbtn" id="st-test">Test the key</button><button class="mbtn danger" id="st-clear">Forget the key</button><span class="muted small" id="st-amsg"></span></div>
   </section>
 </main>
 <main id="view-import" class="view hidden">

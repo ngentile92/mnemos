@@ -37,9 +37,19 @@ for what you already told other AIs: Claude Code sessions (`~/.claude/projects`)
 Cursor chats and rules, Obsidian vaults, and ChatGPT / Claude.ai export zips in `Downloads`. You see "Found N
 sources", pick which ones and which context each goes to, and get a full preview of the facts found. Nothing is
 saved until you click **Save**, and **Undo this import** removes the whole batch. Anything that looks like a
-password, token or key is dropped, and `.env` files are never opened. If [Ollama](https://ollama.com) is running,
-it is used to pick better facts; otherwise simple rules are used. For memories that live only in the cloud, the
+password, token or key is dropped, and `.env` files are never opened. With the built-in model (or Ollama, or an API key you
+enabled) facts are picked better; otherwise simple rules are used. For memories that live only in the cloud, the
 **Claude.ai / ChatGPT** buttons copy a prompt, open the site, and give you a box to paste the answer.
+
+### Improve my memory (built-in model, optional)
+The first time you open your memory, Mnemos offers to **download a small private AI model** (about 1.4 GB, once).
+It runs on your Mac (Apple Silicon uses the GPU), nothing is sent anywhere, and it makes import find better facts,
+spots duplicates written with different words, and catches notes that disagree. Click **Not now** and Mnemos keeps
+working with simple rules; you can download it later in **Settings → Improve my memory**. The download resumes if
+it is interrupted and is checked before use. If you run [Ollama](https://ollama.com), Mnemos uses it first.
+**Settings** also accepts an OpenAI or Anthropic API key (kept in the Keychain) for import and/or cleanup only:
+then that text is sent to the provider. The **Engine** badge at the top shows what is in use: Rules, Built-in,
+Ollama or API.
 
 **Good to know:** addresses ending in `/mcp` are for AI apps, not for your browser. Your data lives in the
 `Mnemos` folder in your home folder; back it up like any other folder.

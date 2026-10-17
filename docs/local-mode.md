@@ -22,3 +22,13 @@ python3 -m venv .venv && .venv/bin/pip install -e gateway
 
 Same tools, ledger (provenance, history, undo, pin/obsolete, validity) and dashboard logic in both modes.
 Tested in `gateway/tests/test_local_mode.py` (end-to-end tools, cross-context isolation, HTTP token/Host guard).
+
+## Auto-discover import
+
+`hub_gateway/local_discover.py` backs **Import → Scan this Mac** (`GET /api/discover/scan`, `POST
+/api/discover/preview`, `GET /api/discover/status`, `POST /api/discover/commit`, `POST /api/discover/undo`).
+The scan is bounded (depth, file count, bytes, ~15 s) and read-only (SQLite opened `mode=ro&immutable=1`); the
+client can only refer to source ids from the last scan, never paths. Preview drops secret-looking text and
+near-duplicates of existing notes; commit tags each note `import-auto` and `imp-<batch>`, and undo deletes that
+batch. Env: `MNEMOS_SCAN_HOME` (scan another home, used by tests), `MNEMOS_DISCOVER_LLM=0` (skip Ollama),
+`HUB_OLLAMA_URL` / `HUB_ANSWER_MODEL` (which Ollama model extracts facts).

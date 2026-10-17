@@ -31,6 +31,16 @@ Ask Claude *"what do you know about me?"* — it now reads and saves to Mnemos o
 Click **Open my memory**: search notes, edit, pin, mark as outdated, forget (with undo), see the graph of people
 and projects, edit your skills, and **Import** what ChatGPT or Claude already know about you.
 
+### Scan this Mac (first big import)
+The first time your memory is empty, Mnemos offers to **Scan this Mac** (also under **Import**). It looks, read-only,
+for what you already told other AIs: Claude Code sessions (`~/.claude/projects`), `CLAUDE.md` / `AGENTS.md` files,
+Cursor chats and rules, Obsidian vaults, and ChatGPT / Claude.ai export zips in `Downloads`. You see "Found N
+sources", pick which ones and which context each goes to, and get a full preview of the facts found. Nothing is
+saved until you click **Save**, and **Undo this import** removes the whole batch. Anything that looks like a
+password, token or key is dropped, and `.env` files are never opened. If [Ollama](https://ollama.com) is running,
+it is used to pick better facts; otherwise simple rules are used. For memories that live only in the cloud, the
+**Claude.ai / ChatGPT** buttons copy a prompt, open the site, and give you a box to paste the answer.
+
 **Good to know:** addresses ending in `/mcp` are for AI apps, not for your browser. Your data lives in the
 `Mnemos` folder in your home folder; back it up like any other folder.
 

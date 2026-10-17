@@ -183,5 +183,85 @@
     btn.disabled = false; btn.textContent = "Save selected";
   };
 
+  // ------------------------------------------------ auto-discover (Scan this Mac)
+  const CLOUD_PROMPT = "List everything you remember about me, one fact per line. Only facts about me (who I am, work, projects, people, preferences), no commentary.";
+  let dSources = [], dCtxs = [], dRes = null, dAuto = false;
+  const kb = (n) => (n > 1e6 ? (n / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1e3)) + " KB");
+  async function dScan() {
+    const b = $("d-scan"); b.disabled = true; b.innerHTML = '<span class="spin"></span>Looking…';
+    try {
+      const r = await api("/api/discover/scan"); dSources = r.sources; dCtxs = r.contexts;
+      $("d-sum").textContent = `Found ${dSources.length} source${dSources.length === 1 ? "" : "s"}`;
+      $("d-llm").textContent = r.llm ? `Facts are extracted with Ollama (${r.llm}) on this computer.` : "No Ollama found: simple extraction (first-person facts and instruction files).";
+      $("d-sources").innerHTML = dSources.length ? dSources.map((s, i) => `<label class="imp-item"><input type="checkbox" data-i="${i}" checked>
+        <span style="flex:1"><b>${esc(s.label)}</b> · ${s.count} ${esc(s.unit)} · ${kb(s.bytes)}<br><span class="small muted">${esc(s.where)}</span></span>
+        <select data-c="${i}" aria-label="Context">${dCtxs.map((c) => `<option ${c === s.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>`).join("")
+        : '<p class="muted small">Nothing found on this computer. Use the options below.</p>';
+      $("d-go-row").classList.toggle("hidden", !dSources.length);
+    } catch (e) { alert("Scan failed: " + e.message); }
+    b.disabled = false; b.textContent = "Scan again";
+  }
+  $("d-scan").onclick = dScan;
+  $("d-go").onclick = async () => {
+    const chosen = [...$("d-sources").querySelectorAll("input:checked")].map((c) => ({ id: dSources[+c.dataset.i].id, context: $("d-sources").querySelector(`select[data-c="${c.dataset.i}"]`).value }));
+    if (!chosen.length) return;
+    try { await api("/api/discover/preview", { sources: chosen }); } catch (e) { return alert(e.message); }
+    $("d-go").disabled = true; $("d-progress").classList.remove("hidden"); $("d-review").classList.add("hidden"); $("d-done").classList.add("hidden");
+    const tick = async () => {
+      let j; try { j = await api("/api/discover/status"); } catch { return setTimeout(tick, 1500); }
+      $("d-bar").max = j.total || 1; $("d-bar").value = j.done || 0; $("d-phase").textContent = j.phase || "";
+      if (j.state === "running") return setTimeout(tick, 1000);
+      $("d-go").disabled = false;
+      if (j.state === "error") { $("d-progress").classList.add("hidden"); return alert("Could not read the sources: " + j.error); }
+      dShow(j.result);
+    };
+    tick();
+  };
+  function dShow(r) {
+    dRes = r; $("d-progress").classList.add("hidden"); $("d-review").classList.remove("hidden");
+    const sec = r.sources.reduce((a, s) => a + s.secrets_dropped, 0);
+    $("d-rsum").textContent = `${r.new} new · ${r.duplicates} already known${sec ? ` · ${sec} left out (looked like secrets)` : ""}${r.timed_out ? " · stopped early (time limit)" : ""}`;
+    let last = "";
+    $("d-list").innerHTML = r.items.length ? r.items.map((it, i) => {
+      const head = it.source_label !== last ? `<h3 class="small" style="margin:14px 0 4px">${esc(it.source_label)} → ${esc(it.context)}</h3>` : "";
+      last = it.source_label;
+      return head + `<label class="imp-item${it.duplicate ? " dup" : ""}"><input type="checkbox" data-i="${i}" ${it.duplicate ? "" : "checked"}>
+        <span>${esc(it.text)}${it.duplicate ? ` <span class="badge obs">${esc(it.duplicate)}</span>` : ""}</span></label>`;
+    }).join("") : '<p class="muted">No durable facts found in those sources.</p>';
+  }
+  $("d-all").onclick = () => $("d-list").querySelectorAll("input").forEach((c) => { c.checked = !dRes.items[+c.dataset.i].duplicate; });
+  $("d-none").onclick = () => $("d-list").querySelectorAll("input").forEach((c) => { c.checked = false; });
+  $("d-save").onclick = async (e) => {
+    const notes = [...$("d-list").querySelectorAll("input:checked")].map((c) => { const it = dRes.items[+c.dataset.i]; return { text: it.text, context: it.context, source: it.source }; });
+    if (!notes.length) return;
+    const b = e.target; b.disabled = true; b.innerHTML = `<span class="spin"></span>Saving ${notes.length}…`;
+    try {
+      const r = await api("/api/discover/commit", { notes });
+      $("d-review").classList.add("hidden"); $("d-done").classList.remove("hidden");
+      $("d-done").innerHTML = `<p>Saved ${r.saved} notes ✓${r.skipped ? ` · ${r.skipped} skipped (already there)` : ""}${r.failed ? ` · ${r.failed} failed` : ""}. They are tagged “import-auto”.</p>
+        <button class="mbtn" id="d-undo">Undo this import</button>`;
+      $("d-undo").onclick = async (ev) => { ev.target.disabled = true; const u = await api("/api/discover/undo", { batch: r.batch }); $("d-done").innerHTML = `<p>Removed ${u.removed} notes (each one can still be restored from its history).</p>`; };
+    } catch (err) { alert("Not saved: " + err.message); }
+    b.disabled = false; b.textContent = "Save selected";
+  };
+  document.querySelectorAll("[data-cloud]").forEach((b) => { b.onclick = async () => {
+    try { await navigator.clipboard.writeText(CLOUD_PROMPT); $("c-msg").textContent = "Question copied ✓ — paste it in the chat that just opened"; }
+    catch { $("c-msg").textContent = "Copy this question: " + CLOUD_PROMPT; }
+    window.open(b.dataset.cloud, "_blank", "noopener");
+  }; });
+  $("c-go").onclick = (e) => previewJSON("claude", { text: $("c-text").value }, e.target);
+  // first run: empty memory → invite to scan; opening Import with an empty memory scans right away
+  async function emptyCheck() {
+    try {
+      const s = await api("/api/session");
+      let total = 0;
+      for (const c of s.contexts) total += ((await api("/api/memory/list?" + new URLSearchParams({ context: c, include_shared: "1" }))).items || []).length;
+      $("empty-cta").classList.toggle("hidden", total > 0);
+      return total === 0;
+    } catch { return false; }
+  }
+  window.addEventListener("mnemos:memoria", emptyCheck);
+  window.addEventListener("hashchange", async () => { if (location.hash === "#import" && !dSources.length && !dAuto && await emptyCheck()) { dAuto = true; dScan(); } });
+
   start();
 })();

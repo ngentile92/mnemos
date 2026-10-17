@@ -208,6 +208,8 @@ Desktop so you never copy addresses or tokens by hand.</p></body>""",
         return await lh.act(home, b, ui.call)
     ui.hooks[("GET", "hygiene")] = _pending
     ui.hooks[("POST", "hygiene/act")] = _act
+    from .local_discover import Discover
+    Discover(ui).install()
     app = Starlette(routes=[Route("/", home_page), Route("/health", health), *ui.routes(),
                             *[Mount(f"/{c}", app=s) for c, s in subs.items()]], lifespan=lifespan)
     app.state.ui = ui

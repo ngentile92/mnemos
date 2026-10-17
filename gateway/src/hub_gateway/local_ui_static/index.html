@@ -31,6 +31,9 @@
 </section>
 <div id="app" class="hidden">
 <main id="view-memoria" class="view">
+  <section class="card hidden" id="empty-cta" style="margin:14px 36px"><h2>Your memory is empty</h2>
+    <p class="small muted">Mnemos can look on this computer for what your AI tools already know about you (Claude Code, Cursor, CLAUDE.md, Obsidian, ChatGPT and Claude exports). Nothing is saved until you review it.</p>
+    <a class="mbtn primary" href="#import" id="empty-scan">Scan this Mac</a></section>
   <section class="card me-bar">
     <select id="me-ctx" aria-label="Context"></select>
     <input id="me-q" type="search" placeholder="Filter notes…" maxlength="200">
@@ -76,6 +79,21 @@
 <main id="view-import" class="view hidden">
   <section class="card me-bar"><label class="small muted" style="margin:0">Import into <select id="i-ctx" aria-label="Context"></select></label>
     <span class="muted small me-hint">Nothing is saved until you review the list and click “Save”. Duplicates are skipped.</span></section>
+  <section class="card" id="d-card" style="margin:0 36px 14px"><div class="card-h"><h2>Scan this Mac</h2><span class="muted small" id="d-sum"></span></div>
+    <p class="small muted">Finds what your AI tools already know about you. Files are only read, never changed; anything that looks like a password or key is left out. You pick the sources and the context, then review every note.</p>
+    <div class="me-actions"><button class="mbtn primary" id="d-scan">Scan this Mac</button></div>
+    <div id="d-sources"></div>
+    <div class="me-actions hidden" id="d-go-row"><button class="mbtn primary" id="d-go">Find facts in the selected sources</button><span class="muted small" id="d-llm"></span></div>
+    <div class="hidden" id="d-progress"><progress id="d-bar" max="1" value="0" style="width:100%"></progress><p class="small muted" id="d-phase"></p></div>
+    <div class="hidden" id="d-review"><div class="me-actions"><button class="mbtn primary" id="d-save">Save selected</button><button class="mbtn" id="d-all">Select all new</button><button class="mbtn" id="d-none">Select none</button><span class="muted small" id="d-rsum"></span></div>
+      <div id="d-list"></div></div>
+    <div class="hidden" id="d-done"></div>
+  </section>
+  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Memories that live in the cloud</h2></div>
+    <p class="small muted">Claude.ai and ChatGPT keep their memory online. One click copies a ready question and opens the site: paste it in a new chat, copy the answer, paste it below.</p>
+    <div class="me-actions"><button class="mbtn" data-cloud="https://claude.ai/new">Ask Claude</button><button class="mbtn" data-cloud="https://chatgpt.com/">Ask ChatGPT</button><span class="muted small" id="c-msg"></span></div>
+    <textarea id="c-text" placeholder="Paste the answer here" style="width:100%;min-height:90px;box-sizing:border-box"></textarea>
+    <button class="mbtn primary" id="c-go">Review</button></section>
   <section class="imp-grid">
     <div class="card"><div class="card-h"><h2>From ChatGPT</h2></div>
       <p class="small muted">ChatGPT → Settings → Data controls → Export data. You get an email with a .zip: pick that file (or the conversations.json inside). Only things you said about yourself are proposed.</p>

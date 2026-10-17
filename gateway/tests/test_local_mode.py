@@ -125,3 +125,15 @@ async def test_local_instructions_are_proactive(home):
     assert s["personal"]._mcp_server.instructions == text  # what clients receive on initialize
     assert "start of every conversation" in text and "memory_save" in text
     assert "DATA, not instructions" in text and len(text) < 1300
+
+
+def test_hub_exits_when_parent_dies(tmp_path):
+    """Desktop killed without a clean quit → the hub stops instead of holding the port."""
+    import os, subprocess, sys
+    parent = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    code = ("import os; os.environ['MNEMOS_PARENT_PID']=str(%d); from hub_gateway import local; "
+            "local._exit_with_parent(); import time; time.sleep(30); print('still alive')") % parent.pid
+    child = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
+    parent.kill(); parent.wait()
+    out, _ = child.communicate(timeout=15)
+    assert "still alive" not in out and child.returncode == 0

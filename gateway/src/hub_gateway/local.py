@@ -214,6 +214,29 @@ Desktop so you never copy addresses or tokens by hand.</p></body>""",
     return TokenGate(app, token, port)
 
 
+def _exit_with_parent() -> None:
+    """Desktop sets MNEMOS_PARENT_PID: if the app dies without a clean quit (killed, crashed), stop too instead of
+    holding the port and blocking the next start."""
+    pid = int(os.environ.get("MNEMOS_PARENT_PID") or 0)
+    if pid <= 1:
+        return
+    import threading
+    import time
+
+    def watch() -> None:
+        while True:
+            time.sleep(2)
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                os._exit(0)
+            except PermissionError:
+                pass
+            if os.getppid() == 1:
+                os._exit(0)
+    threading.Thread(target=watch, daemon=True, name="parent-watch").start()
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="mnemos-local", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -251,6 +274,7 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit(f"unknown context {a.context!r}")
         servers[a.context].run(transport="stdio", show_banner=False)
         return 0
+    _exit_with_parent()
     import uvicorn
     uvicorn.run(http_app(home, a.port), host="127.0.0.1", port=a.port, log_level="info")
     return 0

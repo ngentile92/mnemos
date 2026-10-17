@@ -276,6 +276,7 @@ fn start_hub(hub: State<Hub>) -> Result<(), String> {
         .stdout(log.try_clone().map_err(|e| e.to_string())?)
         .stderr(log)
         .env("MNEMOS_TOKEN", tok)
+        .env("MNEMOS_PARENT_PID", std::process::id().to_string())
         .spawn()
         .map_err(|e| format!("could not start the hub: {e}"))?;
     *g = Some(child);

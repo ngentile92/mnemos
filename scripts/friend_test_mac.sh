@@ -36,9 +36,11 @@ if [ "${MNEMOS_NO_KEYCHAIN:-}" != 1 ]; then
 fi
 
 step "open the app (hub starts by itself)"
+for _ in $(seq 15); do curl -fs "http://127.0.0.1:$PORT/health" >/dev/null || break; sleep 1; done
+curl -fs "http://127.0.0.1:$PORT/health" >/dev/null && fail "port $PORT busy before start (a hub outlived its app)"
 "$BIN" > "$T/app.log" 2>&1 & APP_PID=$!
 for _ in $(seq 60); do curl -fs "http://127.0.0.1:$PORT/health" >/dev/null && break; sleep 2; done
-curl -fs "http://127.0.0.1:$PORT/health" | grep -q '"ok":true' || { cat "$T/app.log"; fail "hub did not start"; }
+curl -fs "http://127.0.0.1:$PORT/health" | grep -Eq '"ok": ?true' || { cat "$T/app.log"; fail "hub did not start"; }
 sleep 3; shot 1-app-window
 
 step "log into the memory screen with the password"

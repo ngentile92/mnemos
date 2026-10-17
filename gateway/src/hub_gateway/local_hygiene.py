@@ -72,10 +72,17 @@ SEM_NEAR, SEM_RELATED = 0.93, 0.75
 
 def llm_judge(llm: Any) -> Callable[[str, str], Awaitable[str | None]]:
     """A judge from an engine LLM (Built-in, Ollama or API): None = they do not contradict."""
+    def yes(j: dict) -> bool:
+        c = j.get("contradict")
+        return c is True or str(c).lower() == "true"
+
     async def judge(a: str, b: str) -> str | None:
         j = await llm.json(JUDGE + a[:800] + "\nB: " + b[:800])
-        c = j.get("contradict")
-        return str(j.get("why") or "They disagree.")[:300] if c is True or str(c).lower() == "true" else None
+        if not yes(j):
+            return None
+        if getattr(llm, "mode", "") == "classify" and not yes(await llm.json(JUDGE + b[:800] + "\nB: " + a[:800])):
+            return None  # small built-in model: both orders must agree (halves its false alarms on paraphrases)
+        return str(j.get("why") or "They disagree.")[:300]
     return judge
 
 

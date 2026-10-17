@@ -205,10 +205,21 @@ class _Llama:
 
     def get(self) -> Any:
         if self._m is None:
+            import atexit
+
             from llama_cpp import Llama
             self._m = Llama(model_path=str(self.path), verbose=False, n_threads=max(2, (os.cpu_count() or 4) - 2),
                             n_gpu_layers=-1 if sys.platform == "darwin" else 0, **self.kw)
+            atexit.register(self.close)  # free Metal buffers before the C++ teardown (else a GGML_ASSERT at exit)
         return self._m
+
+    def close(self) -> None:
+        m, self._m = self._m, None
+        if m is not None and hasattr(m, "close"):
+            try:
+                m.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 class BuiltinLLM:

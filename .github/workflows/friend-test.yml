@@ -1,0 +1,20 @@
+name: friend-test
+# The published app, as a friend would get it: latest release .dmg on a clean macOS runner.
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  friend-test:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - run: curl -fsSL -o Mnemos.dmg https://github.com/ngentile92/mnemos/releases/latest/download/Mnemos-macos.dmg
+      - run: scripts/friend_test_mac.sh Mnemos.dmg "$RUNNER_TEMP/shots"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: { name: friend-test-screenshots, path: "${{ runner.temp }}/shots", if-no-files-found: ignore }

@@ -130,6 +130,11 @@ jobs:
           ditto -c -k --keepParent desktop/src-tauri/target/release/bundle/macos/Mnemos.app dist/Mnemos-macos-unsigned.app.zip
           cp desktop/src-tauri/target/release/bundle/dmg/*.dmg dist/Mnemos-macos-unsigned.dmg
           ls -lh dist
+      - name: friend test (install from the dmg, setup, import, save, duplicate, connect Claude, stdio)
+        run: scripts/friend_test_mac.sh dist/Mnemos-macos-unsigned.dmg "$RUNNER_TEMP/shots"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: friend-test-screenshots, path: "${{ runner.temp }}/shots", if-no-files-found: ignore }
       - uses: actions/upload-artifact@v4
         with:
           name: Mnemos-macos-unsigned

@@ -1,13 +1,14 @@
 name: ci
+# Runner images are pinned (ubuntu-24.04, macos-15) so "-latest" migrations do not change CI under us; bump on purpose.
 on: [push, pull_request]
 permissions:
   contents: read
 jobs:
   gateway-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install -e "gateway[dev]"
@@ -15,9 +16,9 @@ jobs:
       - name: example skills are valid
         run: python examples/skills/scripts/validate.py examples/skills
   lint-shell-compose:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: shellcheck -S warning scripts/*.sh skills-sync/sync.sh
       - name: compose config (dummy values)
         run: |
@@ -26,9 +27,9 @@ jobs:
           docker compose config -q
           docker compose -f compose.dev.yaml config -q
   linux-install:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # system python on purpose: the setup-python build needs LD_LIBRARY_PATH, which systemd units do not get
       - name: install path (README "Try it locally" venv)
         run: /usr/bin/python3 -m venv .venv && .venv/bin/pip install -q -e gateway
@@ -56,9 +57,9 @@ jobs:
           systemctl --user status 'mnemos-*' --no-pager || true
           tail -50 ~/.local/state/mnemos/*.log || true
   gitleaks:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # scan the full history, not just the last commit
       - name: gitleaks (full history)
@@ -67,12 +68,12 @@ jobs:
             git /repo --redact --verbose --exit-code 1
 
   mcpb:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: "22" }
+      - uses: astral-sh/setup-uv@v10.3.0
       - name: build the Claude Desktop bundle (pinned to this commit)
         run: scripts/build_mcpb.sh "${{ github.event.pull_request.head.sha || github.sha }}"
       - name: launch it like Claude Desktop does and call the tools over stdio
@@ -84,15 +85,15 @@ jobs:
           grep -q "search hits 1" /tmp/out.txt
 
   desktop:
-    runs-on: macos-latest
+    runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: desktop/src-tauri }
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v7
+        with: { node-version: "22" }
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12" }
       - name: bundle a relocatable Python with mnemos-hub preinstalled (no uv needed by users)
         run: desktop/scripts/bundle_python.sh gateway
@@ -131,11 +132,12 @@ jobs:
           cp desktop/src-tauri/target/release/bundle/dmg/*.dmg dist/Mnemos-macos-unsigned.dmg
           ls -lh dist
       - name: friend test (install from the dmg, setup, import, save, duplicate, connect Claude, stdio)
+        timeout-minutes: 15
         run: scripts/friend_test_mac.sh dist/Mnemos-macos-unsigned.dmg "$RUNNER_TEMP/shots"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: friend-test-screenshots, path: "${{ runner.temp }}/shots", if-no-files-found: ignore }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Mnemos-macos-unsigned
           path: |

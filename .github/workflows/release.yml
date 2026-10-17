@@ -11,24 +11,24 @@ permissions:
   contents: write
 jobs:
   mcpb:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { ref: "${{ inputs.tag || github.ref }}" }
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
+      - uses: actions/setup-node@v7
+        with: { node-version: "22" }
       - run: scripts/build_mcpb.sh "$(git rev-parse HEAD)"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with: { name: mcpb, path: dist/mnemos.mcpb }
   desktop:
-    runs-on: macos-latest
+    runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { ref: "${{ inputs.tag || github.ref }}" }
       - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v7
+        with: { node-version: "22" }
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12" }
       - run: desktop/scripts/bundle_python.sh gateway
       - working-directory: desktop
@@ -41,14 +41,14 @@ jobs:
           mkdir -p dist
           ditto -c -k --keepParent desktop/src-tauri/target/release/bundle/macos/Mnemos.app dist/Mnemos-macos.app.zip
           cp desktop/src-tauri/target/release/bundle/dmg/*.dmg dist/Mnemos-macos.dmg
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with: { name: desktop, path: "dist/*" }
   publish:
     needs: [mcpb, desktop]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with: { path: dist, merge-multiple: true }
       - env:
           GH_TOKEN: ${{ github.token }}

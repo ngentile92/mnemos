@@ -9,7 +9,14 @@ T="$(mktemp -d)"; export MNEMOS_HOME="$T/Mnemos" MNEMOS_CLAUDE_CONFIG="$T/claude
 APP=/Applications/Mnemos.app; BIN="$APP/Contents/MacOS/mnemos-desktop"; PORT=8765
 step() { printf '\n== %s\n' "$*"; }
 fail() { echo "FRIEND TEST FAILED: $*"; cat "$MNEMOS_HOME/hub.log" 2>/dev/null | tail -30 || true; exit 1; }
-shot() { screencapture -x "$SHOTS/$1.png" 2>/dev/null || echo "(no screenshot: $1)"; }
+to() { local s="$1"; shift; perl -e 'alarm shift; exec @ARGV' "$s" "$@"; }   # timeout without coreutils
+shot() { to 15 screencapture -x "$SHOTS/$1.png" 2>/dev/null || echo "(no screenshot: $1)"; }
+
+step "Keychain usable without a prompt?"
+if [ -z "${MNEMOS_NO_KEYCHAIN:-}" ] && ! to 15 security add-generic-password -U -s io.mnemos.probe -a probe -w probe 2>/dev/null; then
+  echo "Keychain not usable here (locked / would prompt): testing with the token file instead"; export MNEMOS_NO_KEYCHAIN=1
+fi
+security delete-generic-password -s io.mnemos.probe -a probe >/dev/null 2>&1 || true
 
 step "install from the dmg (drag to Applications)"
 MNT="$(hdiutil attach -nobrowse -readonly "$DMG" | awk -F'\t' '/\/Volumes\//{print $NF}' | tail -1)"
@@ -18,12 +25,12 @@ xattr -cr "$APP"   # what right-click → Open grants for an unsigned app
 [ -x "$BIN" ] || BIN="$(ls -d "$APP"/Contents/MacOS/* | head -1)"
 
 step "first-run wizard (same code as the Create button)"
-echo "friend-pass-123" | "$BIN" --setup personal,work Ana || fail "setup"
+echo "friend-pass-123" | to 120 "$BIN" --setup personal,work Ana || fail "setup"
 [ -f "$MNEMOS_HOME/contexts.yaml" ] || fail "no contexts.yaml"
 [ -f "$HOME/Library/LaunchAgents/io.mnemos.desktop.plist" ] || fail "start-at-login not set"
 if [ "${MNEMOS_NO_KEYCHAIN:-}" != 1 ]; then
   [ ! -f "$MNEMOS_HOME/token" ] || fail "token still on disk (should be in the Keychain)"
-  TOK="$(security find-generic-password -s io.mnemos.desktop -a "$MNEMOS_HOME" -w)" || fail "token not in Keychain"
+  TOK="$(to 15 security find-generic-password -s io.mnemos.desktop -a "$MNEMOS_HOME" -w)" || fail "token not in Keychain"
 else TOK="$(cat "$MNEMOS_HOME/token")"; fi
 
 step "open the app (hub starts by itself)"
@@ -50,16 +57,16 @@ N="$(curl -fs -b "$T/c" "http://127.0.0.1:$PORT/api/memory/list?context=personal
 [ "$N" = 4 ] || fail "expected 4 notes, got $N"
 
 step "memory screen screenshots"
-open "http://127.0.0.1:$PORT/app#k=$TOK"; sleep 6; shot 2-memory
+to 20 open "http://127.0.0.1:$PORT/app#k=$TOK" || true; sleep 6; shot 2-memory
 
 step "Connect to Claude Desktop (same code as the button)"
-"$BIN" --connect-claude personal || fail "connect"
+to 30 "$BIN" --connect-claude personal || fail "connect"
 CMD="$(/usr/bin/python3 -c 'import json,os;s=json.load(open(os.environ["MNEMOS_CLAUDE_CONFIG"]))["mcpServers"]["mnemos-personal"];print(json.dumps([s["command"]]+s["args"]))')"
 echo "$CMD"
 echo "$CMD" | grep -q "/Applications/Mnemos.app/Contents/Resources/python/bin/python3" || fail "Claude config does not point at the app"
 
 step "launch it like Claude Desktop does (stdio) and list tools"
-/usr/bin/python3 - "$CMD" <<'PY' || fail "stdio server did not answer"
+to 120 /usr/bin/python3 - "$CMD" <<'PY' || fail "stdio server did not answer"
 import json, subprocess, sys
 cmd = json.loads(sys.argv[1])
 p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
@@ -74,7 +81,7 @@ print("stdio OK: Claude would find the imported note")
 PY
 
 step "quit the app (Cmd+Q) → the hub stops too"
-osascript -e 'tell application "Mnemos" to quit' 2>/dev/null || kill "$APP_PID" 2>/dev/null || true
+to 20 osascript -e 'tell application "Mnemos" to quit' 2>/dev/null || kill "$APP_PID" 2>/dev/null || true
 for _ in $(seq 10); do curl -fs "http://127.0.0.1:$PORT/health" >/dev/null || break; sleep 1; done
 curl -fs "http://127.0.0.1:$PORT/health" >/dev/null && fail "hub left running after quitting the app" || true
 rm -f "$HOME/Library/LaunchAgents/io.mnemos.desktop.plist"

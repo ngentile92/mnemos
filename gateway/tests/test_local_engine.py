@@ -166,3 +166,25 @@ async def test_real_tiny_model(tmp_path):
     assert isinstance(await llm.json('Reply {"ok": true}'), dict)
     v = await le.BuiltinEmbedder(m, os.environ["MNEMOS_TEST_GGUF"]).embed(["hola", "hello"])
     assert len(v) == 2 and len(v[0]) > 8
+
+
+async def test_tiny_model_keeps_duplicate_check(tmp_path, monkeypatch):
+    """With the built-in embedder on (here: any GGUF), the save check still flags an exact duplicate."""
+    if not (le.runtime_ok() and os.environ.get("MNEMOS_TEST_GGUF")):
+        pytest.skip("needs llama_cpp + a GGUF")
+    import shutil
+    ms = [{"role": r, "name": r, "file": f"{r}.gguf", "size": os.path.getsize(os.environ["MNEMOS_TEST_GGUF"]),
+           "sha256": "-", "url": "-"} for r in ("llm", "embed")]
+    (tmp_path / "m.json").write_text(json.dumps(ms))
+    monkeypatch.setenv("MNEMOS_MODELS_MANIFEST", str(tmp_path / "m.json"))
+    monkeypatch.setenv("MNEMOS_OLLAMA", "0")
+    home = tmp_path / "M"
+    local.init_home(home, ["personal"], "Ana")
+    (home / "models").mkdir()
+    for m in ms:
+        shutil.copy(os.environ["MNEMOS_TEST_GGUF"], home / "models" / m["file"])
+    ui = UI(local.build_all(home, 8765), home, "")
+    assert le.get(home).embedder().kind == "builtin"
+    await ui.call("personal", "memory_save", {"text": "Ana prefers green tea in the morning"})
+    r = await ui.call("personal", "memory_save", {"text": "Ana prefers green tea in the morning."})
+    assert r.get("status") == "duplicate"

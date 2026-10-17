@@ -241,7 +241,13 @@ class BuiltinEmbedder:
     def _run(self, texts: list[str]) -> list[list[float]]:
         with self._l._lock:
             m = self._l.get()
-            return [list(m.embed("title: none | text: " + t[:1500])) for t in texts]  # EmbeddingGemma document format
+            out = []
+            for t in texts:
+                e = m.embed("title: none | text: " + t[:1500])  # EmbeddingGemma document format
+                if e and isinstance(e[0], list):  # a model without pooling gives one vector per token: mean-pool
+                    e = [sum(col) / len(e) for col in zip(*e)]
+                out.append([float(x) for x in e])
+            return out
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         return await asyncio.to_thread(self._run, texts)

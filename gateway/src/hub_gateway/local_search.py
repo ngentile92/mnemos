@@ -160,10 +160,15 @@ class LocalIndex:
             except Exception as exc:  # noqa: BLE001 — semantic is optional; keyword keeps working
                 log.warning("embeddings unavailable: %s", type(exc).__name__)
                 return
+            try:
+                packed = [_pack(v) for v in vecs]
+            except (TypeError, ValueError) as exc:  # a bad vector never breaks keyword search or the save check
+                log.warning("embeddings unusable: %s", type(exc).__name__)
+                return
             with self._lock, self._conn() as c:
-                for r, v in zip(batch, vecs):
+                for r, v in zip(batch, packed):
                     c.execute("UPDATE docs SET emb=?, emb_model=? WHERE data_id=?",
-                              (_pack(v), self.embedder.model, r["data_id"]))
+                              (v, self.embedder.model, r["data_id"]))
 
     # ------------------------------------------------------------------ read
     def keyword(self, query: str, datasets: list[str], k: int) -> list[str]:
@@ -184,7 +189,7 @@ class LocalIndex:
             return []
         try:
             qv = _unpack(_pack((await self.embedder.embed([query]))[0]))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — includes unusable vectors
             log.warning("embeddings unavailable: %s", type(exc).__name__)
             return []
         marks = ",".join("?" * len(datasets))

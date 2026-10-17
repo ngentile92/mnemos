@@ -51,7 +51,7 @@ api() { curl -fsS "${J[@]}" -X POST "http://127.0.0.1:$PORT/api/$1" -d "$2"; }
 step "import what Claude knows"
 PREV="$(api import/preview '{"context":"personal","source":"claude","text":"- Ana lives in Lisbon\n- Ana has two cats called Mia and Leo\n- Ana works as a nurse"}')"
 echo "$PREV" | head -c 600; echo
-NOTES="$(echo "$PREV" | /usr/bin/python3 -c 'import json,sys;d=json.load(sys.stdin);print(json.dumps([c["text"] for c in d["candidates"] if c.get("keep",True)]))')"
+NOTES="$(echo "$PREV" | /usr/bin/python3 -c 'import json,sys;d=json.load(sys.stdin);print(json.dumps([c["text"] for c in d["items"] if not c["duplicate"]]))')"
 api import/commit "{\"context\":\"personal\",\"source\":\"claude\",\"notes\":$NOTES}" | grep -q '"saved": *3' || fail "import did not save 3 notes"
 
 step "save a note, then the same note again → duplicate warning"

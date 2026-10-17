@@ -36,11 +36,11 @@ if [ "${MNEMOS_NO_KEYCHAIN:-}" != 1 ]; then
 fi
 
 step "open the app (hub starts by itself)"
-for _ in $(seq 15); do curl -fs "http://127.0.0.1:$PORT/health" >/dev/null || break; sleep 1; done
-curl -fs "http://127.0.0.1:$PORT/health" >/dev/null && fail "port $PORT busy before start (a hub outlived its app)"
+for _ in $(seq 15); do curl -fs "http://127.0.0.1:$PORT/" >/dev/null || break; sleep 1; done
+curl -fs "http://127.0.0.1:$PORT/" >/dev/null && fail "port $PORT busy before start (a hub outlived its app)"
 "$BIN" > "$T/app.log" 2>&1 & APP_PID=$!
-for _ in $(seq 60); do curl -fs "http://127.0.0.1:$PORT/health" >/dev/null && break; sleep 2; done
-curl -fs "http://127.0.0.1:$PORT/health" | grep -Eq '"ok": ?true' || { cat "$T/app.log"; fail "hub did not start"; }
+for _ in $(seq 60); do curl -fs "http://127.0.0.1:$PORT/" >/dev/null && break; sleep 2; done
+curl -fs "http://127.0.0.1:$PORT/" | grep -q "Mnemos is running" || { cat "$T/app.log"; fail "hub did not start"; }
 sleep 3; shot 1-app-window
 
 step "log into the memory screen with the password"
@@ -86,7 +86,7 @@ PY
 
 step "quit the app (Cmd+Q) → the hub stops too"
 to 20 osascript -e 'tell application "Mnemos" to quit' 2>/dev/null || kill "$APP_PID" 2>/dev/null || true
-for _ in $(seq 10); do curl -fs "http://127.0.0.1:$PORT/health" >/dev/null || break; sleep 1; done
-curl -fs "http://127.0.0.1:$PORT/health" >/dev/null && fail "hub left running after quitting the app" || true
+for _ in $(seq 10); do curl -fs "http://127.0.0.1:$PORT/" >/dev/null || break; sleep 1; done
+curl -fs "http://127.0.0.1:$PORT/" >/dev/null && fail "hub left running after quitting the app" || true
 rm -f "$HOME/Library/LaunchAgents/io.mnemos.desktop.plist"
 echo; echo "FRIEND TEST PASSED"

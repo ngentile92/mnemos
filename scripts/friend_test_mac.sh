@@ -61,7 +61,7 @@ N="$(curl -fs -b "$T/c" "http://127.0.0.1:$PORT/api/memory/list?context=personal
 [ "$N" = 4 ] || fail "expected 4 notes, got $N"
 
 step "memory screen screenshots"
-to 30 "$BIN" --open-memory || fail "open my memory (token from Keychain)"; sleep 6; shot 2-memory
+to 30 "$BIN" --open-memory || fail "open my memory (token from Keychain)"; sleep 20; shot 2-memory
 
 step "Connect to Claude Desktop (same code as the button)"
 to 30 "$BIN" --connect-claude personal || fail "connect"

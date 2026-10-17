@@ -19,6 +19,10 @@ scroll down and click **Open Anyway** next to Mnemos.
 The first screen asks for your name and your "contexts" (separate memories, e.g. `personal` and `work`). Keep the
 defaults if unsure, then click **Create**.
 
+When it is ready you see a green **Mnemos is running**, and the Mnemos icon appears in the menu bar (top right):
+
+![Mnemos running, with the Connect buttons](img/install-1-app.png)
+
 ## 4. Connect Claude Desktop
 Click **Connect to Claude Desktop** next to a context. Then quit Claude completely (**Cmd+Q**) and open it again.
 Ask Claude *"what do you know about me?"* — it now reads and saves to Mnemos on its own.
@@ -29,6 +33,22 @@ and projects, edit your skills, and **Import** what ChatGPT or Claude already kn
 
 **Good to know:** addresses ending in `/mcp` are for AI apps, not for your browser. Your data lives in the
 `Mnemos` folder in your home folder; back it up like any other folder.
+
+## Troubleshooting
+
+| What you see | What to do |
+|---|---|
+| *"Mnemos cannot be opened because the developer cannot be verified"* | Right-click → **Open** (step 2). Or **System Settings → Privacy & Security → Open Anyway**. |
+| *"Mnemos is damaged and can't be opened"* | The download was quarantined. In Terminal: `xattr -cr /Applications/Mnemos.app`, then open it again. |
+| A box asks for access to the **Keychain** | Click **Always Allow**: Mnemos keeps its private key there. It can ask again after an update. |
+| *"port 8765 is already in use"* | Another Mnemos is running. Quit it from the menu bar icon (**Quit Mnemos**) and open it again. |
+| Claude does not use Mnemos | Quit Claude with **Cmd+Q** (closing the window is not enough) and reopen. If you moved Mnemos.app after connecting, click **Connect** again. |
+| Claude shows Mnemos twice | You also installed the `.mcpb` extension. Keep one: remove it in Claude → **Settings → Extensions**. |
+| A page says *"This address is for AI apps"* | Normal: `/mcp` addresses are for Claude, not your browser. Use **Open my memory**. |
+| The memory page asks for a password | Open it from the app or the menu bar (**Open my memory**), or type the password you chose at setup. |
+| I want to start over | Quit Mnemos, delete the `Mnemos` folder in your home folder, open the app again. This erases your memory. |
+
+Logs: `~/Mnemos/hub.log`. Report problems at https://github.com/ngentile92/mnemos/issues.
 
 ---
 
@@ -44,3 +64,7 @@ and projects, edit your skills, and **Import** what ChatGPT or Claude already kn
    Preguntale "¿qué sabés de mí?".
 5. **Mirá y corregí tu memoria:** **Open my memory** → notas, grafo, skills e **Import** (traer lo que ya saben
    ChatGPT o Claude).
+
+**Si algo falla:** "no se puede abrir" → clic derecho → Abrir · "está dañada" → en Terminal
+`xattr -cr /Applications/Mnemos.app` · te pide el Llavero → "Permitir siempre" · Claude no lo usa → Cmd+Q a Claude y
+abrilo de nuevo. Más casos en la tabla *Troubleshooting* de arriba.

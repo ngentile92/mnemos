@@ -1,0 +1,51 @@
+name: publish
+# Publishes mnemos-hub to PyPI and npm with trusted publishing (OIDC, no tokens in the repo).
+# Off until the maintainer sets the repo variable PUBLISH_ENABLED=true and registers the trusted publishers
+# (see docs/PUBLISHING.md). Without it this only builds and checks the packages (dry run).
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v7
+        with: { node-version: "22" }
+      - name: versions agree (pyproject = npm = tag)
+        run: |
+          PY=$(python -c "import tomllib;print(tomllib.load(open('gateway/pyproject.toml','rb'))['project']['version'])")
+          NPM=$(node -p "require('./packaging/npm/package.json').version")
+          test "$PY" = "$NPM"
+          if [ "${{ github.event_name }}" = release ]; then test "v$PY" = "${{ github.event.release.tag_name }}"; fi
+      - run: pip install -q build twine && python -m build gateway --outdir dist && twine check --strict dist/*
+      - run: cd packaging/npm && npm pack --dry-run
+      - uses: actions/upload-artifact@v7
+        with: { name: python-dist, path: dist/ }
+  pypi:
+    needs: build
+    if: vars.PUBLISH_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    environment: pypi
+    permissions: { id-token: write }
+    steps:
+      - uses: actions/download-artifact@v8
+        with: { name: python-dist, path: dist }
+      - uses: pypa/gh-action-pypi-publish@release/v1
+  npm:
+    needs: pypi   # the npm launcher pins the PyPI version: publish PyPI first
+    if: vars.PUBLISH_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    environment: npm
+    permissions: { id-token: write }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: "22", registry-url: "https://registry.npmjs.org" }
+      - run: npm install -g npm@latest   # trusted publishing needs npm >= 11.5
+      - run: cd packaging/npm && npm publish --provenance --access public

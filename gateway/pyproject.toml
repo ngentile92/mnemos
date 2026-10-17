@@ -3,6 +3,11 @@ name = "mnemos-hub"   # distribution name (PyPI/npm "mnemos-hub"); the import pa
 version = "0.2.0"
 description = "Mnemos: one memory, skills and credentials hub for all your AI assistants, isolated by context (MCP gateway)"
 requires-python = ">=3.11"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Mnemos contributors" }]
+keywords = ["mcp", "memory", "ai", "claude", "chatgpt"]
+classifiers = ["Programming Language :: Python :: 3", "Operating System :: OS Independent"]
 dependencies = [
   "fastmcp>=4.0.10,<4.1",
   "httpx>=0.28,<0.29",
@@ -12,6 +17,10 @@ dependencies = [
   "uvicorn>=0.30",
   "webauthn>=2.2,<4",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ngentile92/mnemos"
+Documentation = "https://github.com/ngentile92/mnemos/tree/main/docs"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.24", "respx>=0.22", "pyflakes>=3", "soft-webauthn>=0.1.3"]
@@ -23,7 +32,7 @@ mnemos-router = "hub_gateway.router.server:main"
 mnemos-local = "hub_gateway.local:main"
 
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

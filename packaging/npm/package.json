@@ -1,6 +1,6 @@
 {
   "name": "mnemos-hub",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Mnemos: one memory for all your AI assistants (MCP). npx launcher for the local hub.",
   "license": "MIT",
   "repository": { "type": "git", "url": "git+https://github.com/ngentile92/mnemos.git", "directory": "packaging/npm" },

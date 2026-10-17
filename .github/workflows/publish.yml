@@ -3,8 +3,8 @@ name: publish
 # Off until the maintainer sets the repo variable PUBLISH_ENABLED=true and registers the trusted publishers
 # (see docs/PUBLISHING.md). Without it this only builds and checks the packages (dry run).
 on:
-  release:
-    types: [published]
+  push:
+    tags: ["v*"]   # a release created by release.yml's GITHUB_TOKEN would not trigger "release: published"
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,7 +22,7 @@ jobs:
           PY=$(python -c "import tomllib;print(tomllib.load(open('gateway/pyproject.toml','rb'))['project']['version'])")
           NPM=$(node -p "require('./packaging/npm/package.json').version")
           test "$PY" = "$NPM"
-          if [ "${{ github.event_name }}" = release ]; then test "v$PY" = "${{ github.event.release.tag_name }}"; fi
+          if [ "${{ github.ref_type }}" = tag ]; then test "v$PY" = "${{ github.ref_name }}"; fi
       - run: pip install -q build twine && python -m build gateway --outdir dist && twine check --strict dist/*
       - run: cd packaging/npm && npm pack --dry-run
       - uses: actions/upload-artifact@v7

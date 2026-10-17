@@ -338,7 +338,9 @@ def ollama_model() -> tuple[str, str] | None:
         tags = httpx.get(url + "/api/tags", timeout=1.5, trust_env=False).json().get("models") or []
     except Exception:  # noqa: BLE001
         return None
-    names = [str(m.get("name", "")) for m in tags if "embed" not in str(m.get("name", ""))]
+    emb_fam = {"bert", "nomic-bert", "xlm-roberta", "xlmroberta", "gemma-embedding", "gemma3-embedding"}
+    names = [str(m.get("name", "")) for m in tags if "embed" not in str(m.get("name", ""))
+             and str((m.get("details") or {}).get("family", "")).lower() not in emb_fam]  # embedding-only models
     want = os.environ.get("HUB_ANSWER_MODEL")
     if want and want in names:
         return url, want

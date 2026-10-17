@@ -188,3 +188,18 @@ async def test_tiny_model_keeps_duplicate_check(tmp_path, monkeypatch):
     await ui.call("personal", "memory_save", {"text": "Ana prefers green tea in the morning"})
     r = await ui.call("personal", "memory_save", {"text": "Ana prefers green tea in the morning."})
     assert r.get("status") == "duplicate"
+
+
+def test_ollama_skips_embedding_models(monkeypatch):
+    tags = {"models": [{"name": "paraphrase-multilingual:latest", "details": {"family": "bert"}},
+                       {"name": "nomic-embed-text:latest", "details": {"family": "nomic-bert"}}]}
+
+    class R:
+        def json(self):
+            return tags
+    monkeypatch.delenv("MNEMOS_OLLAMA", raising=False)
+    monkeypatch.delenv("HUB_ANSWER_MODEL", raising=False)
+    monkeypatch.setattr(le.httpx, "get", lambda *a, **k: R())
+    assert le.ollama_model() is None  # only embedding models: not an LLM, the built-in model is used
+    tags["models"].append({"name": "llama3.1:8b", "details": {"family": "llama"}})
+    assert le.ollama_model()[1] == "llama3.1:8b"

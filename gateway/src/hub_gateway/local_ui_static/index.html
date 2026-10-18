@@ -71,10 +71,13 @@
 <main id="view-graph" class="view hidden">
   <section class="card me-bar"><select id="g-ctx" aria-label="Context"></select>
     <input id="g-q" type="search" placeholder="Find a person, project or topic…" maxlength="80">
+    <label class="small muted">Colour by <select id="g-colour"><option value="type">kind</option><option value="space">space</option><option value="cluster">group</option></select></label>
+    <label class="small muted"><input type="checkbox" id="g-me" style="width:auto"> show me</label>
     <button id="g-fit" class="mbtn">Fit</button>
-    <span class="muted small me-hint">Names and topics found in your notes; lines join things mentioned together.</span></section>
+    <span class="muted small me-hint">People, projects and things in your notes; arrows read “subject → relation → object”.</span></section>
   <section class="card graphcard"><div class="graphwrap"><div id="cy"></div>
-    <aside id="g-node" class="nodepanel"><p class="muted">Tap a name to see the notes that mention it.</p></aside></div></section>
+    <aside id="g-side" class="nodepanel"><div id="g-legend" class="g-legend"></div><div id="g-node"><p class="muted">Tap a name to see the notes that mention it.</p></div>
+      <div id="g-top"></div></aside></div></section>
 </main>
 <main id="view-skills" class="view hidden">
   <section class="card me-bar"><select id="s-ctx" aria-label="Context"></select>

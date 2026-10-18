@@ -127,6 +127,7 @@ def build_all(home: Path, port: int, only: str | None = None):
             return await local_evidence.search(home, _ctx, q, k)
         out[name] = build_server(st, cognee=store, datasets=dmap, broker=SecretBroker({}, None), index=index,
                                  evidence=evidence)
+        out[name].mnemos_local = {"store": store, "scope": MemoryScope(spec, dmap), "data": data}  # Graph view reads
         out[name].instructions = local_instructions(spec)  # proactive: this is the user's own memory
     return out
 

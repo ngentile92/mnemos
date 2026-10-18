@@ -182,16 +182,91 @@ class UI:
         self.sessions: dict[str, float] = {}
         self.hooks: dict[str, Any] = {}  # extra GET/POST handlers added by other features (import, hygiene)
 
-    async def graph(self, ctx: str, items: list[dict]) -> dict:
-        """Model triples when there are some (built in the background by a local model), else names and tags."""
+    GRAPH_NOTES = 1500  # notes the Graph view reads per space (pinned and hand-written first, then newest)
+
+    async def graph_items(self, ctx: str) -> list[dict]:
+        """Every note this space can read (own + shared + bridged), straight from the store (not memory_list's 500),
+        ranked: pinned, then written by hand or by an AI app (not imported/mined), then newest."""
+        from .ledger import Ledger
+        srv = self.servers.get(ctx)
+        loc = getattr(srv, "mnemos_local", None)
+        if not loc:  # not a local-mode server (tests with custom servers): fall back to the tool
+            return (await self.action("list", {"context": ctx, "include_shared": True})).get("items", [])
+        store, sc = loc["store"], loc["scope"]
+        items: list[dict] = []
+        for name, ds_id in sc.listable(include_shared=True):
+            for d in await store.list_data(ds_id):
+                text = await store.raw_text(ds_id, str(d["id"])) or ""
+                tags = list((d.get("externalMetadata") or {}).get("tags") or [])
+                items.append({"id": str(d["id"]), "text": text, "tags": tags, "dataset": name, "created_at": d.get("createdAt"),
+                              "space": ctx if name in sc.ctx.own_dataset_names else ("shared" if name == "shared" else name),
+                              "manual": not any(str(t).startswith("import") for t in tags)})
+        flags = Ledger(str(Path(loc["data"]) / "ledger.sqlite")).flags([i["id"] for i in items])
+        for it in items:
+            f = flags.get(it["id"], {})
+            it["pinned"], it["obsolete"] = bool(f.get("pinned")), bool(f.get("obsolete"))
+        items = [i for i in items if not i["obsolete"]]
+        items.sort(key=lambda i: str(i.get("created_at") or ""), reverse=True)
+        items.sort(key=lambda i: (not i["pinned"], not i["manual"]))
+        return items[: self.GRAPH_NOTES]
+
+    async def graph(self, ctx: str, items: list[dict] | None = None, show_me: bool = False) -> dict:
+        """Model triples when there are some (built in the background by a local model), else names and tags.
+        ctx "*" = every space at once, each node knowing the spaces it appears in."""
+        from . import contexts as _c
         from . import local_engine, local_graph
-        g = local_graph.get(self.home, ctx)
+        spaces = list(self.servers) if ctx == "*" else [ctx]
+        if any(s not in self.servers for s in spaces):
+            raise ValueError(f"unknown context {ctx!r}")
         llm = await asyncio.to_thread(local_engine.get(self.home).local_llm)
-        building = g.start(items, llm)
-        tr = await asyncio.to_thread(g.triples)
-        out = local_graph.view(items, tr) if tr else {**build_graph(items), "source": "names"}
-        return {**out, "building": building, "progress": g.progress if building else None,
+        all_items: dict[str, dict] = {}
+        triples: list = []
+        types: dict[str, str] = {}
+        building, progress = False, {"done": 0, "total": 0}
+        for sp in spaces:
+            its = items if items is not None and ctx != "*" else await self.graph_items(sp)
+            for it in its:
+                all_items.setdefault(it["id"], {**it, "space": it.get("space") or sp})
+            g = local_graph.get(self.home, sp)
+            if g.start(its, llm):
+                building = True
+                for k in progress:
+                    progress[k] += (g.progress or {}).get(k, 0)
+            triples += await asyncio.to_thread(g.triples)
+            types.update(await asyncio.to_thread(g.types))
+        its = list(all_items.values())
+        me = local_graph.me_names(_c.OWNER)
+        if triples:
+            names: dict[str, int] = {}
+            for _n, s_, _r, o in triples:
+                for x in (s_, o):
+                    k = local_graph.norm(x)
+                    if k not in me:
+                        names[k] = names.get(k, 0) + 1
+            merge = await local_graph.aliases(names, types, self._embedder())
+            out = local_graph.view(its, triples, types=types, merge=merge, me=me, show_me=show_me)
+        else:
+            out = {**build_graph(its), "source": "names"}
+            if not show_me:
+                out["nodes"] = [n for n in out["nodes"] if local_graph.norm(n["label"]) not in me]
+            space_of = {i["id"]: i.get("space") for i in its}
+            ids = {n["id"] for n in out["nodes"]}
+            out["edges"] = [e for e in out["edges"] if e["source"] in ids and e["target"] in ids]
+            cl = local_graph.clusters([n["id"] for n in out["nodes"]], [(e["source"], e["target"], e["weight"]) for e in out["edges"]])
+            for n in out["nodes"]:
+                n.update(type="topic" if n["kind"] == "tag" else "other", cluster=cl.get(n["id"], -1),
+                         spaces=sorted({space_of.get(x) for x in n["notes"]} - {None}))
+        return {**out, "spaces": spaces, "building": building, "progress": progress if building else None,
                 "engine": llm.name if llm else None}
+
+    def _embedder(self):
+        from .local_engine import EmbedProxy
+        from . import local_engine
+        try:
+            e = EmbedProxy(local_engine.get(self.home))
+            return e if e else None
+        except Exception:  # noqa: BLE001
+            return None
 
     # -- auth
     def _authed(self, request) -> bool:
@@ -351,9 +426,7 @@ class UI:
                 if path.startswith("memory/") and request.method == "POST" and path[7:] in TOOLS:
                     return j(200, await self.action(path[7:], body))
                 if path == "graph" and request.method == "GET":
-                    ctx = str(body.get("context", ""))
-                    items = (await self.action("list", {"context": ctx, "include_shared": True})).get("items", [])
-                    return j(200, await self.graph(ctx, items))
+                    return j(200, await self.graph(str(body.get("context", "")), show_me=body.get("me") == "1"))
                 if path == "skills" and request.method == "GET":
                     return j(200, await self.skills(str(body.get("context", ""))))
                 if path == "skill" and request.method == "GET":

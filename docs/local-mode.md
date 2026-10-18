@@ -125,3 +125,17 @@ space chosen at the top. **Activity** shows one line per call, newest first: "Cu
 only). Edits made in the Notes screen are yours and are not logged here (the ledger keeps their history). Older
 per-space entries (`/<ctx>/mcp`, `stdio --context`) bypass the connector, so they are not listed or pausable:
 reconnect those apps from *Connect apps*.
+
+## Graph fixes (0.6)
+
+- **Every note** a space can read (own + Shared + bridged), straight from the store instead of `memory_list`'s
+  500, ranked **pinned → written by hand or by an AI app → imported/mined**, newest first (up to 1,500 per space).
+  The model reads them in that order in the background, 600 per run.
+- **"Me" collapsed**: the prompt calls the author "me"; "me", "the user" and your name become one node, hidden
+  unless **show me** is ticked, so the graph is not a star around you.
+- **Alias merge**: same letters ignoring spaces/punctuation, plus EmbeddingGemma similarity ≥ 0.90 between names
+  of the same (or unknown) type.
+- **Types** (person, organisation, project, tool, place, topic) and **colour by** kind, space or group; **All
+  spaces** view where entities found in several spaces get a white ring.
+- **Directed, labelled edges** (subject → relation → object; labels shown when the graph is small, on hover and
+  for the selected node), **groups** by label propagation, and a **Top** list.

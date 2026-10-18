@@ -63,47 +63,84 @@
   }
 
   // ------------------------------------------------ graph
-  let cy = null, graph = null;
+  let cy = null, graph = null, gPoll = null;
+  const TYPE_C = { person: "#f472b6", org: "#fbbf24", project: "#7c5cff", tool: "#22d3ee", place: "#34d399", topic: "#a3e635", other: "#94a3b8" };
+  const TYPE_L = { person: "people", org: "organisations", project: "projects", tool: "tools", place: "places", topic: "topics", other: "other" };
+  const CL = ["#7c5cff", "#22d3ee", "#34d399", "#fbbf24", "#f87171", "#f472b6", "#a3e635", "#60a5fa", "#fb923c", "#c084fc"];
+  const spaceInfo = (n) => ((window.MNEMOS_SPACES || {}).spaces || []).find((s) => s.name === n) || { name: n, label: n === "shared" ? "Shared" : n, color: n === "shared" ? "#e5e7eb" : "#94a3b8" };
+  function colourOf(n) {
+    const by = $("g-colour").value;
+    if (by === "space") return n.spaces.length > 1 ? "#ffffff" : spaceInfo(n.spaces[0] || "").color;
+    if (by === "cluster") return n.cluster >= 0 ? CL[n.cluster % CL.length] : "#94a3b8";
+    return TYPE_C[n.type] || TYPE_C.other;
+  }
+  function legend() {
+    const by = $("g-colour").value, used = new Set(graph.nodes.map((n) => by === "type" ? n.type : by === "space" ? (n.spaces.length > 1 ? "*" : n.spaces[0]) : n.cluster));
+    let items;
+    if (by === "type") items = Object.keys(TYPE_C).filter((t) => used.has(t)).map((t) => [TYPE_C[t], TYPE_L[t]]);
+    else if (by === "space") items = [...used].filter((x) => x !== undefined).map((x) => x === "*" ? ["#ffffff", "in several spaces"] : [spaceInfo(x).color, spaceInfo(x).label]);
+    else items = [[CL[0], "groups of things that are linked to each other"]];
+    $("g-legend").innerHTML = items.map(([c, l]) => `<span><i style="background:${c}"></i>${esc(l)}</span>`).join("");
+  }
   async function loadGraph() {
+    if (!$("g-ctx").querySelector('option[value="*"]')) $("g-ctx").insertAdjacentHTML("beforeend", '<option value="*">All spaces</option>');
     $("g-node").innerHTML = '<p class="muted"><span class="spin"></span>reading your notes…</p>';
-    try { graph = await api("/api/graph?" + new URLSearchParams({ context: $("g-ctx").value })); }
+    const keep = cy ? cy.nodes().map((n) => [n.id(), n.position()]) : [];
+    try { graph = await api("/api/graph?" + new URLSearchParams({ context: $("g-ctx").value, me: $("g-me").checked ? "1" : "0" })); }
     catch (e) { $("g-node").innerHTML = `<p class="muted">${esc(e.message)}</p>`; return; }
     if (cy) cy.destroy();
     const max = Math.max(1, ...graph.nodes.map((n) => n.count));
+    const fewEdges = graph.edges.length <= 40;
     cy = window.cytoscape({
       container: $("cy"),
       elements: [
-        ...graph.nodes.map((n) => ({ data: { id: n.id, label: n.label, size: 14 + 30 * (n.count / max), kind: n.kind } })),
-        ...graph.edges.map((e) => ({ data: { id: e.source + "|" + e.target, source: e.source, target: e.target, w: e.weight } })),
+        ...graph.nodes.map((n) => ({ data: { id: n.id, label: n.label, size: 14 + 30 * (n.count / max), kind: n.kind, colour: colourOf(n), cross: n.spaces && n.spaces.length > 1 ? 1 : 0 } })),
+        ...graph.edges.map((e) => ({ data: { id: e.source + "→" + e.target, source: e.source, target: e.target, w: e.weight, rel: e.label || "" } })),
       ],
       style: [
-        { selector: "node", style: { label: "data(label)", width: "data(size)", height: "data(size)", "background-color": "#7c5cff", color: "#e7ecf7", "font-size": 11, "text-valign": "bottom", "text-margin-y": 4 } },
-        { selector: 'node[kind = "tag"]', style: { "background-color": "#22d3ee" } },
-        { selector: "edge", style: { width: "mapData(w, 1, 6, 1, 5)", "line-color": "rgba(148,163,209,.35)", "curve-style": "bezier" } },
+        { selector: "node", style: { label: "data(label)", width: "data(size)", height: "data(size)", "background-color": "data(colour)", color: "#e7ecf7", "font-size": 11, "text-valign": "bottom", "text-margin-y": 4 } },
+        { selector: "node[cross = 1]", style: { "border-width": 2, "border-color": "#ffffff" } },
+        { selector: 'node[kind = "me"]', style: { shape: "star", "background-color": "#fbbf24" } },
+        { selector: "edge", style: { width: "mapData(w, 1, 6, 1, 5)", "line-color": "rgba(148,163,209,.35)", "curve-style": "bezier",
+          "target-arrow-shape": "triangle", "target-arrow-color": "rgba(148,163,209,.55)", "arrow-scale": 0.8,
+          label: fewEdges ? "data(rel)" : "", "font-size": 9, color: "#94a3b8", "text-rotation": "autorotate", "text-background-color": "#0b1020", "text-background-opacity": 0.7 } },
+        { selector: "edge.hl", style: { label: "data(rel)", "line-color": "#fbbf24", "target-arrow-color": "#fbbf24", width: 2.5, color: "#fde68a" } },
         { selector: ".dim", style: { opacity: 0.15 } },
         { selector: "node:selected", style: { "border-width": 3, "border-color": "#fbbf24" } },
       ],
-      layout: { name: "cose", animate: false, nodeRepulsion: 9000 },
+      layout: { name: "cose", animate: false, nodeRepulsion: 9000, idealEdgeLength: 90 },
     });
+    if (keep.length && graph.building) { const pos = new Map(keep); cy.nodes().forEach((n) => { if (pos.has(n.id())) n.position(pos.get(n.id())); }); }
     cy.on("tap", "node", (ev) => showNode(ev.target.id()));
+    cy.on("mouseover", "edge", (ev) => ev.target.addClass("hl"));
+    cy.on("mouseout", "edge", (ev) => { if (!ev.target.data("pin")) ev.target.removeClass("hl"); });
+    legend();
     const how = graph.source === "model" ? "found by the model" : "names and topics";
+    const where = $("g-ctx").value === "*" ? "all your spaces" : spaceInfo($("g-ctx").value).label;
     const bld = graph.building ? ` <span class="small muted"><span class="spin"></span>${graph.engine ? esc(graph.engine) + " is " : ""}reading notes for relations${graph.progress && graph.progress.total ? ` (${graph.progress.done}/${graph.progress.total})` : ""}…</span>` : "";
-    $("g-node").innerHTML = (graph.nodes.length ? `<p class="muted">${graph.nodes.length} ${how} from ${graph.notes} notes. Tap one.</p>`
+    $("g-node").innerHTML = (graph.nodes.length ? `<p class="muted">${graph.nodes.length} ${how} in ${esc(where)} (${graph.notes} notes). Tap one.</p>`
       : '<p class="muted">No names or topics yet: add a few notes first.</p>') + bld;
+    const top = [...graph.nodes].filter((n) => n.kind !== "me").sort((x, y) => y.count - x.count).slice(0, 12);
+    $("g-top").innerHTML = top.length ? `<b class="small">Top</b><ol class="small">${top.map((n) => `<li><a data-id="${esc(n.id)}">${esc(n.label)}</a> <span class="muted">${n.count}</span></li>`).join("")}</ol>` : "";
     clearTimeout(gPoll);
     if (graph.building && !$("view-graph").classList.contains("hidden")) gPoll = setTimeout(loadGraph, 8000);
   }
-  let gPoll = null;
   function showNode(id) {
     const n = graph.nodes.find((x) => x.id === id); if (!n) return;
-    const nb = graph.edges.filter((e) => e.source === id || e.target === id).map((e) => (e.source === id ? e.target : e.source));
+    cy.edges().removeClass("hl").data("pin", 0);
+    cy.edges(`[source = "${id.replace(/"/g, '\\"')}"], [target = "${id.replace(/"/g, '\\"')}"]`).addClass("hl").data("pin", 1);
     const label = (k) => (graph.nodes.find((x) => x.id === k) || {}).label || k;
-    const rel = graph.edges.filter((e) => (e.source === id || e.target === id) && e.label).flatMap((e) => e.label.split("; ")).slice(0, 10);
-    $("g-node").innerHTML = `<h2>${esc(n.label)}</h2><p class="small muted">in ${n.count} note${n.count > 1 ? "s" : ""}${nb.length ? " · with " + nb.slice(0, 8).map((k) => esc(label(k))).join(", ") : ""}</p>` +
+    const nb = graph.edges.filter((e) => e.source === id || e.target === id).map((e) => (e.source === id ? e.target : e.source));
+    const rel = graph.edges.filter((e) => e.source === id || e.target === id).flatMap((e) => e.relations || (e.label ? [e.label] : [])).slice(0, 12);
+    const sp = (n.spaces || []).map((s) => `<span class="ap-pill" style="border:1px solid ${esc(spaceInfo(s).color)}">${esc(spaceInfo(s).label)}</span>`).join(" ");
+    $("g-node").innerHTML = `<h2>${esc(n.label)}</h2><p class="small muted">${esc(TYPE_L[n.type] ? n.type : "")} · in ${n.count} note${n.count > 1 ? "s" : ""} ${sp}${nb.length ? "<br>with " + nb.slice(0, 8).map((k) => esc(label(k))).join(", ") : ""}</p>` +
       (rel.length ? `<ul class="small">${rel.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : "") +
       n.notes.map((nid) => { const t = graph.texts[nid] || ""; return `<div class="me-inote"><div>${esc(t.slice(0, 280))}${t.length > 280 ? "…" : ""}</div></div>`; }).join("");
   }
+  $("g-top").addEventListener("click", (ev) => { const a = ev.target.closest("a[data-id]"); if (a && cy) { cy.$(":selected").unselect(); cy.getElementById(a.dataset.id).select(); showNode(a.dataset.id); } });
   $("g-ctx").onchange = loadGraph;
+  $("g-me").onchange = loadGraph;
+  $("g-colour").onchange = () => { if (!cy || !graph) return; graph.nodes.forEach((n) => cy.getElementById(n.id).data("colour", colourOf(n))); legend(); };
   $("g-fit").onclick = () => cy && cy.fit();
   $("g-q").oninput = () => {
     if (!cy) return;

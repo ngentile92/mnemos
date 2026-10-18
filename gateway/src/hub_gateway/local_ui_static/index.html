@@ -20,6 +20,7 @@
     <a href="#graph" class="tab" data-view="graph" role="tab">Graph</a>
     <a href="#skills" class="tab" data-view="skills" role="tab">Skills</a>
     <a href="#spaces" class="tab" data-view="spaces" role="tab">Spaces</a>
+    <a href="#apps" class="tab" data-view="apps" role="tab">Apps</a>
     <a href="#import" class="tab" data-view="import" role="tab">Import</a>
     <a href="#settings" class="tab" data-view="settings" role="tab">Settings</a>
     <a href="#settings" class="badge" id="eng-badge" title="Which engine finds facts and cleans up your memory" style="align-self:center;margin-left:6px"></a>
@@ -93,6 +94,15 @@
   <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Let one space read another</h2><span class="muted small">read-only, off by default</span></div>
     <p class="small muted">Turn one on when, say, your work AI should know your side project. It can only read: it never writes, edits or deletes there.</p>
     <div id="sp-bridges"></div></section>
+</main>
+<main id="view-apps" class="view hidden">
+  <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Apps using your memory</h2><span class="muted small" id="ap-head"></span></div>
+    <p class="small muted">Every AI app you connected appears here the first time it uses Mnemos. Choose its default space (where it reads and saves unless you ask for another), which spaces it may use, or pause it. New apps use <select id="ap-default" aria-label="Default space for new apps"></select> by default.</p>
+    <div id="ap-list" class="ap-list"></div><p class="small" id="ap-msg"></p></section>
+  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Activity</h2>
+      <span><select id="ap-filter" aria-label="Filter by app"><option value="">All apps</option></select> <button class="mbtn" id="ap-refresh">Refresh</button></span></div>
+    <p class="small muted">What each app read or saved, newest first. Only a short summary is kept.</p>
+    <div id="ap-feed" class="ap-feed"></div></section>
 </main>
 <main id="view-settings" class="view hidden">
   <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Engine</h2><span class="muted small">what does the smart parts</span></div>
@@ -172,5 +182,6 @@
 <script src="/ui/vendor/cytoscape.min.js"></script>
 <script src="/ui/local.js"></script>
 <script src="/ui/spaces.js"></script>
+<script src="/ui/apps.js"></script>
 </body>
 </html>

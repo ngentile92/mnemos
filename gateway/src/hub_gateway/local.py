@@ -140,8 +140,10 @@ def build_router(home: Path, servers: dict, via: str = "local", port: int = DEFA
     """The single connector over `servers` (from build_all). It reloads them when contexts.yaml changes (Spaces
     screen: descriptions, bridges), also inside stdio processes launched by AI apps."""
     from . import contexts as _c
+    from .local_activity import Activity
     from .local_router import LocalRouter
-    lr = LocalRouter(home, servers, _descriptions(servers), language=_c.LANGUAGE, via=via)
+    act = Activity(home)
+    lr = LocalRouter(home, servers, _descriptions(servers), language=_c.LANGUAGE, via=via, on_event=act.record)
 
     def reload() -> None:
         _c.reload(home / "contexts.yaml")
@@ -263,6 +265,34 @@ tokens by hand.</p></body>""",
         out = lsp.set_bridge(home, str(b.get("from", "")), str(b.get("to", "")), bool(b.get("on")))
         router.router.reload_now()
         return out
+    from .local_activity import Activity
+    activity = Activity(home)
+
+    async def _apps(_b):
+        out = router.router.apps.listing()
+        st = activity.stats()
+        for a in out["apps"]:
+            a["stats"] = st.get(a["key"], {"read": 0, "write": 0, "denied": 0})
+        return out
+
+    async def _app_update(b):
+        key = str(b.get("key", ""))
+        if "default_space" in b:
+            router.router.apps.set_default_space(str(b["default_space"]))
+            return await _apps(b)
+        fields = {k: b[k] for k in ("default", "spaces", "paused", "revoked") if k in b}
+        router.router.apps.update(key, **fields)
+        return await _apps(b)
+
+    async def _activity(b):
+        try:
+            limit = int(b.get("limit") or 100)
+        except ValueError:
+            limit = 100
+        return {"events": activity.recent(limit, str(b.get("app") or "") or None)}
+    ui.hooks[("GET", "apps")] = _apps
+    ui.hooks[("POST", "apps/update")] = _app_update
+    ui.hooks[("GET", "activity")] = _activity
     ui.hooks[("GET", "spaces")] = _spaces
     ui.hooks[("POST", "spaces/update")] = _space_update
     ui.hooks[("POST", "spaces/bridge")] = _bridge

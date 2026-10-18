@@ -167,6 +167,10 @@ class LocalRouter:
         return "stdio" if self.via == "stdio" else session_id()
 
     def pick(self, requested: str | None, rec: dict) -> str:
+        if rec.get("revoked"):
+            raise ToolError("the user removed this app's access to Mnemos (Mnemos → Apps → Allow again)")
+        if rec.get("paused"):
+            raise ToolError("the user paused this app in Mnemos; continue without memory and say so")
         allowed = self.apps.allowed(rec)
         if requested:
             if requested not in self.servers:
@@ -196,11 +200,18 @@ class LocalRouter:
         return res
 
     def _event(self, key, label, space, tool, args, res, error) -> None:
-        if self.on_event:
-            try:
-                self.on_event(key, label, space, tool, args, res, error)
-            except Exception:  # noqa: BLE001 — activity is best effort, never breaks a call
-                log.warning("activity log failed", exc_info=True)
+        if not self.on_event:
+            return
+        result = res if isinstance(res, dict) or res is None else None
+        if res is not None and not isinstance(res, dict):
+            if getattr(res, "is_error", False):
+                error = error or " ".join(getattr(c, "text", "") for c in res.content or []).strip() or "error"
+            else:
+                result = getattr(res, "structured_content", None) or {}
+        try:
+            self.on_event(key, label, space, tool, args, result, error)
+        except Exception:  # noqa: BLE001 — activity is best effort, never breaks a call
+            log.warning("activity log failed", exc_info=True)
 
     # -- the MCP server
     def build(self) -> FastMCP:
@@ -222,6 +233,12 @@ class LocalRouter:
             """This app's spaces: which it may use, its default (used when a call has no `context`) and what each
             space is for. Shared is readable from every space."""
             key, label, _v, rec = router.caller()
+            if rec.get("revoked") or rec.get("paused"):
+                try:
+                    router.pick(None, rec)
+                except ToolError as e:
+                    router._event(key, label, None, "hub_whoami", {}, None, str(e))
+                    raise
             allowed = router.apps.allowed(rec)
             sid = router.sid()
             out = {"app": label, "app_id": key, "default_space": router.apps.default_for(rec),
@@ -231,7 +248,7 @@ class LocalRouter:
                    "mode": "local"}
             if sid and router.active.get(sid) in allowed:
                 out["active_space"] = router.active[sid]
-            router._event(key, label, None, "hub_whoami", {}, None, None)
+            router._event(key, label, None, "hub_whoami", {}, out, None)
             return out
 
         @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False,
@@ -242,7 +259,11 @@ class LocalRouter:
             """Use another space for the rest of this chat, so later calls can omit `context`. Only do it when the
             user asks for that space or clearly talks about it."""
             key, label, _v, rec = router.caller()
-            space = router.pick(context, rec)
+            try:
+                space = router.pick(context, rec)
+            except ToolError as e:
+                router._event(key, label, context, "hub_use_context", {}, None, str(e))
+                raise
             sid = router.sid()
             if not sid:
                 raise ToolError("no MCP session")

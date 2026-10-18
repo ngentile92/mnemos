@@ -114,3 +114,14 @@ to `contexts.yaml` (validated by the same parser, backup in `data/contexts.yaml.
 the single connector and the app pick them up on the next call, including stdio processes started by AI apps
 (they watch the file's mtime). The space key (`work`) never changes. The legacy per-space URLs (`/<ctx>/mcp`)
 see bridge changes after a restart.
+
+## Apps and Activity (0.6)
+
+**Open my memory → Apps** lists every AI app that used the single connector (`data/apps.json`): its **default
+space**, the spaces it **may use** (Shared is always readable), **Pause** (every call refused until resumed) and
+**Remove access** (refused until *Allow again*; remote apps also lose their sign-in). New apps get the default
+space chosen at the top. **Activity** shows one line per call, newest first: "Cursor saved “Uses pnpm” · work",
+"ChatGPT searched “trip” → 3 notes", refusals in red (`data/activity.sqlite`, last 5,000 events, short summaries
+only). Edits made in the Notes screen are yours and are not logged here (the ledger keeps their history). Older
+per-space entries (`/<ctx>/mcp`, `stdio --context`) bypass the connector, so they are not listed or pausable:
+reconnect those apps from *Connect apps*.

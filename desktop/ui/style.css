@@ -8,3 +8,8 @@ button{padding:9px 14px;border-radius:9px;border:1px solid var(--line);backgroun
 button.primary{background:var(--acc);border-color:var(--acc)}.actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
 .row{display:flex;gap:10px;align-items:center}.dot{width:12px;height:12px;border-radius:50%;background:var(--mut)}.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}
 .err{color:var(--bad);min-height:1em}#w-go{margin-top:14px;width:100%}pre{white-space:pre-wrap;font-size:12px;color:var(--mut)}
+h3{margin:18px 0 4px;font-size:15px}.apps{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.app{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#0e1530}.app .head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.app .badge{font-size:11px;padding:2px 8px;border-radius:99px;background:#1a2448;color:var(--mut)}.app .badge.on{background:#123a2c;color:var(--ok)}
+.app code{display:block;margin-top:8px;padding:8px;border-radius:8px;background:#0b1020;font-size:11px;word-break:break-all;color:var(--mut);user-select:all}
+.app.cloud{margin-top:8px;opacity:.85}.app p{margin:4px 0 0}

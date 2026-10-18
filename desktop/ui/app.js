@@ -13,6 +13,7 @@ async function refresh() {
   $("where").textContent = `Your memory lives in ${last.home}`;
   $("start").disabled = last.running; $("stop").disabled = !last.running; $("open").disabled = !up;
   $("details").textContent = JSON.stringify(last, null, 1);
+  renderApps();
 }
 
 async function run(btn, fn) {
@@ -21,7 +22,54 @@ async function run(btn, fn) {
   await refresh();
 }
 
-$("connect").onclick = (e) => run(e.target, async () => { $("ok").textContent = await invoke("connect_claude"); });
+const HELP = {
+  "claude-desktop": "Adds Mnemos to Claude Desktop. Then quit Claude (Cmd+Q) and reopen it.",
+  cursor: "Opens Cursor; click Install there.",
+  "claude-code": "Paste this in Terminal once:",
+  codex: "Paste this in Terminal once:",
+  vscode: "Paste this in Terminal once (or VS Code → MCP: Add Server):",
+};
+let cardsKey = "";
+async function renderApps() {
+  if (!last || !last.initialized) return;
+  let cards;
+  try { cards = await invoke("app_cards"); } catch (e) { return; }
+  const key = JSON.stringify(cards);
+  if (key === cardsKey) return;
+  cardsKey = key;
+  $("apps").replaceChildren(...cards.map((c) => {
+    const el = document.createElement("div");
+    el.className = "app";
+    const head = document.createElement("div"); head.className = "head";
+    const name = document.createElement("b"); name.textContent = c.name;
+    const badge = document.createElement("span");
+    badge.className = "badge" + (c.connected ? " on" : "");
+    badge.textContent = c.connected ? "connected" : c.installed ? "not connected" : "not found on this Mac";
+    head.append(name, badge);
+    const p = document.createElement("p"); p.className = "muted small"; p.textContent = HELP[c.id] || "";
+    el.append(head, p);
+    if (c.how === "button" || c.how === "deeplink") {
+      const b = document.createElement("button");
+      b.textContent = c.connected ? `Reconnect ${c.name}` : `Connect ${c.name}`;
+      b.onclick = (e) => run(e.target, async () => {
+        $("ok").textContent = await invoke(c.how === "button" ? "connect_claude" : "connect_cursor");
+        cardsKey = "";
+      });
+      const a = document.createElement("div"); a.className = "actions"; a.append(b); el.append(a);
+    } else if (c.command) {
+      const code = document.createElement("code"); code.textContent = c.command;
+      const b = document.createElement("button"); b.textContent = "Copy";
+      b.onclick = async () => {
+        try { await navigator.clipboard.writeText(c.command); b.textContent = "Copied ✓"; }
+        catch (_) { const r = document.createRange(); r.selectNodeContents(code); getSelection().removeAllRanges(); getSelection().addRange(r); b.textContent = "Press Cmd+C"; }
+        setTimeout(() => { b.textContent = "Copy"; }, 2000);
+      };
+      const a = document.createElement("div"); a.className = "actions"; a.append(b);
+      el.append(code, a);
+    }
+    return el;
+  }));
+}
 $("start").onclick = (e) => run(e.target, () => invoke("start_hub"));
 $("stop").onclick = (e) => run(e.target, () => invoke("stop_hub"));
 $("open").onclick = (e) => run(e.target, async () => window.__TAURI__.opener.openUrl(await invoke("memory_url")));

@@ -27,6 +27,10 @@ When it is ready you see a green **Mnemos is running**, and the Mnemos icon appe
 Click **Connect Claude Desktop** (one entry for all your spaces). Then quit Claude completely (**Cmd+Q**) and open
 it again. If you installed an older Mnemos extension (`.mcpb`) in Claude, remove it in **Settings → Extensions** so
 Claude does not see two Mnemos.
+
+**Other apps on this Mac** (same window, *Connect apps*): **Cursor** → click *Connect Cursor*, then *Install* in
+Cursor. **Claude Code, Codex, VS Code** → click *Copy* and paste the line in Terminal once. Every app gets all
+your spaces and saves to its default one.
 Ask Claude *"what do you know about me?"* — it now reads and saves to Mnemos on its own.
 
 ## 5. See and fix your memory

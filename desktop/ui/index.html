@@ -25,9 +25,13 @@
     <button id="open" class="primary">Open my memory</button>
   </div>
   <label class="small"><input type="checkbox" id="login"> Start Mnemos when I log in (it lives in the menu bar; closing this window keeps it running)</label>
-  <h3 class="small">Connect to Claude Desktop</h3>
-  <p class="muted small">One click, all your spaces: no addresses or tokens to copy. Then quit and reopen Claude Desktop.</p>
-  <div class="actions"><button id="connect">Connect Claude Desktop</button></div>
+  <h3>Connect apps</h3>
+  <p class="muted small">One Mnemos for each AI app, with all your spaces. Each app saves to its default space and
+    asks before using another (change it in <b>Open my memory → Apps</b>).</p>
+  <div id="apps" class="apps"></div>
+  <div class="app cloud"><div><b>Claude on the web and phone, ChatGPT, Grok</b>
+    <p class="muted small">These run on their companies' servers, so they cannot reach this Mac directly. They need
+      <b>Reach from anywhere</b> (coming next) and only work while this Mac is awake and Mnemos is running.</p></div></div>
   <p id="ok" class="muted small"></p>
   <p id="err" class="err"></p>
   <details><summary class="muted small">Details</summary><pre id="details"></pre></details>

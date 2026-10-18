@@ -121,6 +121,110 @@ fn connect_claude() -> Result<String, String> {
     Ok(format!("Added Mnemos to Claude Desktop (all your spaces).{moved} Quit and reopen Claude Desktop to use it."))
 }
 
+/// The stdio command every local AI app runs: (program, args). Same runtime Claude Desktop uses.
+fn stdio_cmd() -> Result<(String, Vec<String>), String> {
+    let (prog, mut args) = hub_program()?;
+    args.extend(["stdio", "--home", &home().display().to_string()].map(String::from));
+    Ok((prog, args))
+}
+
+fn shell_quote(s: &str) -> String {
+    if !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || "/._-=:@+,".contains(c)) {
+        s.to_string()
+    } else {
+        format!("'{}'", s.replace('\'', r"'\''"))
+    }
+}
+
+fn b64(data: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in data.chunks(3) {
+        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
+        for i in 0..4 {
+            if i <= chunk.len() {
+                out.push(T[((n >> (18 - 6 * i)) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
+fn pct(s: &str) -> String {
+    s.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect()
+}
+
+#[derive(Serialize)]
+struct AppCard {
+    id: &'static str,
+    name: &'static str,
+    installed: bool,
+    connected: bool,
+    how: &'static str,     // "button" | "deeplink" | "command" | "remote"
+    command: Option<String>,
+}
+
+fn file_has(p: PathBuf, needle: &str) -> bool {
+    std::fs::read_to_string(p).map(|t| t.contains(needle)).unwrap_or(false)
+}
+
+fn json_has_server(p: PathBuf, key: &str) -> bool {
+    std::fs::read_to_string(p).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .map(|v| v.get(key).and_then(|m| m.get("mnemos")).is_some()).unwrap_or(false)
+}
+
+fn on_path(bin: &str) -> bool {
+    let h = std::env::var("HOME").unwrap_or_default();
+    let mut dirs = vec![format!("{h}/.local/bin"), "/opt/homebrew/bin".into(), "/usr/local/bin".into(), format!("{h}/.npm-global/bin")];
+    if let Ok(p) = std::env::var("PATH") {
+        dirs.extend(p.split(':').map(String::from));
+    }
+    dirs.iter().any(|d| std::path::Path::new(&format!("{d}/{bin}")).is_file())
+}
+
+/// One card per AI app: is it on this Mac, is Mnemos already in its config, and how to connect it.
+#[tauri::command]
+fn app_cards() -> Result<Vec<AppCard>, String> {
+    let h = PathBuf::from(std::env::var("HOME").unwrap_or_default());
+    let (prog, args) = stdio_cmd()?;
+    let line = std::iter::once(prog.as_str()).chain(args.iter().map(|s| s.as_str())).map(shell_quote).collect::<Vec<_>>().join(" ");
+    let vs = serde_json::json!({"name": "mnemos", "command": prog, "args": args}).to_string();
+    let app = |n: &str| std::path::Path::new(&format!("/Applications/{n}.app")).exists() || h.join(format!("Applications/{n}.app")).exists();
+    let vs_user = h.join("Library/Application Support/Code/User/mcp.json");
+    Ok(vec![
+        AppCard { id: "claude-desktop", name: "Claude Desktop", installed: app("Claude") || claude_config_path().exists(),
+                  connected: json_has_server(claude_config_path(), "mcpServers"), how: "button", command: None },
+        AppCard { id: "cursor", name: "Cursor", installed: app("Cursor") || h.join(".cursor").exists(),
+                  connected: json_has_server(h.join(".cursor/mcp.json"), "mcpServers"), how: "deeplink", command: None },
+        AppCard { id: "claude-code", name: "Claude Code", installed: on_path("claude") || h.join(".claude.json").exists(),
+                  connected: json_has_server(h.join(".claude.json"), "mcpServers"), how: "command",
+                  command: Some(format!("claude mcp add --scope user mnemos -- {line}")) },
+        AppCard { id: "codex", name: "Codex", installed: on_path("codex") || h.join(".codex").exists(),
+                  connected: file_has(h.join(".codex/config.toml"), "[mcp_servers.mnemos]"), how: "command",
+                  command: Some(format!("codex mcp add mnemos -- {line}")) },
+        AppCard { id: "vscode", name: "VS Code", installed: app("Visual Studio Code") || on_path("code"),
+                  connected: json_has_server(vs_user, "servers"), how: "command",
+                  command: Some(format!("code --add-mcp {}", shell_quote(&vs))) },
+    ])
+}
+
+/// Cursor's one-click install link (cursor.com/docs/mcp/install-links): Cursor asks the user to confirm.
+fn cursor_link() -> Result<String, String> {
+    let (prog, args) = stdio_cmd()?;
+    let cfg = serde_json::json!({"command": prog, "args": args}).to_string();
+    Ok(format!("cursor://anysphere.cursor-deeplink/mcp/install?name=mnemos&config={}", pct(&b64(cfg.as_bytes()))))
+}
+
+#[tauri::command]
+fn connect_cursor() -> Result<String, String> {
+    let link = cursor_link()?;
+    Command::new("open").arg(&link).status().map_err(|e| format!("could not open Cursor: {e}"))?;
+    Ok("Cursor opened: click Install there. Mnemos then appears in Cursor's MCP list (all your spaces).".into())
+}
+
 fn home() -> PathBuf {
     if let Ok(h) = std::env::var("MNEMOS_HOME") {
         return PathBuf::from(h);
@@ -358,16 +462,19 @@ fn show_main(app: &tauri::AppHandle) {
 ///   Mnemos --setup <contexts> <name>   (password on stdin)   = the first-run wizard
 ///   Mnemos --connect-claude                                 = the Connect button (one entry, every space)
 ///   Mnemos --open-memory                                    = menu "Open my memory" (browser, token from Keychain)
+///   Mnemos --app-cards                                      = the Connect apps screen as JSON (commands, links)
 fn headless() -> Option<i32> {
     let args: Vec<String> = std::env::args().collect();
     let flag = args.get(1)?.as_str();
-    if flag != "--setup" && flag != "--connect-claude" && flag != "--open-memory" {
+    if flag != "--setup" && flag != "--connect-claude" && flag != "--open-memory" && flag != "--app-cards" {
         return None;
     }
     let py = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("../Resources/python/bin/python3")))
         .filter(|p| p.is_file()).and_then(|p| p.canonicalize().ok());
     let _ = BUNDLED_PY.set(py);
-    let res = if flag == "--open-memory" {
+    let res = if flag == "--app-cards" {
+        app_cards().map(|c| serde_json::json!({"apps": c, "cursor_link": cursor_link().unwrap_or_default()}).to_string())
+    } else if flag == "--open-memory" {
         memory_url().and_then(|u| Command::new("open").arg(u).status().map(|_| "opened".to_string()).map_err(|e| e.to_string()))
     } else if flag == "--setup" {
         let mut pw = String::new();
@@ -434,7 +541,7 @@ fn main() {
                 api.prevent_close();
             }
         })
-        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude, memory_url,
+        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude, connect_cursor, app_cards, memory_url,
                                                  set_login_item, login_item])
         .build(tauri::generate_context!())
         .expect("error while building Mnemos Desktop");
@@ -451,4 +558,18 @@ fn main() {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn base64_and_quote() {
+        assert_eq!(b64(b"Man"), "TWFu");
+        assert_eq!(b64(b"Ma"), "TWE=");
+        assert_eq!(b64(b"M"), "TQ==");
+        assert_eq!(shell_quote("/Users/ana/Mnemos"), "/Users/ana/Mnemos");
+        assert_eq!(shell_quote("/Users/a b/it's"), r"'/Users/a b/it'\''s'");
+        assert_eq!(pct("a+b/c="), "a%2Bb%2Fc%3D");
+    }
 }

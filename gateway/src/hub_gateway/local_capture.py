@@ -40,7 +40,7 @@ def _h(s: str) -> str:
 
 def decide(f: dict) -> str:
     """auto | inbox for one gated fact."""
-    if f.get("durability") == "short":
+    if f.get("durability") == "short" or f.get("unsure"):
         return "inbox"
     if f.get("kind") in AUTO_KINDS and (f["importance"] >= 4 or (f["importance"] >= 3 and
                                                                  f["durability"] in ("permanent", "long"))):

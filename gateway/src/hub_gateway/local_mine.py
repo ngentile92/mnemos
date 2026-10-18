@@ -140,6 +140,7 @@ class Miner:
                             "id": _h(ctx + it["text"]), "text": it["text"], "context": ctx, "source": src["kind"],
                             "source_label": src["label"], "status": "new", "kind": f.get("kind"),
                             "importance": f.get("importance"), "durability": f.get("durability"),
+                            "unsure": bool(f.get("unsure")),
                             "expires_at": f.get("expires_at"), "about": f.get("about"), "topic": f.get("topic"),
                             "quote": f.get("quote"), "date": ts, "conv": ck})
                 if self.on_batch:
@@ -177,7 +178,7 @@ class Miner:
                 "done": self.live.get("done"), "total": self.live.get("total"), "phase": self.live.get("phase"),
                 "read_batches": len(self.st["seen"]), "found": len(c),
                 "new": sorted((x for x in c if x["status"] == "new"),
-                              key=lambda x: -(x.get("importance") or 3))[:500],
+                              key=lambda x: (bool(x.get("unsure")), -(x.get("importance") or 3)))[:500],
                 "groups": _groups(c),
                 "saved": sum(1 for x in c if x["status"] == "saved"),
                 "dismissed": sum(1 for x in c if x["status"] == "dismissed"),

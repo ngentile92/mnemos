@@ -81,3 +81,32 @@ def test_grounded():
     assert not grounded({"text": "Works at Google.", "quote": ""}, src)[0]
     assert not grounded({"text": "Lives in Rosario.", "quote": "vivo en Córdoba capital"}, src)[0]
     assert not grounded({"text": "Lives in Córdoba.", "quote": ""}, src)[0]
+
+
+def test_entailed_drops_what_the_model_rejects_and_fails_open():
+    import asyncio
+    from hub_gateway.memfilter import entailed
+
+    class L:
+        def __init__(self, r):
+            self.r, self.prompts = r, []
+
+        async def json(self, p):
+            self.prompts.append(p)
+            if isinstance(self.r, Exception):
+                raise self.r
+            return self.r
+    class Seq(L):
+        def __init__(self, rs):
+            super().__init__(None)
+            self.rs = rs
+
+        async def json(self, p):
+            self.prompts.append(p)
+            return self.rs[len(self.prompts) - 1]
+    facts = [{"text": "Has a dog."}, {"text": "Has two cats."}]
+    llm = Seq([{"supported": True}, {"supported": False}])
+    assert asyncio.run(entailed(llm, facts, "I have a dog")) == [True, False]
+    assert "I have a dog" in llm.prompts[0] and "Has two cats." in llm.prompts[1]
+    assert asyncio.run(entailed(L(RuntimeError("x")), facts, "s")) == [True, True]
+    assert asyncio.run(entailed(L({"supported": [True]}), facts, "s")) == [True, True]

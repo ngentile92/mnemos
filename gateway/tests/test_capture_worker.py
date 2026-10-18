@@ -102,3 +102,8 @@ async def test_memory_profile_tool(hub):
     await hub.call("personal", "memory_save", {"text": "Ana prefers short answers.", "tags": ["kind-preference"]})
     r = await hub.call("personal", "memory_profile", {})
     assert "## Preferences" in r["profile"] and "short answers" in r["profile"]
+
+
+def test_unsure_goes_to_inbox():
+    f = {"text": "Ana has two cats.", "kind": "identity", "importance": 5, "durability": "permanent"}
+    assert lc.decide(f) == "auto" and lc.decide({**f, "unsure": True}) == "inbox"

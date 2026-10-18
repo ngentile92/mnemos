@@ -17,6 +17,8 @@ class CountingLLM:
         self.calls = 0
 
     async def json(self, prompt):
+        if "NOTE:" in prompt:  # the entailment check: no opinion (keeps every fact)
+            return {}
         self.calls += 1
         w = ["ana", "lives", "in", "lisbon", "works", "at", "acme", "likes", "tea", "plays", "chess", "owns", "a", "dog"]
         return {"facts": [" ".join(w[(self.calls * 3 + k) % len(w)] + str(self.calls) for k in range(5)) + "."]}

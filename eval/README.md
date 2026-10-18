@@ -29,3 +29,17 @@ hallucinated facts ("wrong"), which no text rule can detect — catching those n
 extracted facts labelled ok / invented. `memfilter.grounded` drops a fact whose quote is not in the source or that names
 a person, place, product or number the user never wrote. It cannot see invented facts with no such anchor
 ("has two cats", "prefers light mode"); the held-out number shows that limit.
+
+### Model entailment check (0.9.1)
+`memfilter.entailed` asks the local model (or Apple's on-device model) whether the user's words support each fact.
+Measured with `scripts/entail_eval.py` on Qwen2.5 1.5B (smaller than the app's Qwen3 4B, so a lower bound):
+
+| set | real facts kept | invented dropped |
+|---|---|---|
+| dev (prompt tuned here), rules only | 1.00 | 0.76 |
+| dev, rules + model | 1.00 | 1.00 |
+| held-out `entail_holdout.jsonl` (frozen first), rules only | 1.00 | 0.00 |
+| held-out, rules + model | 0.75 | 1.00 |
+
+Because the model also rejects some real facts, a "no" never deletes: the fact is marked `unsure` (live capture sends
+it to the inbox instead of saving it; the import review lists it last).

@@ -4,6 +4,14 @@
 - `Mnemos-macos.app.zip` — same app, zipped.
 - `mnemos.mcpb` — Claude Desktop extension (optional; the app's "Connect to Claude Desktop" button is enough).
 
+**New in 0.10: the memory model on the full Docker hub.**
+- The hub can now use the same memory model as the local app: entities, typed facts, the nightly tidy-up, the
+  profile and better ranking. It is stored in a separate file per context, next to the ledger, and never rewrites
+  Cognee notes. It is off unless you set `HUB_MEMORY_MODEL=1`.
+- `python -m hub_gateway.model_admin` (run inside a gateway container) links existing notes with a dry run first and
+  an exact undo. It also runs the tidy-up (each run can be undone) and prints the profile, entities and the weekly
+  "still true?" list. See `docs/memory-model-hub.md`.
+
 **New in 0.9.1: Claude Desktop saves on its own, and fewer invented facts.**
 - **Claude Desktop.** Claude Desktop ignores the rules an MCP server sends, so the save rules now live in the tool
   descriptions (with examples), every search/profile result reminds the model to save lasting facts, and a **Use my

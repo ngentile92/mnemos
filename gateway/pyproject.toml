@@ -1,6 +1,6 @@
 [project]
 name = "mnemos-hub"   # distribution name (PyPI/npm "mnemos-hub"); the import package stays hub_gateway
-version = "0.9.1"
+version = "0.10.0"
 description = "Mnemos: one memory, skills and credentials hub for all your AI assistants, isolated by context (MCP gateway)"
 requires-python = ">=3.11"
 readme = "README.md"

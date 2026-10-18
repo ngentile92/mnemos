@@ -1,0 +1,60 @@
+{"text": "Tomás is a backend engineer at a fictional fintech called Pampa Pay.", "label": "durable"}
+{"text": "He prefers answers in English even when he writes in Spanish.", "label": "durable"}
+{"text": "Tomás lives in Rosario with his partner Inés.", "label": "durable"}
+{"text": "He uses Neovim with a Lua config as his main editor.", "label": "durable"}
+{"text": "His team deploys with Argo CD on Kubernetes.", "label": "durable"}
+{"text": "He is learning Rust in his spare time.", "label": "durable"}
+{"text": "Prefiere respuestas cortas sin introducciones.", "label": "durable"}
+{"text": "Tomás corre media maratón y entrena los martes y jueves.", "label": "durable"}
+{"text": "He dislikes ORMs and prefers writing raw SQL.", "label": "durable"}
+{"text": "His main language at work is Go.", "label": "durable"}
+{"text": "Su perro se llama Toto.", "label": "durable"}
+{"text": "He wants code reviews to focus on correctness before style.", "label": "durable"}
+{"text": "Tomás is vegetarian.", "label": "durable"}
+{"text": "He is the tech lead of the payments reconciliation squad.", "label": "durable"}
+{"text": "Prefers tabs over spaces in Go files.", "label": "durable"}
+{"text": "Habla inglés y portugués además de español.", "label": "durable"}
+{"text": "He keeps personal notes in Obsidian.", "label": "durable"}
+{"text": "His manager is called Valeria.", "label": "durable"}
+{"text": "He works remotely and goes to the office on Wednesdays.", "label": "durable"}
+{"text": "Le gusta el café de filtro, no el espresso.", "label": "durable"}
+{"text": "He is planning to move to Montevideo next year.", "label": "durable"}
+{"text": "Wants commit messages written in imperative mood.", "label": "durable"}
+{"text": "The test in reconcile_test.go line 88 is failing.", "label": "trivia"}
+{"text": "Ran go mod tidy and it fixed the import.", "label": "trivia"}
+{"text": "The service listens on port 8443.", "label": "trivia"}
+{"text": "User asked how to reverse a linked list.", "label": "trivia"}
+{"text": "The assistant suggested using a mutex here.", "label": "trivia"}
+{"text": "Error: context deadline exceeded in fetchLedger.", "label": "trivia"}
+{"text": "Kubernetes is a container orchestration system.", "label": "trivia"}
+{"text": "He opened the file /srv/pampa/config/prod.yaml.", "label": "trivia"}
+{"text": "The PR number is 4512.", "label": "trivia"}
+{"text": "Thanks, that worked!", "label": "trivia"}
+{"text": "He asked to rename the variable tmp to total.", "label": "trivia"}
+{"text": "The function returns a pointer to Ledger.", "label": "trivia"}
+{"text": "Gracias, ya funciona.", "label": "trivia"}
+{"text": "Pidió un ejemplo de goroutines con WaitGroup.", "label": "trivia"}
+{"text": "https://grafana.pampa.internal/d/abc123 shows the latency spike.", "label": "trivia"}
+{"text": "The build took 4 minutes today.", "label": "trivia"}
+{"text": "He pasted a stack trace from the worker pod.", "label": "trivia"}
+{"text": "Commit a1b2c3d added the retry.", "label": "trivia"}
+{"text": "Go was created at Google.", "label": "trivia"}
+{"text": "The JSON has a field called amount_cents.", "label": "trivia"}
+{"text": "He is fixing a bug in the CSV parser right now.", "label": "transient"}
+{"text": "This week he is on call.", "label": "transient"}
+{"text": "Today he is working from a café.", "label": "transient"}
+{"text": "Está esperando la respuesta del banco para el lunes.", "label": "transient"}
+{"text": "He was diagnosed with anxiety and takes medication.", "label": "sensitive"}
+{"text": "Tomás votes for a left-wing party.", "label": "sensitive"}
+{"text": "Es católico practicante.", "label": "sensitive"}
+{"text": "He is going through a divorce.", "label": "sensitive"}
+{"text": "His salary is 4,000 USD a month.", "label": "sensitive"}
+{"text": "His AWS key is AKIAIOSFODNN7EXAMPLE.", "label": "secret"}
+{"text": "The staging DB password is hunter2-pampa.", "label": "secret"}
+{"text": "Tomás works at Google.", "label": "wrong"}
+{"text": "He prefers Python for everything.", "label": "wrong"}
+{"text": "He lives in Buenos Aires.", "label": "wrong"}
+{"text": "He uses VS Code as his main editor.", "label": "wrong"}
+{"text": "Tomás tiene dos hijos.", "label": "wrong"}
+{"text": "Asked whether to use channels or mutexes.", "label": "trivia"}
+{"text": "The assistant explained the CAP theorem.", "label": "trivia"}

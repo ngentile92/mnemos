@@ -70,8 +70,14 @@ def run(root: Path = ROOT, keep: Callable[[list[str]], list[str]] | None = None)
     rf = keep(rules_facts(convs))
     out["rules"] = {"facts": len(rf), **gold_recall(rf, gold)}
     out["filter_gold"] = gold_recall(keep([c["text"] for c in cands]), gold)
-    if (root / "holdout.jsonl").exists():  # written separately and never used to tune the rules
-        out["holdout"] = candidate_metrics(keep, load("holdout.jsonl", root))
+    if (root / "dev.jsonl").exists():  # tuning set for new rules (rules are tuned on candidates + dev only)
+        out["dev"] = candidate_metrics(keep, load("dev.jsonl", root))
+    hold = [n for n in ("holdout.jsonl", "holdout2.jsonl") if (root / n).exists()]
+    if hold:  # written before the rules they test and never used to tune them
+        items = [c for n in hold for c in load(n, root)]
+        out["holdout"] = candidate_metrics(keep, items)
+        right = [c for c in items if c["label"] != "wrong"]  # "wrong" = hallucinated fact, no text rule can see it
+        out["holdout_excl_wrong"] = candidate_metrics(keep, right)
     return out
 
 

@@ -1,5 +1,32 @@
-{"_note": "Numbers a change may not go below. v0.6 write filter: filter dfp 0.423 / trivia 24 / sensitive 4; holdout dfp 0.4. Updated when the filter improves (memfilter, v0.7).",
- "filter": {"dfp": 0.95, "durable_recall": 0.95, "trivia_kept": 1, "secret_kept": 0, "sensitive_kept": 0},
- "holdout": {"dfp": 0.7, "durable_recall": 0.95},
- "rules": {"gold_recall": 0.611},
- "v06": {"filter": {"dfp": 0.423, "trivia_kept": 24}, "holdout": {"dfp": 0.4}}}
+{
+ "_note": "Numbers a change may not go below. v0.6: filter dfp 0.423 / trivia 24 / sensitive 4; holdout (20) dfp 0.4, holdout 1+2 (80) dfp 0.38. Rules are tuned on candidates + dev only; holdout2 was written and frozen before the rules it tests (its 0.7.0-pre score was 0.537).",
+ "filter": {
+  "dfp": 0.95,
+  "durable_recall": 0.95,
+  "trivia_kept": 1,
+  "secret_kept": 0,
+  "sensitive_kept": 0
+ },
+ "holdout": {
+  "dfp": 0.72,
+  "durable_recall": 0.95
+ },
+ "rules": {
+  "gold_recall": 0.611
+ },
+ "v06": {
+  "filter": {
+   "dfp": 0.423,
+   "trivia_kept": 24
+  },
+  "holdout": {
+   "dfp": 0.4
+  }
+ },
+ "holdout_excl_wrong": {
+  "dfp": 0.82
+ },
+ "dev": {
+  "dfp": 0.9
+ }
+}

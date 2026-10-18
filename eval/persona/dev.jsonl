@@ -1,0 +1,46 @@
+{"text": "Marta is a product designer at a fictional studio called Faro.", "label": "durable"}
+{"text": "She prefers dark mode in every app.", "label": "durable"}
+{"text": "Marta vive en Valencia.", "label": "durable"}
+{"text": "She is training for a triathlon.", "label": "durable"}
+{"text": "Prefiere que le respondan en catalán.", "label": "durable"}
+{"text": "Her cat is called Miso.", "label": "durable"}
+{"text": "She uses Figma and Linear daily.", "label": "durable"}
+{"text": "She wants feedback to be direct.", "label": "durable"}
+{"text": "Marta does not drink alcohol.", "label": "durable"}
+{"text": "Her brother Pau works as a pilot.", "label": "durable"}
+{"text": "She is moving to Lisbon in spring.", "label": "durable"}
+{"text": "Le interesa aprender cerámica.", "label": "durable"}
+{"text": "She leads the design system team.", "label": "durable"}
+{"text": "Installed the plugin and restarted Figma.", "label": "trivia"}
+{"text": "Restarted the dev server and it worked.", "label": "trivia"}
+{"text": "Deployed the hotfix to production.", "label": "trivia"}
+{"text": "Reinstaló las dependencias y anduvo.", "label": "trivia"}
+{"text": "Asked how to center a div.", "label": "trivia"}
+{"text": "The user asked for a regex for emails.", "label": "trivia"}
+{"text": "She asked for a summary of the article.", "label": "trivia"}
+{"text": "Preguntó cómo exportar a PDF.", "label": "trivia"}
+{"text": "Pidió que le corrija el texto.", "label": "trivia"}
+{"text": "Requested a list of color palettes.", "label": "trivia"}
+{"text": "React is maintained by Meta.", "label": "trivia"}
+{"text": "Python was created by Guido van Rossum.", "label": "trivia"}
+{"text": "Figma was founded in 2012.", "label": "trivia"}
+{"text": "HTTP stands for Hypertext Transfer Protocol.", "label": "trivia"}
+{"text": "Thanks, that's great!", "label": "trivia"}
+{"text": "Perfect, it works now!", "label": "trivia"}
+{"text": "Genial, gracias!", "label": "trivia"}
+{"text": "Buenísimo, funcionó.", "label": "trivia"}
+{"text": "The component returns null when empty.", "label": "trivia"}
+{"text": "The method takes two arguments.", "label": "trivia"}
+{"text": "The function throws on invalid input.", "label": "trivia"}
+{"text": "The button color is #FF5500.", "label": "trivia"}
+{"text": "The screenshot shows a broken layout.", "label": "trivia"}
+{"text": "She is debugging the login flow right now.", "label": "transient"}
+{"text": "Currently she is fixing the navbar.", "label": "transient"}
+{"text": "She is waiting for the client's reply.", "label": "transient"}
+{"text": "Está terminando la presentación ahora.", "label": "transient"}
+{"text": "Her rent is 1,200 EUR per month.", "label": "sensitive"}
+{"text": "She earns 50k a year.", "label": "sensitive"}
+{"text": "Está separándose de su pareja.", "label": "sensitive"}
+{"text": "She had surgery last year.", "label": "sensitive"}
+{"text": "She has debts with the bank.", "label": "sensitive"}
+{"text": "Her GitHub token is ghp_abcdefghijklmnopqrstuvwxyz0123456789.", "label": "secret"}

@@ -41,10 +41,24 @@ _NOISE = [
     ("request", re.compile(r"\b(?:asked|wants?|needs?) (?:the assistant|you|it|to (?:fix|rename|add|remove|run|change|update|"
                            r"debug|refactor))\b|\b(?:pidió|quiere) que\b|\bfix (?:the|this)\b", re.I)),
     ("ack", re.compile(r"^\W*(?:she |he |they |user )?(?:said )?(?:(?:ok(?:ay)?|perfect|perfecto|dale|thanks?|thank you|gracias|"
-                       r"genial|great|cool|go ahead|listo|sí|si|yes|no|that works|funciona|seguí)[\s,.!]*)+$", re.I)),
+                       r"genial|great|cool|nice|awesome|excelente|buen[ií]simo|(?:that|it)(?:'s| is) (?:great|perfect|fine)|go ahead|listo|sí|si|yes|no|that works|funciona|seguí)[\s,.!]*)+$", re.I)),
+    ("task log", re.compile(r"^\W*(?:(?:he|she|they|the user|user|we|I)\s+)?(?:installed|reinstalled|restarted|rebooted|"
+                            r"deployed|redeployed|ran|reran|rebuilt|upgraded|downgraded|reverted|cleared|instal[oó]|"
+                            r"reinstal[oó]|reinici[oó]|corri[oó]|despleg[oó]|actualiz[oó]|borr[oó])\b", re.I)),
+    ("one-off ask", re.compile(r"\b(?:asked (?:how|for|whether|what|why|if|about|to (?:see|get|write|make|explain))|"
+                               r"requested|requests? (?:a|an|the)|pregunt[oó]|pidi[oó] (?:un|una|el|la|que|ayuda))\b", re.I)),
+    ("worked", re.compile(r"\b(?:it|that|this) (?:worked|works now|fixed it)\b|\bfuncion[oó]\b|\banduvo\b|\bya funciona\b",
+                          re.I)),
+    ("artifact", re.compile(r"^\W*(?:the|el|la|este|esta)\s+(?:function|method|component|class|query|script|test|build|"
+                            r"screenshot|button|service|json|api|response|layout|parser|loop|regex|función|método|"
+                            r"componente|consulta|botón)\b", re.I)),
+    ("color/code", re.compile(r"#[0-9a-f]{3,8}\b", re.I)),
     ("pasted", re.compile(r"\b(?:pasted|pegó|copied|here is my|acá está)\b", re.I)),
     ("generic", re.compile(r"^\s*(?:[A-Z][\w.+#-]*\s){1,3}(?:is|are|es|son)\s+(?:a|an|un|una)\s+(?:\w+\s){0,4}"
                            r"(?:language|framework|library|tool|database|lenguaje|herramienta|librería|base de datos)\b", re.I)),
+    ("encyclopedic", re.compile(r"\b(?:was|were|is|fue)\s+(?:created|founded|invented|developed|maintained|made|built|"
+                                r"designed|written|creado|fundad[oa]|inventad[oa])\s+(?:by|in|por|en)\b|\bstands for\b|"
+                                r"\bsignifica\b", re.I)),
 ]
 _SENSITIVE = [
     ("health", re.compile(r"\b(?:sertralin\w*|fluoxetin\w*|antidepress\w*|anxiety|ansiedad|depression|depresi[oó]n|diagnos\w+|"
@@ -54,12 +68,18 @@ _SENSITIVE = [
                             r"religio\w+|church|iglesia|mosque|synagogue)\b", re.I)),
     ("politics", re.compile(r"\b(?:votes? for|vota (?:a|por)|vot[oó]|partido|political party|peronis\w+|kirchner\w+|libertari\w+|"
                             r"republican|democrat|conservative party|labour party)\b", re.I)),
+    ("money", re.compile(r"\b(?:salary|salario|sueldo|earns?|gana|rent is|alquiler|debts?|deudas?|mortgage|hipoteca|"
+                         r"net worth|income|ingresos)\b|\b\d[\d,.]*\s?k?\s?(?:USD|EUR|dollars|euros|pesos)\b", re.I)),
+    ("relationship crisis", re.compile(r"\b(?:divorc\w+|separating|separ[aá]nd\w+|se separ\w+|break-?up|cheat\w+|"
+                                       r"infidel\w+)\b", re.I)),
+    ("medical", re.compile(r"\b(?:surgery|cirug[ií]a|operated|hospital\w*|illness|enfermedad|disease)\b", re.I)),
     ("sexuality", re.compile(r"\b(?:gay|lesbian|lesbiana|bisexual|transgender|sexual orientation|orientaci[oó]n sexual)\b", re.I)),
     ("id number", re.compile(r"\b(?:DNI|CUIT|CUIL|SSN|passport|pasaporte|social security|PPS)\b.{0,20}\d|\b\d{2}\.\d{3}\.\d{3}\b",
                              re.I)),
 ]
 _TRANSIENT = [
-    (1, re.compile(r"\b(?:today|tonight|hoy|esta noche)\b", re.I)),
+    (1, re.compile(r"\b(?:today|tonight|hoy|esta noche|right now|ahora(?: mismo)?|at the moment|en este momento|currently)\b"
+                   r"|\b(?:is|are|está|estoy) (?:debugging|fixing|waiting for|esperando|arreglando|terminando)\b", re.I)),
     (2, re.compile(r"\b(?:tomorrow|mañana)\b", re.I)),
     (14, re.compile(r"\b(?:next week|this week|la semana que viene|la pr[oó]xima semana|esta semana|this weekend|"
                     r"este finde|in a few days|en unos d[ií]as)\b", re.I)),

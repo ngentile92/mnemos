@@ -34,3 +34,10 @@ def test_gold_recall_matching():
     gold = [{"id": "x", "any": [["norte"], ["data engineer"]]}]
     assert fe.gold_recall(["Data engineer at Norte"], gold)["gold_hit"] == 1
     assert fe.gold_recall(["Works at Norte"], gold)["gold_hit"] == 0
+
+
+def test_dev_and_holdout_excl_wrong():
+    r = fe.run()
+    assert r["dev"]["dfp"] >= BASE["dev"]["dfp"] and r["dev"]["durable_recall"] == 1.0
+    assert r["holdout_excl_wrong"]["dfp"] >= BASE["holdout_excl_wrong"]["dfp"]
+    assert r["holdout"]["secret_kept"] == 0 and r["holdout"]["sensitive_kept"] == 0

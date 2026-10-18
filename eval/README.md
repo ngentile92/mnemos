@@ -18,3 +18,8 @@ typically pulls out of them (each labelled durable / trivia / transient / sensit
 of 18 things a good memory must know. `python scripts/fact_eval.py` reports durable-fact precision (DFP), durable
 recall, leaks and gold recall; `--v06` shows the 0.6.0 baseline, `--llm --home <temp dir>` adds a run with the local
 model. CI fails if a change goes below `eval/persona/baseline.json`. No real data is ever used.
+
+### Tuning discipline (write filter)
+`candidates.jsonl` and `dev.jsonl` are the only sets rules may be tuned on. `holdout.jsonl` (20) and `holdout2.jsonl` (60, a
+different persona, frozen before the rules it measures) are reported together as `holdout`; `holdout_excl_wrong` leaves out
+hallucinated facts ("wrong"), which no text rule can detect — catching those needs the extractor's quote/evidence check.

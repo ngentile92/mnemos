@@ -111,8 +111,11 @@ def _run_sync(coro_fn: Callable):
 
 class LocalRouter:
     def __init__(self, home: Path, servers: dict[str, FastMCP], descriptions: dict[str, str] | None = None,
-                 language: str = "en", via: str = "local", on_event: Callable | None = None) -> None:
+                 language: str = "en", via: str = "local", on_event: Callable | None = None,
+                 auth: Any = None, identify: Callable | None = None) -> None:
         self.home, self.servers, self.via = Path(home), servers, via
+        self.auth = auth  # OAuth provider (Reach from anywhere); None for this computer's apps
+        self.identify = identify  # async (client_name) -> (key, label, granted spaces, extra fields)
         self.descriptions = descriptions or {c: c for c in servers}
         self.apps = Apps(self.home, list(servers))
         self.active: OrderedDict[str, str] = OrderedDict()  # MCP session -> space chosen with hub_use_context
@@ -155,11 +158,15 @@ class LocalRouter:
                 self._mtime = m
 
     # -- who is calling
-    def caller(self) -> tuple[str, str, str, dict]:
+    async def caller(self) -> tuple[str, str, str, dict]:
         self.maybe_reload()
         name, version = client_info()
-        key, label = app_key(name)
-        rec = self.apps.touch(key, label, self.via)
+        if self.identify:  # remote: the OAuth client and what the user granted it on the consent page
+            key, label, limit, extra = await self.identify(name)
+            rec = {**self.apps.touch(key, label, self.via, **extra), "_limit": list(limit)}
+        else:
+            key, label = app_key(name)
+            rec = self.apps.touch(key, label, self.via)
         return key, label, version, rec
 
     def sid(self) -> str | None:
@@ -188,7 +195,7 @@ class LocalRouter:
         return d
 
     async def forward(self, tool: str, requested: str | None, args: dict):
-        key, label, version, rec = self.caller()
+        key, label, version, rec = await self.caller()
         try:
             space = self.pick(requested, rec)
         except ToolError as e:
@@ -217,7 +224,7 @@ class LocalRouter:
     def build(self) -> FastMCP:
         first = next(iter(self.servers.values()))
         remote_tools = _run_sync(first.list_tools)
-        mcp = FastMCP("mnemos", instructions=instructions(self.descriptions, self.language))
+        mcp = FastMCP("mnemos", instructions=instructions(self.descriptions, self.language), auth=self.auth)
         spaces = list(self.servers)
         for t in remote_tools:
             if t.name in OWN_TOOLS or t.name in SKIP:
@@ -232,7 +239,7 @@ class LocalRouter:
         async def hub_whoami() -> dict[str, Any]:
             """This app's spaces: which it may use, its default (used when a call has no `context`) and what each
             space is for. Shared is readable from every space."""
-            key, label, _v, rec = router.caller()
+            key, label, _v, rec = await router.caller()
             if rec.get("revoked") or rec.get("paused"):
                 try:
                     router.pick(None, rec)
@@ -245,7 +252,7 @@ class LocalRouter:
                    "spaces": [{"name": c, "description": router.descriptions.get(c, c), "allowed": c in allowed}
                               for c in spaces],
                    "shared": "readable from every space (include_shared=true); save there only with target='shared'",
-                   "mode": "local"}
+                   "mode": "remote" if self.via == "remote" else "local"}
             if sid and router.active.get(sid) in allowed:
                 out["active_space"] = router.active[sid]
             router._event(key, label, None, "hub_whoami", {}, out, None)
@@ -258,7 +265,7 @@ class LocalRouter:
         ) -> dict[str, Any]:
             """Use another space for the rest of this chat, so later calls can omit `context`. Only do it when the
             user asks for that space or clearly talks about it."""
-            key, label, _v, rec = router.caller()
+            key, label, _v, rec = await router.caller()
             try:
                 space = router.pick(context, rec)
             except ToolError as e:

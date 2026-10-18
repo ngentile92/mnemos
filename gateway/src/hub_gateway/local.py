@@ -31,12 +31,14 @@ import argparse
 import asyncio
 import contextlib
 import hmac
+import logging
 import os
 import secrets
 import sys
 from pathlib import Path
 
 DEFAULT_PORT = 8765
+log = logging.getLogger("mnemos.local")
 
 
 def home_dir(arg: str | None) -> Path:
@@ -137,14 +139,15 @@ def _descriptions(servers: dict) -> dict[str, str]:
     return {n: _c.CONTEXTS[n].description if n in _c.CONTEXTS else n for n in servers}
 
 
-def build_router(home: Path, servers: dict, via: str = "local", port: int = DEFAULT_PORT):
+def build_router(home: Path, servers: dict, via: str = "local", port: int = DEFAULT_PORT, auth=None, identify=None):
     """The single connector over `servers` (from build_all). It reloads them when contexts.yaml changes (Spaces
     screen: descriptions, bridges), also inside stdio processes launched by AI apps."""
     from . import contexts as _c
     from .local_activity import Activity
     from .local_router import LocalRouter
     act = Activity(home)
-    lr = LocalRouter(home, servers, _descriptions(servers), language=_c.LANGUAGE, via=via, on_event=act.record)
+    lr = LocalRouter(home, servers, _descriptions(servers), language=_c.LANGUAGE, via=via, on_event=act.record,
+                     auth=auth, identify=identify)
 
     def reload() -> None:
         _c.reload(home / "contexts.yaml")
@@ -170,14 +173,23 @@ private token for you), or install the Mnemos extension (.mcpb) in Claude Deskto
 class TokenGate:
     """Bearer token + Host check in front of the local HTTP app."""
 
-    def __init__(self, app, token: str, port: int) -> None:
+    def __init__(self, app, token: str, port: int, remote=None) -> None:
         self.app, self.token = app, token.encode()
         self.hosts = {f"127.0.0.1:{port}".encode(), f"localhost:{port}".encode()}
+        self.remote = remote  # Reach from anywhere: its public Host goes to the OAuth-only app, nothing else
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             h = dict(scope.get("headers") or [])
             p = scope.get("path") or ""
+            if self.remote is not None and self.remote.matches(h.get(b"host")):
+                if self.remote.app is not None:
+                    await self.remote.app(scope, receive, send)
+                    return
+                await send({"type": "http.response.start", "status": 503,
+                            "headers": [(b"content-type", b"application/json")]})
+                await send({"type": "http.response.body", "body": b'{"error":"starting"}'})
+                return
             ui = p in ("/", "/app") or p.startswith(("/ui/", "/api/"))  # status page + local app: own cookie auth
             if ui and h.get(b"host") in self.hosts:
                 await self.app(scope, receive, send)
@@ -200,7 +212,7 @@ class TokenGate:
         await self.app(scope, receive, send)
 
 
-def http_app(home: Path, port: int):
+def http_app(home: Path, port: int, remote_opts: dict | None = None):
     from fastmcp.server.http import create_streamable_http_app
     from starlette.applications import Starlette
     from starlette.responses import JSONResponse
@@ -210,12 +222,29 @@ def http_app(home: Path, port: int):
     subs = {c: create_streamable_http_app(server=m, streamable_http_path="/mcp") for c, m in servers.items()}
     router = build_router(home, servers, via="http", port=port)
     router_app = create_streamable_http_app(server=router, streamable_http_path="/mcp")
+    from . import local_spaces as _lsp
+    from .local_remote import Remote
+
+    def _space_labels() -> list[tuple[str, str]]:
+        try:
+            labels = {s["name"]: s["label"] for s in _lsp.read(home)["spaces"]}
+        except Exception:  # noqa: BLE001
+            labels = {}
+        return [(c, labels.get(c, c)) for c in servers]
+    remote = Remote(home, port, lambda **kw: build_router(home, servers, port=port, **kw), _space_labels,
+                    **(remote_opts or {}))
 
     @contextlib.asynccontextmanager
     async def lifespan(_app):
         async with contextlib.AsyncExitStack() as stack:
             for s in [router_app, *subs.values()]:
                 await stack.enter_async_context(s.router.lifespan_context(s))
+            if remote.enabled():  # Funnel stays configured in Tailscale (--bg); answer on it again
+                try:
+                    await remote.start()
+                except Exception:  # noqa: BLE001 — never block the local app over it
+                    log.warning("Reach from anywhere did not start", exc_info=True)
+            stack.push_async_callback(remote.stop)
             task = None
             from . import local_engine as _le
             _le.get(home).autostart()  # 0.4 → 0.5 model upgrade / resume an interrupted download, in the background
@@ -282,8 +311,22 @@ tokens by hand.</p></body>""",
             router.router.apps.set_default_space(str(b["default_space"]))
             return await _apps(b)
         fields = {k: b[k] for k in ("default", "spaces", "paused", "revoked") if k in b}
-        router.router.apps.update(key, **fields)
+        rec = router.router.apps.update(key, **fields)
+        if fields.get("revoked") and rec.get("oauth_client"):  # remote app: its sign-in goes too
+            await remote.revoke(str(rec["oauth_client"]))
         return await _apps(b)
+
+    async def _remote(b):
+        return await remote.status(check=str(b.get("check") or "") == "1")
+
+    async def _remote_set(b):
+        if "keep_awake" in b and "on" not in b:
+            return await remote.set_keep_awake(bool(b["keep_awake"]))
+        if b.get("on"):
+            return await remote.enable(str(b.get("password") or ""), bool(b.get("keep_awake", True)))
+        return await remote.disable()
+    ui.hooks[("GET", "remote")] = _remote
+    ui.hooks[("POST", "remote")] = _remote_set
 
     async def _activity(b):
         try:
@@ -315,7 +358,8 @@ tokens by hand.</p></body>""",
                             Route("/mcp", endpoint=router_app, methods=["GET", "POST", "DELETE"]),
                             *[Mount(f"/{c}", app=s) for c, s in subs.items()]], lifespan=lifespan)
     app.state.ui = ui
-    return TokenGate(app, token, port)
+    app.state.remote = remote
+    return TokenGate(app, token, port, remote)
 
 
 def _exit_with_parent() -> None:

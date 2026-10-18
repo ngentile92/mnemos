@@ -102,6 +102,11 @@
   <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Apps using your memory</h2><span class="muted small" id="ap-head"></span></div>
     <p class="small muted">Every AI app you connected appears here the first time it uses Mnemos. Choose its default space (where it reads and saves unless you ask for another), which spaces it may use, or pause it. New apps use <select id="ap-default" aria-label="Default space for new apps"></select> by default.</p>
     <div id="ap-list" class="ap-list"></div><p class="small" id="ap-msg"></p></section>
+  <section class="card" style="margin:0 36px 14px" id="rm-card"><div class="card-h"><h2>Reach from anywhere</h2><span class="ap-pill" id="rm-state">off</span></div>
+    <p class="small muted">Lets AI apps that run in the cloud (Claude on the web and on your phone, ChatGPT, Grok) use your memory through
+      <b>Tailscale Funnel</b>, a free secure tunnel to this computer. Each app signs in with your Mnemos password and you choose which spaces it may use.</p>
+    <p class="small rm-warn"><b>Your computer has to be on, awake and running Mnemos.</b> When it sleeps or Mnemos is closed, those apps cannot reach your memory (they will say so). Apps on this computer are not affected.</p>
+    <div id="rm-body"></div><p class="small" id="rm-msg"></p></section>
   <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Activity</h2>
       <span><select id="ap-filter" aria-label="Filter by app"><option value="">All apps</option></select> <button class="mbtn" id="ap-refresh">Refresh</button></span></div>
     <p class="small muted">What each app read or saved, newest first. Only a short summary is kept.</p>
@@ -186,5 +191,6 @@
 <script src="/ui/local.js"></script>
 <script src="/ui/spaces.js"></script>
 <script src="/ui/apps.js"></script>
+<script src="/ui/remote.js"></script>
 </body>
 </html>

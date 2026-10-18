@@ -31,6 +31,10 @@ Claude does not see two Mnemos.
 **Other apps on this Mac** (same window, *Connect apps*): **Cursor** → click *Connect Cursor*, then *Install* in
 Cursor. **Claude Code, Codex, VS Code** → click *Copy* and paste the line in Terminal once. Every app gets all
 your spaces and saves to its default one.
+
+**Claude on the web or phone, ChatGPT, Grok**: optional, in **Open my memory → Apps → Reach from anywhere**
+(needs the free Tailscale app). Off until you turn it on; those apps only work while this Mac is awake and Mnemos
+is running. Details: [local-mode.md](local-mode.md#reach-from-anywhere-06-opt-in).
 Ask Claude *"what do you know about me?"* — it now reads and saves to Mnemos on its own.
 
 ## 5. See and fix your memory
@@ -91,6 +95,8 @@ Logs: `~/Mnemos/hub.log`. Report problems at https://github.com/ngentile92/mnemo
    Preguntale "¿qué sabés de mí?".
 5. **Mirá y corregí tu memoria:** **Open my memory** → notas, grafo, skills e **Import** (traer lo que ya saben
    ChatGPT o Claude).
+6. **Opcional, Claude web/celular, ChatGPT, Grok:** **Open my memory → Apps → Reach from anywhere** (necesita la app
+   gratuita Tailscale). Viene apagado; esas apps solo funcionan mientras la Mac está despierta y Mnemos abierto.
 
 **Si algo falla:** "no se puede abrir" → clic derecho → Abrir · "está dañada" → en Terminal
 `xattr -cr /Applications/Mnemos.app` · te pide el Llavero → "Permitir siempre" · Claude no lo usa → Cmd+Q a Claude y

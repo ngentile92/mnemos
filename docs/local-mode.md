@@ -139,3 +139,36 @@ reconnect those apps from *Connect apps*.
   spaces** view where entities found in several spaces get a white ring.
 - **Directed, labelled edges** (subject → relation → object; labels shown when the graph is small, on hover and
   for the selected node), **groups** by label propagation, and a **Top** list.
+
+## Reach from anywhere (0.6, opt-in)
+
+Cloud AI apps (Claude on the web and phone, ChatGPT, Grok) cannot start a program on your computer, so they need a
+public HTTPS address. **Open my memory → Apps → Reach from anywhere** sets one up with
+[Tailscale Funnel](https://tailscale.com/kb/1223/funnel). It is **off by default** and does nothing until you
+press *Turn on*.
+
+- **Needs**: Tailscale installed and signed in, and a Mnemos password (≥ 10 characters, stored hashed in
+  `auth.json`, 0600). The first time, Tailscale may ask the tailnet admin to allow Funnel and HTTPS once; the
+  screen shows that link.
+- **What it runs**: `tailscale funnel --bg --https=<port> http://127.0.0.1:<local port>` on the first Funnel port
+  (443, 8443, 10000) that nothing else on this machine uses, remembered in `data/remote.json`. *Turn off* runs
+  `tailscale funnel --https=<port> off` for that port only; other Serve/Funnel settings are never touched.
+- **What is reachable**: requests whose `Host` is the public name go to a separate app with only the OAuth
+  endpoints (discovery, dynamic client registration, PKCE S256, refresh-token rotation, lockout after 5 wrong
+  passwords; the same code as the hub router) and `/mcp`. The status page, `/app`, `/api`, the per-space addresses
+  and the local token are not reachable from outside. While it is off, that name is refused.
+- **Signing in**: the app opens a Mnemos page; type your password and tick the spaces it may use (none are
+  ticked). The app is then listed in *Apps* as "from anywhere", with the same default space / may use / Pause /
+  Activity as local apps; it can never use a space you did not tick. **Remove access** also deletes its OAuth
+  grant (encrypted store in `data/oauth-remote`, key in `data/remote.key`), so its tokens stop working at once;
+  to use it again, connect it again from that app.
+- **Your computer must be awake** and Mnemos running. While it is on, Mnemos can keep the Mac from idle-sleeping
+  when plugged in (`caffeinate -is`, untick to allow sleep); closing the lid still sleeps.
+
+Adding the address (`https://<name>.ts.net[:port]/mcp`, shown with a Copy button):
+
+| App | Where |
+| --- | --- |
+| Claude (web, phone, desktop) | Settings → Connectors → Add custom connector → paste → Connect |
+| ChatGPT | Settings → Apps & Connectors → Advanced → Developer mode → Create → paste, OAuth |
+| Grok / others | "remote MCP server" with OAuth: paste the address |

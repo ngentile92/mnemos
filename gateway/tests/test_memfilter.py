@@ -58,7 +58,7 @@ class FakeLLM:
 
 def test_extract_conversation_typed_and_gated():
     llm = FakeLLM()
-    facts = asyncio.run(m.extract_conversation(llm, ["I'm building Huerta", "ok", "```x```"], app="cursor",
+    facts = asyncio.run(m.extract_conversation(llm, ["I'm building Huerta with SvelteKit", "ok", "```x```", "Off to Córdoba next week"], app="cursor",
                                                ts="2026-04-01"))
     texts = [f["text"] for f in facts]
     assert texts == ["Lucía is building Huerta with SvelteKit.", "Travelling to Córdoba next week."]
@@ -71,3 +71,13 @@ def test_windows_running_summary():
     llm = FakeLLM()
     asyncio.run(m.extract_conversation(llm, ["I like long walks in the park " * 40] * 12))
     assert len(llm.prompts) >= 2 and "So far it was about: Huerta garden app" in llm.prompts[1]
+
+
+def test_grounded():
+    from hub_gateway.memfilter import grounded
+    src = "Trabajo en Pampa Pay y vivo en Rosario. Entreno los martes."
+    assert grounded({"text": "Works at Pampa Pay.", "quote": "Trabajo en Pampa Pay"}, src)[0]
+    assert grounded({"text": "Trains on Tuesdays.", "quote": ""}, src)[0]
+    assert not grounded({"text": "Works at Google.", "quote": ""}, src)[0]
+    assert not grounded({"text": "Lives in Rosario.", "quote": "vivo en Córdoba capital"}, src)[0]
+    assert not grounded({"text": "Lives in Córdoba.", "quote": ""}, src)[0]

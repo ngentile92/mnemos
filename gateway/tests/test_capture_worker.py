@@ -54,7 +54,7 @@ FACTS = [
 
 async def test_quiet_session_is_learned_and_undoable(hub):
     await hub.call("personal", "memory_save", {"text": "Ana has 3 cats."})
-    local_spool.bank(hub.home, "claude_code", "s1", "I lead Atlas billing at Acme and I prefer Postgres.")
+    local_spool.bank(hub.home, "claude_code", "s1", "I lead Atlas billing at Acme and I prefer Postgres over MySQL. Maybe Rust for the parser. We have 2 cats now.")
     cap = lc.Capture(hub, Eng(LLM(FACTS)), Personal())
     assert await cap.run_once() == {"sessions": 0, "learned": 0, "inbox": 0, "skipped": 0}  # not quiet yet
     r = await cap.run_once(now=time.time() + lc.IDLE_S + 1)
@@ -86,7 +86,7 @@ async def test_paused_app_space_is_skipped(hub):
 
         def default_for(self, rec):
             return "work"
-    local_spool.bank(hub.home, "cursor", "s", "I lead Atlas billing at Acme and I prefer Postgres.")
+    local_spool.bank(hub.home, "cursor", "s", "I lead Atlas billing at Acme and I prefer Postgres over MySQL. Maybe Rust for the parser. We have 2 cats now.")
     cap = lc.Capture(hub, Eng(LLM(FACTS)), Apps())
     r = await cap.run_once(now=time.time() + lc.IDLE_S + 1)
     assert r["learned"] == 0 and cap.engine._l.calls == 0

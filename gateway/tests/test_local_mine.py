@@ -18,7 +18,7 @@ class CountingLLM:
 
     async def json(self, prompt):
         self.calls += 1
-        w = ["Ana", "lives", "in", "Lisbon", "works", "at", "Acme", "likes", "tea", "plays", "chess", "owns", "a", "dog"]
+        w = ["ana", "lives", "in", "lisbon", "works", "at", "acme", "likes", "tea", "plays", "chess", "owns", "a", "dog"]
         return {"facts": [" ".join(w[(self.calls * 3 + k) % len(w)] + str(self.calls) for k in range(5)) + "."]}
 
 
@@ -37,7 +37,7 @@ def chats(home, n_files, per_file=12):
     proj = home / ".claude" / "projects" / "-Users-ana-code-atlas"
     proj.mkdir(parents=True, exist_ok=True)
     for f in range(n_files):
-        lines = [{"type": "user", "message": {"role": "user", "content": f"file {f} message {i} " + "x" * 900}}
+        lines = [{"type": "user", "message": {"role": "user", "content": f"file {f} message {i} I lead Atlas billing at Acme, doctor tomorrow. " + "x" * 900}}
                  for i in range(per_file)]
         (proj / f"s{f}.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\n")
 

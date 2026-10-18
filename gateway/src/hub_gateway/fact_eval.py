@@ -58,6 +58,22 @@ def gold_recall(facts: list[str], gold: list[dict]) -> dict[str, Any]:
     return {"gold_recall": round(len(hit) / len(gold), 3) if gold else 0.0, "gold_hit": len(hit), "gold": len(gold)}
 
 
+def grounding_metrics(items: list[dict]) -> dict[str, Any]:
+    from .memfilter import grounded
+    ok = inv = ok_kept = inv_dropped = 0
+    for it in items:
+        for f in it["facts"]:
+            g = grounded(f, it["source"])[0]
+            if f["label"] == "ok":
+                ok += 1
+                ok_kept += g
+            else:
+                inv += 1
+                inv_dropped += not g
+    return {"supported_kept": round(ok_kept / ok, 3) if ok else 0.0,
+            "invented_dropped": round(inv_dropped / inv, 3) if inv else 0.0, "supported": ok, "invented": inv}
+
+
 def rules_facts(convs: list[dict]) -> list[str]:
     from .local_discover import facts_from_messages
     return facts_from_messages([m for c in convs for m in c["messages"]])
@@ -72,6 +88,10 @@ def run(root: Path = ROOT, keep: Callable[[list[str]], list[str]] | None = None)
     out["filter_gold"] = gold_recall(keep([c["text"] for c in cands]), gold)
     if (root / "dev.jsonl").exists():  # tuning set for new rules (rules are tuned on candidates + dev only)
         out["dev"] = candidate_metrics(keep, load("dev.jsonl", root))
+    if (root / "grounding.jsonl").exists():  # invented facts vs their source (dev set; the check was built on it)
+        out["grounding"] = grounding_metrics(load("grounding.jsonl", root))
+    if (root / "grounding_holdout.jsonl").exists():  # written after the check, never used to tune it
+        out["grounding_holdout"] = grounding_metrics(load("grounding_holdout.jsonl", root))
     hold = [n for n in ("holdout.jsonl", "holdout2.jsonl") if (root / n).exists()]
     if hold:  # written before the rules they test and never used to tune them
         items = [c for n in hold for c in load(n, root)]

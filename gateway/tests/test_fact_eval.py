@@ -41,3 +41,12 @@ def test_dev_and_holdout_excl_wrong():
     assert r["dev"]["dfp"] >= BASE["dev"]["dfp"] and r["dev"]["durable_recall"] == 1.0
     assert r["holdout_excl_wrong"]["dfp"] >= BASE["holdout_excl_wrong"]["dfp"]
     assert r["holdout"]["secret_kept"] == 0 and r["holdout"]["sensitive_kept"] == 0
+
+
+def test_grounding_drops_invented_facts():
+    g = fe.run()["grounding"]
+    assert g["supported_kept"] >= BASE["grounding"]["supported_kept"]
+    assert g["invented_dropped"] >= BASE["grounding"]["invented_dropped"]
+    h = fe.run()["grounding_holdout"]
+    assert h["supported_kept"] >= BASE["grounding_holdout"]["supported_kept"]
+    assert h["invented_dropped"] >= BASE["grounding_holdout"]["invented_dropped"]

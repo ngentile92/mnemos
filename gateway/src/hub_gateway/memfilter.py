@@ -213,6 +213,47 @@ def gate(facts: list[dict], allow_sensitive: bool = False, now: dt.date | None =
     return out
 
 
+# --- grounding: a fact must be backed by what the user actually wrote
+_FOLD = str.maketrans("áéíóúüñÁÉÍÓÚÜÑ", "aeiouunAEIOUUN")
+_W = re.compile(r"[A-Za-z0-9]+")
+_ANCHOR = re.compile(r"\b(?:[A-Z][A-Za-z0-9]{2,}|\d[\d.,]*)\b")
+_ANCHOR_STOP = {"The", "She", "His", "Her", "They", "Their", "User", "Prefers", "Prefiere", "Uses", "Usa", "Wants", "Quiere",
+                "Works", "Trabaja", "Lives", "Vive", "Likes", "Dislikes", "Has", "Tiene", "Is", "Was", "When", "For",
+                "Decided", "Switched", "Plans", "Planning", "Learning", "Su", "Sus", "Le", "Les", "Es", "Está", "Esta",
+                "Habla", "Speaks", "Keeps", "Goes", "Runs", "Corre", "Not", "Does", "And", "But", "With", "Con",
+                # weekdays, months and languages are often translated by the extractor
+                "Monday", "Mondays", "Tuesday", "Tuesdays", "Wednesday", "Wednesdays", "Thursday", "Thursdays", "Friday",
+                "Fridays", "Saturday", "Saturdays", "Sunday", "Sundays", "January", "February", "March", "April", "May",
+                "June", "July", "August", "September", "October", "November", "December", "English", "Spanish",
+                "Ingles", "Espanol", "Portuguese", "Portugues"}
+
+
+def _toks(s: str) -> list[str]:
+    return [w.lower() for w in _W.findall(s.translate(_FOLD))]
+
+
+def grounded(fact: dict, source: str) -> tuple[bool, str]:
+    """(ok, reason). The quote must be (mostly) in the source, and the names and numbers in the fact must appear in
+    the source: what a model invents usually brings a name, place or number the user never wrote."""
+    src = set(_toks(source))
+    stems = {w[:5] for w in src}
+    q = _toks(fact.get("quote") or "")
+    if q:
+        hit = sum(1 for w in q if w in src or w[:5] in stems)
+        if hit / len(q) < 0.7:
+            return False, "quote not in source"
+    txt = (fact.get("text") or "").translate(_FOLD)
+    for m in _ANCHOR.finditer(txt):
+        a = m.group(0)
+        if a in _ANCHOR_STOP or (m.start() == 0 and not a[0].isdigit()):
+            continue  # sentence start: a verb ("Trains") or the owner's name, which the user never writes about themselves
+            continue
+        t = _toks(a)
+        if t and not all(w in src or (len(w) >= 5 and w[:5] in stems) for w in t):
+            return False, f"'{a}' not in source"
+    return True, ""
+
+
 def windows(msgs: list[str], size: int = 6000) -> list[str]:
     out, cur = [], ""
     for m in msgs:
@@ -245,6 +286,7 @@ async def extract_window(llm: Any, window: str, app: str = "", ts: str = "", top
     topic = str(r.get("topic") or topic)[:120]
     raw = r.get("facts") or []
     facts = gate([f for f in (_norm_fact(x) for x in raw if x) if f], allow_sensitive)
+    facts = [f for f in facts if grounded(f, window)[0]]  # drop what the user never said
     return [{**f, "topic": topic} for f in facts], topic
 
 

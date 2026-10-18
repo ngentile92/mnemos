@@ -23,3 +23,9 @@ model. CI fails if a change goes below `eval/persona/baseline.json`. No real dat
 `candidates.jsonl` and `dev.jsonl` are the only sets rules may be tuned on. `holdout.jsonl` (20) and `holdout2.jsonl` (60, a
 different persona, frozen before the rules it measures) are reported together as `holdout`; `holdout_excl_wrong` leaves out
 hallucinated facts ("wrong"), which no text rule can detect — catching those needs the extractor's quote/evidence check.
+
+### Grounding (invented facts)
+`grounding.jsonl` (dev, the check was built on it) and `grounding_holdout.jsonl` (held out) pair a user message with
+extracted facts labelled ok / invented. `memfilter.grounded` drops a fact whose quote is not in the source or that names
+a person, place, product or number the user never wrote. It cannot see invented facts with no such anchor
+("has two cats", "prefers light mode"); the held-out number shows that limit.

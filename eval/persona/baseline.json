@@ -28,5 +28,13 @@
  },
  "dev": {
   "dfp": 0.9
+ },
+ "grounding": {
+  "supported_kept": 1.0,
+  "invented_dropped": 0.85
+ },
+ "grounding_holdout": {
+  "supported_kept": 1.0,
+  "invented_dropped": 0.4
  }
 }

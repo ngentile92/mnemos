@@ -345,6 +345,23 @@ tokens by hand.</p></body>""",
             days = 7
         return {"days": days, "apps": activity.capture(days)}
     ui.hooks[("GET", "activity/capture")] = _capture
+    from . import local_hooks, local_spool
+
+    def _user_home() -> Path:
+        return Path(os.environ.get("MNEMOS_SCAN_HOME") or Path.home())
+
+    async def _hooks(_b):
+        return {"apps": local_hooks.status(_user_home()), "spool": local_spool.counts(home)}
+
+    async def _hooks_set(b):
+        app = str(b.get("app") or "")
+        if b.get("on"):
+            local_hooks.install(app, home, _user_home())
+        else:
+            local_hooks.uninstall(app, _user_home())
+        return await _hooks({})
+    ui.hooks[("GET", "capture/hooks")] = _hooks
+    ui.hooks[("POST", "capture/hooks")] = _hooks_set
     ui.hooks[("GET", "spaces")] = _spaces
     ui.hooks[("POST", "spaces/update")] = _space_update
     ui.hooks[("POST", "spaces/bridge")] = _bridge

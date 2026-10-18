@@ -4,6 +4,22 @@
 - `Mnemos-macos.app.zip` — same app, zipped.
 - `mnemos.mcpb` — Claude Desktop extension (optional; the app's "Connect to Claude Desktop" button is enough).
 
+**New in 0.9: a memory that knows who and what each note is about.**
+- **Memory model.** Every note is linked to the person, project, place or tool it is about, with a kind, importance,
+  how long it lasts and where it came from. Writes only ever add. Settings → Memory model lets you try linking your
+  existing notes first (no changes), then do it for real and undo it.
+- **Nightly tidy-up.** When a newer fact replaces an old one ("switched from X to Y"), the old one is kept as *no longer
+  true* and leaves answers. Time-bound facts expire, and things you never use fade. Each entity gets a short summary
+  that cites its notes, and each space gets a profile. You can undo every run.
+- **Better search.** Results are ranked by importance, use, whether the fact is still current, and the people or
+  projects your question names. Old facts come back only when you ask about the past. Each result says why it was
+  picked.
+- **Grounding check.** A fact the model extracted is dropped when its quote is not in what you wrote, or when it names a
+  person, place, product or number you never mentioned.
+- **New screens.** *What your AI knows about you* (the profile) comes first, with a page for each person or project.
+  *Still true?* asks you to keep, fix or forget important old notes. *Why this?* and *Not relevant* appear on every
+  note. The Graph now shows only people, projects and things.
+
 **New in 0.8: coding apps teach Mnemos as you work.**
 - **Auto-capture for Claude Code, Cursor and Codex** (Apps → Auto-capture, opt-in). A small hook keeps each message
   you send in a local queue on this computer. It runs no AI and takes under a second, and paused apps are skipped.

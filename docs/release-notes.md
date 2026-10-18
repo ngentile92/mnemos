@@ -4,6 +4,23 @@
 - `Mnemos-macos.app.zip` — same app, zipped.
 - `mnemos.mcpb` — Claude Desktop extension (optional; the app's "Connect to Claude Desktop" button is enough).
 
+**New in 0.6: one Mnemos for every AI app, sharing the same memory.**
+- **One connector, all your spaces.** Claude Desktop, Cursor, Claude Code, Codex and VS Code each get a single
+  `mnemos` entry; every tool takes an optional `context` and uses the app's default space otherwise. *Connect
+  Claude Desktop* replaces the old one-per-space entries (backup kept next to Claude's config). If you installed
+  the older Mnemos extension (`.mcpb`) in Claude, remove it in Settings → Extensions.
+- **Connect apps** in Mnemos Desktop: Claude Desktop button, one-click Cursor install link, and a line to paste
+  in Terminal for Claude Code, Codex and VS Code.
+- **Spaces** screen: rename, colour, description (what the AI reads to decide where things go), what Shared means,
+  and read-only bridges as on/off toggles.
+- **Apps** screen: each app's default space and allowed spaces, **Pause**, **Remove access**, and an **Activity**
+  feed of what each app read or saved.
+- **Graph**: every note (pinned and hand-written first), "me" collapsed into one hidden node, duplicate names
+  merged, types and groups, directed labelled edges, All spaces view.
+- **Reach from anywhere** (optional, off by default): Claude on the web and phone, ChatGPT and Grok can use your
+  memory through Tailscale Funnel, signing in with your Mnemos password and only for the spaces you tick. Works
+  only while your Mac is awake and Mnemos is running.
+
 **New in 0.5: a better private model, your whole history, and search over what you said.**
 - Built-in model is now Qwen3 4B Instruct (2.5 GB; Qwen3 1.7B on Macs with 8 GB RAM or less) and writes facts
   itself. In a benchmark on real chats it found ~7x more useful facts than 0.4's model. If you already downloaded

@@ -214,7 +214,13 @@ def build_server(
             await index.sync(name, lambda ds_id=ds_id: cognee.list_data(ds_id),
                              lambda did, ds_id=ds_id: cognee.raw_text(ds_id, did))
         found = await index.search(query, [n for n, _ in pairs], top_k * 2, mode)
-        return _apply_flags(found)[:top_k]
+        flagged = _apply_flags(found)
+        if model is not None:  # 0.9: importance, use, still current, entity named in the query
+            from .local_retrieval import rerank
+            ranked = safe(rerank, model, query, flagged)
+            if ranked:
+                flagged = sorted(ranked, key=lambda r: not r.get("pinned"))
+        return flagged[:top_k]
 
     def _apply_flags(found: list[dict[str, Any]], keep_obsolete: bool = False) -> list[dict[str, Any]]:
         """Pinned notes first; facts outside their validity dates last (kept, marked); obsolete left out."""
@@ -276,6 +282,11 @@ def build_server(
             raise ToolError("la memoria (Cognee) no respondió; probá de nuevo más tarde") from exc
         audit.log("memory_search", login, "ok", mode=mode, results=len(results))
         out: dict[str, Any] = {"context": ctx.name, "mode": mode, "results": results}
+        if model is not None and mode != "graph":
+            from .local_retrieval import entity_cards
+            cards = safe(entity_cards, model, query)
+            if cards:
+                out["entities"] = cards  # summaries of the people/projects named in the query (each cites facts)
         if evidence is not None and include_sources and mode != "graph":
             try:
                 src = await evidence(query, 3)

@@ -79,13 +79,13 @@ async def test_mines_everything_then_only_new(tmp_path, hub):
     llm = CountingLLM()
     m, d = await _mine(hub, h, llm)
     st = await m.h_status({})
-    assert st["state"] == "done" and llm.calls == st["total"] == 9 and st["found"] == 9  # 3 files x 3 batches
+    assert st["state"] == "done" and llm.calls == st["total"] == 6 and st["found"] == 6  # 3 chats x 2 windows
     calls = llm.calls
     m2, _ = await _mine(hub, h, llm)  # nothing new: no model calls
-    assert llm.calls == calls and (await m2.h_status({}))["done"] == 9
+    assert llm.calls == calls and (await m2.h_status({}))["done"] == 6
     chats(h, 4)  # one new chat file
     m3, _ = await _mine(hub, h, llm)
-    assert llm.calls == calls + 3
+    assert llm.calls == calls + 2
 
 
 async def test_pause_and_resume_after_restart(tmp_path, hub):
@@ -112,19 +112,19 @@ async def test_pause_and_resume_after_restart(tmp_path, hub):
     again = lm.Miner(hub, ld.Discover(hub, h, engine=FakeEngine(CountingLLM())))
     again.resume_on_start()
     await again.task
-    assert again.st["state"] == "done" and len(again.st["seen"]) == 6
+    assert again.st["state"] == "done" and len(again.st["seen"]) == 4
 
 
 async def test_save_and_dismiss(tmp_path, hub):
     h = tmp_path / "home"
-    chats(h, 1)
+    chats(h, 2)
     m, d = await _mine(hub, h, CountingLLM())
     new = (await m.h_status({}))["new"]
     r = await m.h_save({"ids": [new[0]["id"]]})
     assert r["saved"] == 1
     await m.h_dismiss({"ids": [new[1]["id"]]})
     st = await m.h_status({})
-    assert st["saved"] == 1 and st["dismissed"] == 1 and len(st["new"]) == 1
+    assert st["saved"] == 1 and st["dismissed"] == 1 and len(st["new"]) == 2
     assert new[0]["text"] in await hub._existing("work")
 
 
@@ -139,3 +139,33 @@ async def test_needs_a_scanned_chat_source_and_a_model(tmp_path, hub):
     await m.h_start({"sources": [{"id": src["id"], "context": "work"}]})
     await m.task
     assert m.st["state"] == "error" and "needs a model" in m.st["error"]
+
+
+class TypedLLM:
+    kind, name = "builtin", "Built-in · fake"
+
+    def __init__(self):
+        self.prompts = []
+
+    async def json(self, prompt):
+        self.prompts.append(prompt)
+        return {"topic": "Atlas billing service", "facts": [
+            {"text": "Ana leads the Atlas billing project at Acme.", "kind": "project_state", "importance": 4,
+             "durability": "long", "about": "Atlas", "quote": "I lead Atlas"},
+            {"text": "The Atlas API runs on localhost:8080.", "kind": "event", "importance": 3, "about": "Atlas"},
+            {"text": "Ana has a doctor appointment tomorrow.", "kind": "transient", "importance": 2}]}
+
+
+async def test_typed_per_conversation_candidates(tmp_path, hub):
+    h = tmp_path / "home"
+    chats(h, 1, per_file=3)
+    llm = TypedLLM()
+    m, _ = await _mine(hub, h, llm)
+    st = await m.h_status({})
+    texts = [c["text"] for c in st["new"]]
+    assert texts == ["Ana leads the Atlas billing project at Acme.", "Ana has a doctor appointment tomorrow."]
+    assert st["new"][1]["durability"] == "short" and st["new"][1]["expires_at"]  # time-bound: kept with an expiry
+    c = st["new"][0]
+    assert c["kind"] == "project_state" and c["about"] == "Atlas" and c["topic"] == "Atlas billing service"
+    assert c["date"] and st["groups"][0] == {"about": "Atlas", "count": 1}
+    assert "in Claude Code" in llm.prompts[0] and "ONE conversation" in llm.prompts[0]

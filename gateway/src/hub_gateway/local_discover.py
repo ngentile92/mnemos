@@ -298,6 +298,80 @@ def _tidy(note: str) -> str:
     return f"{m.group(1).strip()}: {m.group(2).strip()}" if m else note
 
 
+def _cursor_convs(p: Path) -> list[tuple[str, str, list[str]]]:
+    """Cursor chats grouped by composer (one conversation each); falls back to one unit per database."""
+    out: dict[str, list[str]] = {}
+    try:
+        c = sqlite3.connect(f"file:{p}?mode=ro&immutable=1", uri=True, timeout=2)
+    except sqlite3.Error:
+        return []
+    try:
+        tables = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "cursorDiskKV" in tables:
+            q = ("SELECT key, json_extract(value,'$.text') FROM cursorDiskKV WHERE key LIKE 'bubbleId:%' "
+                 "AND json_valid(value) AND json_extract(value,'$.type')=1 LIMIT 20000")
+            for k, t in c.execute(q):
+                if isinstance(t, str) and t.strip():
+                    out.setdefault(str(k).split(":")[1] if k.count(":") >= 2 else "", []).append(t)
+    except sqlite3.Error:
+        pass
+    finally:
+        c.close()
+    if not out:
+        msgs = _cursor(p)
+        return [(str(p), "", msgs)] if msgs else []
+    return [(f"{p}#{k}", "", v) for k, v in out.items()]
+
+
+def _export_convs(p: Path, kind: str) -> list[tuple[str, str, list[str]]]:
+    with zipfile.ZipFile(p) as z:
+        name = next(n for n in z.namelist() if n.rsplit("/", 1)[-1] == "conversations.json")
+        with z.open(name) as f:
+            convs = json.loads(f.read(300_000_000).decode("utf-8-sig"))
+    out = []
+    for i, conv in enumerate(convs if isinstance(convs, list) else []):
+        if not isinstance(conv, dict):
+            continue
+        ts = str(conv.get("create_time") or conv.get("created_at") or "")
+        if ts.replace(".", "").isdigit():
+            ts = time.strftime("%Y-%m-%d", time.gmtime(float(ts)))
+        cid = str(conv.get("id") or conv.get("uuid") or i)
+        if kind == "chatgpt_zip":
+            msgs = [t for role, t in li._messages(conv) if role == "user"]
+        else:
+            msgs = []
+            for m in conv.get("chat_messages") or []:
+                if isinstance(m, dict) and m.get("sender") == "human":
+                    t = m.get("text") or " ".join(b.get("text", "") for b in m.get("content") or [] if isinstance(b, dict))
+                    if t:
+                        msgs.append(t)
+        if msgs:
+            out.append((f"{p}#{cid}", ts[:10], msgs))
+    return out
+
+
+def read_conversations(src: dict, deadline: float) -> list[tuple[str, str, list[str]]]:
+    """[(conversation key, date or '', user messages)] — one unit per chat, so a model sees one topic at a time."""
+    paths, kind, out = [Path(p) for p in src["paths"]], src["kind"], []
+    if kind in ("claude_md", "agents_md", "cursor_rules", "obsidian"):
+        return []
+    for p in paths:
+        if time.monotonic() > deadline:
+            break
+        try:
+            if kind == "claude_code":
+                msgs = _claude_code(p)
+                if msgs:
+                    out.append((str(p), time.strftime("%Y-%m-%d", time.localtime(p.stat().st_mtime)), msgs))
+            elif kind == "cursor_chats":
+                out += _cursor_convs(p)
+            else:
+                out += _export_convs(p, kind)
+        except (OSError, ValueError, KeyError, StopIteration, zipfile.BadZipFile, RuntimeError):
+            continue
+    return out
+
+
 def read_source(src: dict, deadline: float) -> tuple[list[str], list[str]]:
     """(ready notes, user messages to mine for facts)."""
     paths, kind, msgs = [Path(p) for p in src["paths"]], src["kind"], []
@@ -485,7 +559,12 @@ class Discover:
                 skipped += 1
                 continue
             try:
-                r = await self.ui.call(ctx, "memory_save", {"text": text, "tags": ["import-auto", f"import-{src}", batch]})
+                tags = ["import-auto", f"import-{src}", batch]
+                if re.fullmatch(r"[a-z_]{3,20}", str(n.get("kind") or "")):
+                    tags.append(f"kind-{n['kind']}")
+                if re.fullmatch(r"\d{4}-\d\d-\d\d", str(n.get("expires_at") or "")):
+                    tags.append(f"until-{n['expires_at']}")  # time-bound: hygiene can expire it
+                r = await self.ui.call(ctx, "memory_save", {"text": text, "tags": tags})
                 if r.get("status") == "duplicate":
                     skipped += 1
                 else:

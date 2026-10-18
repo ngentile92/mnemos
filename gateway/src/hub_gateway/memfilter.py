@@ -211,27 +211,35 @@ def windows(msgs: list[str], size: int = 6000) -> list[str]:
     return out
 
 
+async def extract_window(llm: Any, window: str, app: str = "", ts: str = "", topic: str = "",
+                         allow_sensitive: bool = False) -> tuple[list[dict], str]:
+    """(typed gated facts, updated topic) for one window of one conversation; ([], topic) when the call fails."""
+    prompt = PROMPT.format(when=f" on {ts[:10]}" if ts else "", app=f" in {app}" if app else "",
+                           summary=f"So far it was about: {topic}. " if topic else "")
+    try:
+        r = await llm.json(prompt + window)
+    except Exception:  # noqa: BLE001 — one bad call does not stop the import
+        return [], topic
+    if not isinstance(r, dict):
+        return [], topic
+    topic = str(r.get("topic") or topic)[:120]
+    raw = r.get("facts") or []
+    facts = gate([f for f in (_norm_fact(x) for x in raw if x) if f], allow_sensitive)
+    return [{**f, "topic": topic} for f in facts], topic
+
+
 async def extract_conversation(llm: Any, msgs: list[str], app: str = "", ts: str = "", allow_sensitive: bool = False,
                                summary: str = "") -> list[dict]:
     """Typed, gated facts from one conversation. Windows of a long chat share a running topic summary."""
     out: list[dict] = []
     topic = summary
     for w in windows(msgs):
-        prompt = PROMPT.format(when=f" on {ts[:10]}" if ts else "", app=f" in {app}" if app else "",
-                               summary=f"So far it was about: {topic}. " if topic else "")
-        try:
-            r = await llm.json(prompt + w)
-        except Exception:  # noqa: BLE001 — one bad call does not stop the import
-            continue
-        if not isinstance(r, dict):
-            continue
-        topic = str(r.get("topic") or topic)[:120]
-        raw = r.get("facts") or []
-        out += gate([f for f in (_norm_fact(x) for x in raw if x) if f], allow_sensitive)
+        facts, topic = await extract_window(llm, w, app, ts, topic, allow_sensitive)
+        out += facts
     seen, uniq = set(), []
     for f in out:
         k = f["text"].lower()
         if k not in seen:
             seen.add(k)
-            uniq.append({**f, "topic": topic})
+            uniq.append(f)
     return uniq

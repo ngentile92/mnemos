@@ -1,8 +1,13 @@
-"""Full-history mining: the import model reads EVERY message of the chosen sources in the background, batch by
-batch, instead of the newest few batches a preview has time for (0.5 benchmark: 60 batches → ~5x the useful facts).
+"""Full-history mining: the import model reads EVERY message of the chosen sources in the background, one
+conversation at a time (0.7: a model that sees one chat with its date, app and a running topic writes facts that name
+the project instead of "the endpoint is…"), instead of the newest few batches a preview has time for.
 
-Incremental and resumable: messages are batched per file in a fixed order, each batch is identified by the hash of
-its text, and the hashes already read are kept in <home>/mining.json (written after every batch). A restart resumes
+Each fact comes back typed (kind, importance, durability, about, the person's own words) and goes through the
+deterministic write filter (memfilter): paths, URLs, errors, code, acks, assistant narration, generic knowledge and
+sensitive topics never become candidates; time-bound facts carry an expiry.
+
+Incremental and resumable: each conversation is cut into windows (memfilter.windows) in a fixed order, each window is
+identified by the hash of its text, and the hashes already read are kept in <home>/mining.json (written after every batch). A restart resumes
 where it stopped; mining again later only reads batches that are new (new chats, new messages at the end of a chat).
 Found facts are candidates: nothing is saved until the user approves them (Import → Full history → Save selected),
 and saving goes through memory_save, so its duplicate check (words and meaning) still applies.
@@ -25,11 +30,13 @@ from typing import Any, Callable
 from . import local_discover as ld
 from . import local_evidence
 from . import local_import as li
+from . import memfilter as mf
 
 log = logging.getLogger("hub_gateway.local_mine")
 BATCH = 5000
 MAX_CANDIDATES = 5000
 MAX_SEEN = 200_000
+APPS = {"claude_code": "Claude Code", "cursor_chats": "Cursor", "chatgpt_zip": "ChatGPT", "claude_zip": "Claude"}
 
 
 def batches(msgs: list[str], size: int = BATCH) -> list[str]:
@@ -50,6 +57,16 @@ def batches(msgs: list[str], size: int = BATCH) -> list[str]:
 
 def _h(text: str) -> str:
     return hashlib.sha1(text.encode("utf-8", "ignore")).hexdigest()[:16]
+
+
+def _groups(cands: list[dict]) -> list[dict]:
+    """New candidates grouped by who/what they are about, biggest first (a summary instead of thousands of lines)."""
+    g: dict[str, int] = {}
+    for x in cands:
+        if x["status"] == "new":
+            k = (x.get("about") or "me").strip() or "me"
+            g[k] = g.get(k, 0) + 1
+    return [{"about": k, "count": v} for k, v in sorted(g.items(), key=lambda kv: -kv[1])[:30]]
 
 
 class Miner:
@@ -78,17 +95,17 @@ class Miner:
         os.replace(tmp, self.file)
 
     # work
-    def _plan(self) -> list[tuple[dict, str]]:
-        """Every unread batch of every source, oldest file first (reading only; nothing goes to a model)."""
+    def _plan(self) -> list[tuple[dict, str, str, str]]:
+        """Every unread window of every conversation, oldest file first: (source, conv key, date, window)."""
         seen, todo, total = set(self.st["seen"]), [], 0
         far = time.monotonic() + 10 ** 9
         for src in self.st["sources"]:
             for p in src["paths"]:
-                _notes, msgs = ld.read_source({**src, "paths": [p]}, far)
-                for b in batches(msgs):
-                    total += 1
-                    if _h(b) not in seen:
-                        todo.append((src, b))
+                for key, ts, msgs in ld.read_conversations({**src, "paths": [p]}, far):
+                    for w in mf.windows(msgs):
+                        total += 1
+                        if _h(w) not in seen:
+                            todo.append((src, key, ts, w))
         self.live.update(total=total, done=total - len(todo))
         return todo
 
@@ -101,24 +118,33 @@ class Miner:
                 raise ValueError("full-history mining needs a model: Settings → Improve my memory (or Ollama)")
             self.st["engine"] = {"kind": llm.kind, "name": llm.name}
             known: dict[str, list[str]] = {}
-            for src, b in todo:
+            topics = self.st.setdefault("topics", {})
+            allow = bool(self.st.get("allow_sensitive"))
+            for src, key, ts, b in todo:
                 if self.st["state"] != "running":
                     break
                 ctx = src["context"]
                 if ctx not in known:
                     known[ctx] = await self.ui._existing(ctx)
                 self.live["phase"] = f"Reading {src['label']} ({llm.name})"
-                facts = await ld.batch_facts(llm, b)
+                ck = _h(key)
+                app = APPS.get(src["kind"], src["kind"])
+                facts, topics[ck] = await mf.extract_window(llm, b, app, ts, topics.get(ck, ""), allow)
+                by_text = {f["text"]: f for f in facts if not ld.has_secret(f["text"])}
                 pool = known[ctx] + [c["text"] for c in self.st["candidates"] if c["context"] == ctx]
-                pv = li.preview([f for f in facts if not ld.has_secret(f)], pool)
+                pv = li.preview(list(by_text), pool)
                 for it in pv["items"]:
                     if not it["duplicate"] and len(self.st["candidates"]) < MAX_CANDIDATES:
-                        self.st["candidates"].append({"id": _h(ctx + it["text"]), "text": it["text"], "context": ctx,
-                                                      "source": src["kind"], "source_label": src["label"],
-                                                      "status": "new"})
+                        f = by_text.get(it["text"], {})
+                        self.st["candidates"].append({
+                            "id": _h(ctx + it["text"]), "text": it["text"], "context": ctx, "source": src["kind"],
+                            "source_label": src["label"], "status": "new", "kind": f.get("kind"),
+                            "importance": f.get("importance"), "durability": f.get("durability"),
+                            "expires_at": f.get("expires_at"), "about": f.get("about"), "topic": f.get("topic"),
+                            "quote": f.get("quote"), "date": ts, "conv": ck})
                 if self.on_batch:
                     try:
-                        await self.on_batch(src, b)
+                        await self.on_batch(src, "\n---\n".join(x[2:] for x in b.splitlines() if x.startswith("- ")))
                     except Exception as e:  # noqa: BLE001 — the evidence index is optional
                         log.warning("evidence index: %s", type(e).__name__)
                 self.st["seen"] = (self.st["seen"] + [_h(b)])[-MAX_SEEN:]
@@ -150,7 +176,9 @@ class Miner:
                 "sources": [{"label": s["label"], "context": s["context"]} for s in self.st["sources"]],
                 "done": self.live.get("done"), "total": self.live.get("total"), "phase": self.live.get("phase"),
                 "read_batches": len(self.st["seen"]), "found": len(c),
-                "new": [x for x in c if x["status"] == "new"][:500],
+                "new": sorted((x for x in c if x["status"] == "new"),
+                              key=lambda x: -(x.get("importance") or 3))[:500],
+                "groups": _groups(c),
                 "saved": sum(1 for x in c if x["status"] == "saved"),
                 "dismissed": sum(1 for x in c if x["status"] == "dismissed"),
                 "evidence": {ctx: local_evidence.count(self.ui.home, ctx) for ctx in self.ui.servers}}

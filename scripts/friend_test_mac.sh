@@ -102,7 +102,7 @@ mkdir -p "$(dirname "$MNEMOS_CLAUDE_CONFIG")"  # an older per-context entry (0.5
 echo '{"mcpServers":{"mnemos-personal":{"command":"x","args":["-m","hub_gateway.local","stdio","--context","personal"]},"other":{"command":"y"}}}' > "$MNEMOS_CLAUDE_CONFIG"
 to 30 "$BIN" --connect-claude || fail "connect"
 CMD="$(/usr/bin/python3 -c 'import json,os;m=json.load(open(os.environ["MNEMOS_CLAUDE_CONFIG"]))["mcpServers"];assert "mnemos-personal" not in m and "other" in m, m;s=m["mnemos"];print(json.dumps([s["command"]]+s["args"]))')"
-ls "$(dirname "$MNEMOS_CLAUDE_CONFIG")" | grep -q mnemos-backup || fail "no backup of the Claude config"
+compgen -G "$(dirname "$MNEMOS_CLAUDE_CONFIG")/*mnemos-backup*" > /dev/null || fail "no backup of the Claude config"
 echo "$CMD"
 echo "$CMD" | grep -q "/Applications/Mnemos.app/Contents/Resources/python/bin/python3" || fail "Claude config does not point at the app"
 

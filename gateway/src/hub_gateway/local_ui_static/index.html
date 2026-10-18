@@ -35,6 +35,14 @@
 </section>
 <div id="app" class="hidden">
 <main id="view-memoria" class="view">
+  <section class="card hidden" id="pf-card" style="margin:14px 36px"><div class="card-h"><h2>What your AI knows about you</h2><span class="muted small" id="pf-head"></span></div>
+    <p class="small muted">The short profile every connected AI reads at the start of a chat, rebuilt each night from your notes. Tap a name to see everything Mnemos knows about it.</p>
+    <div id="pf-text" class="me-note" style="white-space:pre-wrap"></div>
+    <div id="pf-ents" class="pf-ents" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
+    <div id="pf-entity" class="hidden" style="margin-top:12px"></div>
+    <div id="pf-digest-wrap" class="hidden"><h3 class="small" style="margin-top:14px">Still true? <span class="muted" id="pf-digest-n"></span></h3>
+      <p class="small muted">Important things you have not confirmed in a while. Keep, fix or forget each one.</p><div id="pf-digest" class="ap-list"></div></div>
+    <p class="small" id="pf-msg"></p></section>
   <section class="card hidden" id="rl-card" style="margin:14px 36px"><div class="card-h"><h2>Recently learned</h2><span class="muted small" id="rl-head"></span></div>
     <p class="small muted">What Mnemos kept on its own from your coding chats. Undo anything that is wrong or not worth keeping.</p>
     <div id="rl-list" class="ap-list"></div>
@@ -124,6 +132,11 @@
     <div id="ap-feed" class="ap-feed"></div></section>
 </main>
 <main id="view-settings" class="view hidden">
+  <section class="card" style="margin:14px 36px" id="mg-card"><div class="card-h"><h2>Memory model</h2><span class="muted small" id="mg-head"></span></div>
+    <p class="small muted">Mnemos links each note to who or what it is about (you, a person, a project, a tool) so it can build your profile, keep only the current version of a fact and explain why a note was used. Notes are never rewritten or deleted by this: try it first, and undo it any time.</p>
+    <div class="me-actions"><select id="mg-ctx" aria-label="Space"></select><button class="mbtn" id="mg-dry">Try it (no changes)</button>
+      <button class="mbtn primary" id="mg-apply">Link my notes</button><button class="mbtn" id="mg-cons">Tidy up now</button></div>
+    <div id="mg-out" class="small"></div><div id="mg-jobs" class="small muted"></div><p class="small" id="mg-msg"></p></section>
   <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Engine</h2><span class="muted small">what does the smart parts</span></div>
     <div id="st-active"></div>
     <p class="small muted">Order: an API key you enabled for that feature → Ollama (if running) → the built-in model → Apple Intelligence (import only) → simple rules. Search similarity never uses an API.</p>
@@ -204,5 +217,6 @@
 <script src="/ui/apps.js"></script>
 <script src="/ui/remote.js"></script>
 <script src="/ui/capture.js"></script>
+<script src="/ui/model.js"></script>
 </body>
 </html>

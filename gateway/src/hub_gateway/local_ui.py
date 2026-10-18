@@ -156,6 +156,41 @@ def build_graph(items: list[dict], max_nodes: int = 60, max_edges: int = 160) ->
             "texts": texts}
 
 
+def entity_graph(m: Any, show_me: bool = False, max_nodes: int = 80, max_edges: int = 200) -> dict | None:
+    """Graph v2: only entities of the memory model (people, projects, places, tools...), sized by active facts;
+    an edge when a fact about one names the other. None when the model has too few entities to be useful."""
+    ents = [e for e in m.entities() if e["n"] and (show_me or e["kind"] != "me")]
+    if len(ents) < 3:
+        return None
+    ents = ents[:max_nodes]
+    ids = {e["id"] for e in ents}
+    names = []
+    for e in ents:
+        for a in {e["name"], *(e.get("aliases") or [])}:
+            if a and len(a) >= 3 and e["kind"] != "me":
+                names.append((re.compile(r"\b" + re.escape(a) + r"\b", re.I), e["id"]))
+    pairs: collections.Counter = collections.Counter()
+    notes_of: dict[str, list[str]] = collections.defaultdict(list)
+    texts: dict[str, str] = {}
+    for f in m.facts():
+        a = f.get("entity_id")
+        if a not in ids:
+            continue
+        notes_of[a].append(f["note_id"])
+        texts[f["note_id"]] = str(f.get("text") or "")[:600]
+        for rx, b in names:
+            if b != a and rx.search(f.get("text") or ""):
+                pairs[tuple(sorted((a, b)))] += 1
+                notes_of[b].append(f["note_id"])
+    nodes = [{"id": e["id"], "label": e["name"], "kind": "entity", "type": e["kind"] or "other", "count": e["n"],
+              "summary": e.get("summary") or "", "notes": list(dict.fromkeys(notes_of[e["id"]]))[:12],
+              "cluster": -1, "spaces": []} for e in ents]
+    used = {n for x in nodes for n in x["notes"]}
+    return {"notes": len(texts), "nodes": nodes, "source": "entities",
+            "edges": [{"source": a, "target": b, "weight": w} for (a, b), w in pairs.most_common(max_edges)],
+            "texts": {k: v for k, v in texts.items() if k in used}}
+
+
 # ------------------------------------------------------------------ skills on disk
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
@@ -218,6 +253,18 @@ class UI:
         spaces = list(self.servers) if ctx == "*" else [ctx]
         if any(s not in self.servers for s in spaces):
             raise ValueError(f"unknown context {ctx!r}")
+        mf = getattr(self, "model_for", None)
+        if mf and ctx != "*":
+            try:
+                eg = await asyncio.to_thread(entity_graph, mf(ctx), show_me)
+            except Exception:  # noqa: BLE001 - fall back to the note graph
+                eg = None
+            if eg:
+                from . import local_graph as _lg
+                cl = _lg.clusters([n["id"] for n in eg["nodes"]], [(e["source"], e["target"], e["weight"]) for e in eg["edges"]])
+                for n in eg["nodes"]:
+                    n["cluster"], n["spaces"] = cl.get(n["id"], -1), [ctx]
+                return {**eg, "spaces": spaces, "building": False, "progress": None, "engine": None}
         llm = await asyncio.to_thread(local_engine.get(self.home).local_llm)
         all_items: dict[str, dict] = {}
         triples: list = []

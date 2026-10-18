@@ -129,6 +129,10 @@ def build_server(
     _syncing: dict[str, dict[str, Any]] = {}  # background corrections still being re-processed by Cognee
     _tasks: set = set()
     local_mode = settings.dev_no_auth and settings.auth_provider == "local"  # mnemos-local / Desktop
+    model = None  # layered memory model (local mode): what each note is about, kind, validity, usage
+    if local_mode:
+        from .local_model import Model
+        model = Model(os.path.join(settings.data_dir, "model.sqlite"))
     index = index or LocalIndex(os.path.join(settings.data_dir, "search.sqlite"), OllamaEmbedder.from_env())
     skills = skills or SkillIndex(settings.skills_root, settings.context)
     cognee = cognee or CogneeClient(
@@ -397,6 +401,10 @@ def build_server(
         status = res.get("status") if isinstance(res, dict) else None
         safe(ledger.record_save, dataset=name, text=text, context=ctx.name, source_app=app, login=login,
              tags=clean_tags, data_id=_returned_id(res))
+        if model is not None and _returned_id(res):
+            origin = ("imported" if any(t.startswith("import") for t in clean_tags) else
+                      "inferred" if "learned" in clean_tags else "user_said")
+            safe(model.add_fact, _returned_id(res), text, tags=clean_tags, source_app=app, origin=origin)
         audit.log("memory_save", login, "ok", dataset=name, chars=len(text), app=app)
         out = {"saved_to": name, "status": status or "accepted", "source_app": app,
                "note": "la extracción al grafo corre en segundo plano; puede tardar en aparecer en búsquedas"}
@@ -563,6 +571,8 @@ def build_server(
                      action="delete", by=app, created_at=old["created_at"], source_app=old["source_app"])
             await cognee.delete_data(ds_id, id)
             safe(index.remove, id)
+            if model is not None:
+                safe(model.forget_note, id)
         except MemoryError_ as exc:
             audit.log("memory_delete", login, "rejected", data_id=id, reason=str(exc))
             raise ToolError(str(exc)) from exc
@@ -601,6 +611,8 @@ def build_server(
                 if _syncing.get(id, {}).get("state") == "processing":
                     raise MemoryError_("la nota todavía se está procesando; esperá unos segundos")
                 safe(ledger.record_change, id, text=text, by=app, tags=clean_tags)
+                if model is not None:
+                    safe(model.set_fact, id, "edit", text=text[:2000])
                 safe(index.put, id, name, text, old["created_at"])
                 _syncing[id] = {"state": "processing", "text": text}
 

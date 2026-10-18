@@ -382,6 +382,32 @@ tokens by hand.</p></body>""",
         await local_evidence.add_batch(home, src, batch)
     ui.miner = Miner(ui, disc, on_batch=_evidence)
     ui.miner.install()
+    from .local_model import Model as _Model
+
+    def _model(b: dict) -> tuple[str, "_Model"]:
+        ctx = str(b.get("context") or "")
+        if ctx not in subs:
+            raise ValueError("unknown space")
+        return ctx, _Model(home / "data" / ctx / "model.sqlite")
+
+    async def _own_notes(ctx: str) -> list[dict]:
+        return [i for i in await ui.graph_items(ctx) if i.get("space") in (ctx, None)]
+
+    def _contexts_owner() -> str:
+        from . import contexts as _c
+        return str(getattr(_c, "OWNER", "") or "me")
+
+    async def _migrate(b):
+        ctx, m = _model(b)
+        return m.migrate(await _own_notes(ctx), apply=bool(b.get("apply")), owner=_contexts_owner())
+
+    async def _migrate_undo(b):
+        _ctx, m = _model(b)
+        return m.undo_migration(str(b.get("batch") or ""))
+    ui.hooks[("GET", "model/migrate")] = _migrate
+    ui.hooks[("POST", "model/migrate")] = _migrate
+    ui.hooks[("POST", "model/migrate/undo")] = _migrate_undo
+    ui.model_for = lambda ctx: _model({"context": ctx})[1]
     from .local_capture import Capture
     ui.capture = Capture(ui, local_engine.get(home), router.router.apps)
     ui.capture.install()

@@ -196,6 +196,7 @@ class Miner:
         if not chosen:
             raise ValueError("pick at least one chat source (scan again if the list is old)")
         self.st["sources"] = chosen
+        self.st["allow_sensitive"] = bool(b.get("allow_sensitive"))  # health/religion/politics: off unless asked
         self._go()
         return await self.h_status({})
 

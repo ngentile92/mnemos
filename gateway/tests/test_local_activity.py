@@ -78,3 +78,26 @@ def test_apps_and_activity_api(home):
         Activity(home).record("cursor", "Cursor", sp[1], "memory_save", {"text": "hola mundo"}, {}, None)
         ev = c.get("/api/activity?app=cursor").json()["events"]
         assert ev[0]["summary"] == "saved “hola mundo”"
+
+
+async def test_capture_metrics_and_task_detail_flag(home):
+    servers = local.build_all(home, 8765)
+    router = local.build_router(home, servers)
+    ci = Implementation(name="cursor-vscode", version="1")
+    async with Client(router, client_info=ci) as c:
+        r = await c.call_tool("memory_save", {"text": "Ana leads the Atlas project at Acme"})
+        assert "filter" not in r.data
+        r = await c.call_tool("memory_save", {"text": "The Atlas dev server runs on localhost:8080"})
+        assert r.data["filter"] == "localhost/port" and "memory_delete" in r.data["note"]
+        await c.call_tool("memory_search", {"query": "Atlas", "mode": "keyword"})
+    cap = Activity(home).capture()
+    app = next(iter(cap.values()))
+    assert app["saves"] == 2 and app["task_detail"] == 1 and app["searches"] == 1
+
+
+def test_local_instructions_fit_claude_code_limit():
+    from hub_gateway.contexts import CONTEXTS
+    from hub_gateway.instructions import local_instructions
+    for lang in ("en", "es"):
+        txt = local_instructions(next(iter(CONTEXTS.values())), lang)
+        assert len(txt) < 1300 and txt.index("memory_save") < 300  # save contract in the first 300 chars

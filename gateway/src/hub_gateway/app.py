@@ -362,9 +362,11 @@ def build_server(
         allow_duplicate: Annotated[bool, Field(
             description="Modo local: guardar aunque ya exista una nota casi igual")] = False,
     ) -> dict[str, Any]:
-        """Guarda un hecho en la memoria de largo plazo. Por defecto va al contexto activo.
-        Usá target='shared' solo si el dato sirve en todos los contextos. Escribí [[Nombre]] para
-        enlazar personas, empresas o proyectos: las notas con el mismo [[Nombre]] quedan conectadas."""
+        """Call EVERY TIME the user shares a durable fact about themselves (identity, work, people, projects and
+        decisions with the reason, preferences, routines, goals): one self-contained sentence naming who/what it is
+        about. Not for paths, URLs, errors, code, task steps or general knowledge (those stay in the chat).
+        Goes to the active context; target='shared' only if it helps in every context. [[Name]] links people,
+        companies or projects across notes."""
         login = _current_login(settings)
         try:
             name, ds_id = scope().write_id(target=target, project=project)
@@ -400,6 +402,13 @@ def build_server(
                "note": "la extracción al grafo corre en segundo plano; puede tardar en aparecer en búsquedas"}
         if local_mode:
             out["note"] = "guardado"
+            from .memfilter import classify
+            chk = classify(text)
+            if not chk["keep"] and chk["reason"] not in ("length", "secret"):
+                out["filter"] = chk["reason"]
+                out["note"] = ("guardado, pero parece " + ("un tema sensible" if chk["sensitive"] else
+                               "un detalle de la tarea (" + str(chk["reason"]) + ")") + ": la memoria es para hechos "
+                               "durables sobre el usuario; si no lo pidió, borralo con memory_delete")
             if similar_notes:
                 out["similar_notes"] = similar_notes
                 out["note"] = ("guardado. Hay notas parecidas: si alguna dice lo contrario o quedó vieja, "

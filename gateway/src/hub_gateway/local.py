@@ -337,6 +337,14 @@ tokens by hand.</p></body>""",
     ui.hooks[("GET", "apps")] = _apps
     ui.hooks[("POST", "apps/update")] = _app_update
     ui.hooks[("GET", "activity")] = _activity
+
+    async def _capture(b):
+        try:
+            days = max(1, min(int(b.get("days") or 7), 90))
+        except ValueError:
+            days = 7
+        return {"days": days, "apps": activity.capture(days)}
+    ui.hooks[("GET", "activity/capture")] = _capture
     ui.hooks[("GET", "spaces")] = _spaces
     ui.hooks[("POST", "spaces/update")] = _space_update
     ui.hooks[("POST", "spaces/bridge")] = _bridge

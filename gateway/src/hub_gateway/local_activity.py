@@ -38,7 +38,9 @@ def describe(tool: str, args: dict, result: dict | None) -> tuple[str, str]:
     if tool == "memory_save":
         if (result or {}).get("status") == "duplicate":
             return kind, f"tried to save a duplicate: “{_short(args.get('text'))}”"
-        return kind, f"saved “{_short(args.get('text'))}”" + (" to shared" if args.get("target") == "shared" else "")
+        flag = " (looks like task detail)" if (result or {}).get("filter") else ""
+        return kind, (f"saved “{_short(args.get('text'))}”" + (" to shared" if args.get("target") == "shared" else "")
+                      + flag)
     if tool in ("memory_search", "memory_answer", "memory_dispute"):
         q = args.get("query") or args.get("question") or args.get("correction")
         n = len((result or {}).get("results") or (result or {}).get("citations") or (result or {}).get("proposals") or [])
@@ -104,3 +106,18 @@ class Activity:
         for app, ts in last.items():
             out.setdefault(app, {"read": 0, "write": 0, "denied": 0})["last"] = ts
         return out
+
+    def capture(self, days: int = 7) -> dict[str, dict[str, int]]:
+        """Capture metrics per app (counts only): saves, duplicates, saves that look like task detail, searches."""
+        since = (dt.datetime.now(dt.UTC) - dt.timedelta(days=days)).isoformat(timespec="seconds")
+        with self._db() as db:
+            rows = db.execute(
+                "SELECT app, "
+                "SUM(tool='memory_save' AND ok=1 AND summary LIKE 'saved%'), "
+                "SUM(tool='memory_save' AND summary LIKE 'tried to save a duplicate%'), "
+                "SUM(tool='memory_save' AND summary LIKE '%(looks like task detail)'), "
+                "SUM(tool IN ('memory_search','memory_answer') AND ok=1), "
+                "SUM(tool IN ('memory_update','memory_delete','memory_mark_obsolete') AND ok=1) "
+                "FROM events WHERE ts >= ? GROUP BY app", (since,)).fetchall()
+        keys = ("saves", "duplicates", "task_detail", "searches", "corrections")
+        return {r[0]: dict(zip(keys, (int(x or 0) for x in r[1:]))) for r in rows}

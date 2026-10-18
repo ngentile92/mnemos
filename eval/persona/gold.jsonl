@@ -1,0 +1,18 @@
+{"id": "g01", "fact": "Data engineer at Norte Logística", "any": [["data engineer"], ["norte"]]}
+{"id": "g02", "fact": "Lives in Rosario", "any": [["rosario"]]}
+{"id": "g03", "fact": "Prefers short Spanish answers with code", "any": [["español", "spanish"]]}
+{"id": "g04", "fact": "Manager is Tomás Iriarte", "any": [["tomás", "tomas", "iriarte"]]}
+{"id": "g05", "fact": "Builds Huerta (community garden)", "any": [["huerta"], ["garden", "huerta"]]}
+{"id": "g06", "fact": "Huerta stack SvelteKit + Supabase", "any": [["sveltekit"], ["supabase"]]}
+{"id": "g07", "fact": "Moved Huerta from Firebase to Supabase (pricing)", "any": [["firebase"]]}
+{"id": "g08", "fact": "Uses dbt and BigQuery", "any": [["dbt", "bigquery"]]}
+{"id": "g09", "fact": "Partner Martín", "any": [["martín", "martin"]]}
+{"id": "g10", "fact": "Dog Pampa", "any": [["pampa"], ["dog"]]}
+{"id": "g11", "fact": "Runs 10K", "any": [["10k"]]}
+{"id": "g12", "fact": "Goal: GCP data engineer certification", "any": [["certification", "certificación"]]}
+{"id": "g13", "fact": "Works with Valeria Sosa", "any": [["valeria", "sosa"]]}
+{"id": "g14", "fact": "Vegetarian", "any": [["vegetarian"]]}
+{"id": "g15", "fact": "Commit messages in English", "any": [["commit"], ["english"]]}
+{"id": "g16", "fact": "Switched Kaiko to Tiingo", "any": [["tiingo"]]}
+{"id": "g17", "fact": "Organises Datos Rosario meetup", "any": [["meetup", "datos rosario"]]}
+{"id": "g18", "fact": "Learning Rust", "any": [["rust"]]}

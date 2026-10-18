@@ -38,10 +38,12 @@ CODE_DIRS = ("code", "dev", "projects", "src", "repos", "work", "Developer", "Do
 MAX_DEPTH, MAX_FILES, MAX_FILE_BYTES, MAX_SOURCE_BYTES = 4, 2000, 2_000_000, 60_000_000
 MAX_PER_SOURCE, SCAN_BUDGET_S, PREVIEW_BUDGET_S = 400, 15.0, 300.0
 SKIP_DIRS = {"node_modules", ".git", ".venv", "venv", "__pycache__", "dist", "build", "target", ".next", "Library"}
-CODE_KINDS = {"claude_code", "claude_md", "agents_md", "cursor_rules", "cursor_chats"}
+CODE_KINDS = {"claude_code", "claude_md", "agents_md", "cursor_rules", "cursor_chats", "claude_memory", "codex_memory"}
+NOTE_KINDS = ("claude_md", "agents_md", "cursor_rules", "obsidian", "claude_memory", "codex_memory")
 LABELS = {"claude_code": "Claude Code conversations", "claude_md": "Claude instructions (CLAUDE.md)",
           "agents_md": "AGENTS.md files", "cursor_rules": "Cursor rules", "cursor_chats": "Cursor chats",
-          "obsidian": "Obsidian vault", "chatgpt_zip": "ChatGPT export", "claude_zip": "Claude.ai export"}
+          "obsidian": "Obsidian vault", "chatgpt_zip": "ChatGPT export", "claude_zip": "Claude.ai export",
+          "claude_memory": "Claude Code memory (already curated)", "codex_memory": "Codex memories (already curated)"}
 
 # ------------------------------------------------------------------ secrets
 SECRET_RE = re.compile(
@@ -144,6 +146,15 @@ def scan(home: Path | None = None, contexts: list[str] | None = None, budget: fl
                 files = sorted(d.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
                 name = re.sub(r"^-+", "", d.name).replace("-", "/")[-60:]
                 add("claude_code", f"{LABELS['claude_code']} · {name}", files, "sessions", str(d))
+    # memories the vendors already curated (high signal): Claude Code auto-memory, Codex memories
+    if proj.is_dir():
+        mem = [p for d in sorted(proj.iterdir()) if d.is_dir() for p in sorted((d / "memory").glob("*.md"))
+               if p.is_file()]
+        add("claude_memory", LABELS["claude_memory"], mem, "files", str(proj) + "/*/memory")
+    cx = home / ".codex" / "memories"
+    if cx.is_dir():
+        add("codex_memory", LABELS["codex_memory"], _walk(cx, lambda p: p.suffix.lower() in (".md", ".txt", ".json"),
+                                                         deadline, depth=3), "files", str(cx))
     roots = [home / c for c in CODE_DIRS if (home / c).is_dir()]
     md: dict[str, list[Path]] = {"claude_md": [], "agents_md": [], "cursor_rules": []}
     if (home / ".claude").is_dir():
@@ -292,6 +303,36 @@ def _md_notes(paths: list[Path], deadline: float) -> list[str]:
     return [_tidy(n) for n in li.from_markdown(files)]
 
 
+_FRONT = re.compile(r"\A---\n.*?\n---\n", re.S)
+
+
+def _memory_notes(paths: list[Path], deadline: float) -> list[str]:
+    """Vendor-curated memory files: one note per bullet/line (or section), front matter and index links dropped,
+    sensitive topics off by default (memfilter). Claude Code's MEMORY.md is only an index of topic files."""
+    from .memfilter import sensitive_reason
+    out: list[str] = []
+    for p in paths:
+        if time.monotonic() > deadline or p.name == "MEMORY.md" or secret_name(p):
+            continue
+        try:
+            text = _read(p)
+        except OSError:
+            continue
+        if p.suffix == ".json":
+            try:
+                d = json.loads(text)
+                items = d if isinstance(d, list) else d.get("memories") or d.get("items") or []
+                text = "\n".join(str(x.get("content") or x.get("text") or "") if isinstance(x, dict) else str(x)
+                                 for x in items)
+            except (ValueError, AttributeError):
+                continue
+        text = _FRONT.sub("", text)
+        lines = [ln for ln in li.from_lines(re.sub(r"^#{1,6}\s.*$", "", text, flags=re.M))
+                 if not re.fullmatch(r"\[.*\]\(.*\)", ln)]
+        out += [ln for ln in lines if not sensitive_reason(ln) and not has_secret(ln)]
+    return list(dict.fromkeys(out))
+
+
 def _tidy(note: str) -> str:
     """'# Title\nbody' -> 'Title: body' so a note reads as one sentence in the review list."""
     m = re.match(r"#{1,6}\s+([^\n]+)\n+(.+)", note, re.S)
@@ -353,7 +394,7 @@ def _export_convs(p: Path, kind: str) -> list[tuple[str, str, list[str]]]:
 def read_conversations(src: dict, deadline: float) -> list[tuple[str, str, list[str]]]:
     """[(conversation key, date or '', user messages)] — one unit per chat, so a model sees one topic at a time."""
     paths, kind, out = [Path(p) for p in src["paths"]], src["kind"], []
-    if kind in ("claude_md", "agents_md", "cursor_rules", "obsidian"):
+    if kind in NOTE_KINDS:
         return []
     for p in paths:
         if time.monotonic() > deadline:
@@ -375,7 +416,9 @@ def read_conversations(src: dict, deadline: float) -> list[tuple[str, str, list[
 def read_source(src: dict, deadline: float) -> tuple[list[str], list[str]]:
     """(ready notes, user messages to mine for facts)."""
     paths, kind, msgs = [Path(p) for p in src["paths"]], src["kind"], []
-    if kind in ("claude_md", "agents_md", "cursor_rules", "obsidian"):
+    if kind in ("claude_memory", "codex_memory"):
+        return _memory_notes(paths, deadline), []
+    if kind in NOTE_KINDS:
         return _md_notes(paths, deadline), []
     for p in paths:
         if time.monotonic() > deadline:

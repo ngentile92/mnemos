@@ -190,7 +190,7 @@ class Miner:
         for c in b.get("sources") or []:
             s = self.discover.sources.get(str((c or {}).get("id")))
             ctx = str((c or {}).get("context") or "")
-            if s and ctx in self.ui.servers and s["kind"] not in ("claude_md", "agents_md", "cursor_rules", "obsidian"):
+            if s and ctx in self.ui.servers and s["kind"] not in ld.NOTE_KINDS:
                 chosen.append({"id": s["id"], "kind": s["kind"], "label": s["label"], "paths": s["paths"],
                                "context": ctx})
         if not chosen:

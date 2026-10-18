@@ -30,6 +30,10 @@ from .memory import CogneeClient, DatasetMap, MemoryError_, MemoryScope, item_su
 from .secrets import InfisicalFetcher, SecretBroker, SecretPolicyError, load_policy
 from .skills import SkillError, SkillIndex, tool_equivalents
 
+
+# Some clients (Claude Desktop) drop the server instructions, so the save contract also rides on tool results.
+SAVE_NUDGE = ("Memory: when the user shares something lasting about themselves in this chat (likes, people, work, "
+              "projects, decisions, goals), call memory_save right away with one short sentence.")
 log = logging.getLogger("hub.gateway")
 
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False}
@@ -296,6 +300,7 @@ def build_server(
                 out["from_sources"] = src
                 out["from_sources_note"] = ("the user's own past messages to AI tools (raw, may be outdated); "
                                             "saved notes in results take precedence")
+        out.setdefault("note", SAVE_NUDGE)
         return out
 
     @mcp.tool(annotations={**READ_ONLY, "title": "Responder desde la memoria"})
@@ -377,9 +382,11 @@ def build_server(
         allow_duplicate: Annotated[bool, Field(
             description="Modo local: guardar aunque ya exista una nota casi igual")] = False,
     ) -> dict[str, Any]:
-        """Call EVERY TIME the user shares a durable fact about themselves (identity, work, people, projects and
-        decisions with the reason, preferences, routines, goals): one self-contained sentence naming who/what it is
-        about. Not for paths, URLs, errors, code, task steps or general knowledge (those stay in the chat).
+        """The user's long-term memory, shared by all their AI apps. Call it right away, without asking, EVERY TIME
+        the user shares something lasting about themselves: identity, work, people, projects and decisions (with the
+        reason), likes and preferences, routines, goals. "me gustan los caballos" -> save "Likes horses."; "I moved to
+        Lisbon" -> save "Lives in Lisbon.". One self-contained sentence naming who/what it is about. Not for paths,
+        URLs, errors, code, task steps or general knowledge (those stay in the chat).
         Goes to the active context; target='shared' only if it helps in every context. [[Name]] links people,
         companies or projects across notes."""
         login = _current_login(settings)
@@ -524,8 +531,9 @@ def build_server(
 
     @mcp.tool(annotations={**READ_ONLY, "title": "Perfil del usuario"})
     async def memory_profile() -> dict[str, Any]:
-        """Short profile of the user for this space (who they are, preferences, people, goals, projects), most
-        important first. Call it at the start of a conversation, before memory_search."""
+        """Who the user is (identity, preferences, people, goals, projects), most important first, from their
+        long-term memory. Call it FIRST in every new conversation, before answering, then memory_search for the
+        topic. Whenever the user later shares something lasting about themselves, save it with memory_save."""
         login = _current_login(settings)
         try:
             from .local_profile import build
@@ -534,7 +542,7 @@ def build_server(
                 txt = profile_text(model) or build_profile(model)[0]
                 if txt:
                     audit.log("memory_profile", login, "ok", source="model")
-                    return {"context": ctx.name, "profile": txt}
+                    return {"context": ctx.name, "profile": txt, "note": SAVE_NUDGE}
             items = await _list_items("", None, True)
         except MemoryError_ as exc:
             raise ToolError(str(exc)) from exc
@@ -543,7 +551,7 @@ def build_server(
             raise ToolError("la memoria no respondió; probá de nuevo más tarde") from exc
         items.sort(key=lambda i: str(i.get("created_at") or ""), reverse=True)
         audit.log("memory_profile", login, "ok", notes=len(items))
-        return {"context": ctx.name, "profile": build(items), "notes": len(items)}
+        return {"context": ctx.name, "profile": build(items), "notes": len(items), "note": SAVE_NUDGE}
 
     @mcp.tool(annotations={**READ_ONLY, "title": "Listar notas de memoria"})
     async def memory_list(
@@ -930,6 +938,18 @@ def build_server(
         if declared:  # skills written for another server (e.g. gbrain): which hub tool to use for each
             out["tool_equivalents"] = tool_equivalents(declared)
         return out
+
+    @mcp.prompt(name="use-my-memory", title="Use my memory",
+                description="Start the chat knowing who I am (Mnemos profile) and saving what I share")
+    async def use_my_memory() -> str:
+        try:
+            prof = (await memory_profile()).get("profile") or ""
+        except Exception:  # noqa: BLE001 - the prompt still carries the rules
+            prof = ""
+        return ("You have my long-term memory (Mnemos). Here is what it knows about me:\n\n" + (prof or "(empty so far)") +
+                "\n\nDuring this chat: search it (memory_search) when my past, preferences or projects matter, and "
+                "whenever I share something lasting about myself, save it right away with memory_save "
+                "(one short sentence), without asking.")
 
     @mcp.resource("skill://index", mime_type="application/json", name="skills-index")
     async def skill_index_resource() -> dict[str, Any]:

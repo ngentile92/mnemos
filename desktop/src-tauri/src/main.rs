@@ -118,7 +118,33 @@ fn connect_claude() -> Result<String, String> {
     std::fs::write(&tmp, serde_json::to_string_pretty(&cfg).unwrap() + "\n").map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
     let moved = if old.is_empty() { String::new() } else { format!(" Replaced the older entries: {}.", old.join(", ")) };
-    Ok(format!("Added Mnemos to Claude Desktop (all your spaces).{moved} Quit and reopen Claude Desktop to use it."))
+    let dup = if claude_extensions().is_empty() { String::new() } else {
+        " Also remove the Mnemos extension in Claude → Settings → Extensions: with both, Claude sees two memories.".to_string()
+    };
+    Ok(format!("Added Mnemos to Claude Desktop (all your spaces).{moved}{dup} Quit and reopen Claude Desktop to use it."))
+}
+
+/// Mnemos extensions (.mcpb) installed in Claude Desktop. With the `mnemos` config entry as well, Claude sees two
+/// memories (an old extension may even run an older Mnemos), so the app asks the user to remove the extension.
+fn claude_extensions() -> Vec<String> {
+    let dir = claude_config_path().with_file_name("Claude Extensions");
+    std::fs::read_dir(dir)
+        .map(|rd| rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|n| n.to_lowercase().contains("mnemos")).collect())
+        .unwrap_or_default()
+}
+
+/// Claude Desktop does not pass MCP server instructions to the model, so the save rules only reach it through
+/// tool descriptions. Its personal preferences (Settings → Profile) are read in every chat: this text goes there.
+const CLAUDE_PREFS: &str = "I use Mnemos as my long-term memory. At the start of every chat call memory_profile. \
+Whenever I share something lasting about myself (likes, people, work, projects, decisions, goals), save it right away \
+with memory_save in one short sentence, without asking. Search it with memory_search when my past or preferences matter.";
+
+#[tauri::command]
+fn claude_notes() -> serde_json::Value {
+    let ext = claude_extensions();
+    serde_json::json!({"extensions": ext, "duplicate": !ext.is_empty() && json_has_server(claude_config_path(), "mcpServers"),
+                       "preferences": CLAUDE_PREFS})
 }
 
 /// The stdio command every local AI app runs: (program, args). Same runtime Claude Desktop uses.
@@ -541,7 +567,7 @@ fn main() {
                 api.prevent_close();
             }
         })
-        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude, connect_cursor, app_cards, memory_url,
+        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude, connect_cursor, app_cards, memory_url, claude_notes,
                                                  set_login_item, login_item])
         .build(tauri::generate_context!())
         .expect("error while building Mnemos Desktop");

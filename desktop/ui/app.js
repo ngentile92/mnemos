@@ -56,6 +56,7 @@ async function renderApps() {
         cardsKey = "";
       });
       const a = document.createElement("div"); a.className = "actions"; a.append(b); el.append(a);
+      if (c.id === "claude-desktop") claudeExtras(el);
     } else if (c.command) {
       const code = document.createElement("code"); code.textContent = c.command;
       const b = document.createElement("button"); b.textContent = "Copy";
@@ -69,6 +70,23 @@ async function renderApps() {
     }
     return el;
   }));
+}
+// Claude Desktop drops MCP server instructions: offer the text for its personal preferences, and flag a second
+// (extension) copy of Mnemos.
+async function claudeExtras(el) {
+  let n; try { n = await invoke("claude_notes"); } catch (_) { return; }
+  if (n.duplicate) {
+    const w = document.createElement("p"); w.className = "small"; w.style.color = "#f59e0b";
+    w.textContent = `Claude also has the Mnemos extension installed (${n.extensions.join(", ")}). Remove it in Claude → Settings → Extensions, so Claude sees one memory.`;
+    el.append(w);
+  }
+  const p = document.createElement("p"); p.className = "muted small";
+  p.textContent = "So Claude saves on its own: paste this once in Claude → Settings → Profile → personal preferences.";
+  const code = document.createElement("code"); code.textContent = n.preferences;
+  const b = document.createElement("button"); b.textContent = "Copy";
+  b.onclick = async () => { try { await navigator.clipboard.writeText(n.preferences); b.textContent = "Copied ✓"; } catch (_) { b.textContent = "Select and Cmd+C"; } setTimeout(() => { b.textContent = "Copy"; }, 2000); };
+  const a = document.createElement("div"); a.className = "actions"; a.append(b);
+  el.append(p, code, a);
 }
 $("start").onclick = (e) => run(e.target, () => invoke("start_hub"));
 $("stop").onclick = (e) => run(e.target, () => invoke("stop_hub"));

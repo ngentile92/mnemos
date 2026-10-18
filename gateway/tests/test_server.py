@@ -558,3 +558,16 @@ async def test_bridge_is_one_way(make_server, work_bridged_to_personal):
     async with Client(server) as c:
         listed = data(await c.call_tool("memory_list", {}))
     assert {i["dataset"] for i in listed["items"]} == {"work"}
+
+
+async def test_claude_desktop_reliability(make_server):
+    """Claude Desktop drops server instructions: the save contract must reach the model through tools and results."""
+    server, _ = make_server("personal")
+    async with Client(server) as c:
+        tools = {t.name: t for t in await c.list_tools()}
+        prompts = {p.name for p in await c.list_prompts()}
+        r = data(await c.call_tool("memory_search", {"query": "anything at all"}))
+    assert "right away" in tools["memory_save"].description and "Likes horses" in tools["memory_save"].description
+    assert "FIRST in every new conversation" in tools["memory_profile"].description
+    assert "use-my-memory" in prompts
+    assert "memory_save" in r.get("note", "")

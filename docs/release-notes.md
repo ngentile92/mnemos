@@ -4,6 +4,16 @@
 - `Mnemos-macos.app.zip` — same app, zipped.
 - `mnemos.mcpb` — Claude Desktop extension (optional; the app's "Connect to Claude Desktop" button is enough).
 
+**New in 0.9.1: Claude Desktop saves on its own, and fewer invented facts.**
+- **Claude Desktop.** Claude Desktop ignores the rules an MCP server sends, so the save rules now live in the tool
+  descriptions (with examples), every search/profile result reminds the model to save lasting facts, and a **Use my
+  memory** prompt is in Claude's "+" menu. Mnemos Desktop's Claude card gives a short text to paste once in Claude →
+  Settings → Profile (the most reliable fix) and warns when the Mnemos extension is installed as well (two memories).
+  After updating, quit and reopen Claude Desktop. See `docs/claude-desktop.md`.
+- **Model check for invented facts.** The local model (or Apple's on-device model) checks each extracted fact against
+  what you wrote. A fact it cannot back goes to the inbox (live capture) or to the end of the import review instead
+  of being saved.
+
 **New in 0.9: a memory that knows who and what each note is about.**
 - **Memory model.** Every note is linked to the person, project, place or tool it is about, with a kind, importance,
   how long it lasts and where it came from. Writes only ever add. Settings → Memory model lets you try linking your

@@ -16,14 +16,14 @@ from typing import Any
 
 MAX_ROWS = 5000
 READS = {"memory_search", "memory_answer", "memory_list", "memory_entity", "memory_history", "skills_list",
-         "skills_get", "hub_whoami", "memory_dispute"}
+         "skills_get", "hub_whoami", "memory_dispute", "memory_profile"}
 VERBS = {"memory_search": "searched", "memory_answer": "asked", "memory_list": "listed notes",
          "memory_entity": "looked up", "memory_history": "read the history of a note", "skills_list": "listed skills",
          "skills_get": "read the skill", "hub_whoami": "checked its spaces", "hub_use_context": "switched to",
          "memory_save": "saved", "memory_update": "corrected a note", "memory_delete": "deleted a note",
          "memory_undo": "undid a change", "memory_promote": "copied a note to shared", "memory_pin": "pinned a note",
          "memory_mark_obsolete": "marked a note out of date", "memory_set_validity": "set dates on a note",
-         "memory_dispute": "checked a correction"}
+         "memory_dispute": "checked a correction", "memory_profile": "read your profile"}
 
 
 def _short(s: Any, n: int = 80) -> str:

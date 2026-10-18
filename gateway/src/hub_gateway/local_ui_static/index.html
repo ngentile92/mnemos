@@ -35,6 +35,12 @@
 </section>
 <div id="app" class="hidden">
 <main id="view-memoria" class="view">
+  <section class="card hidden" id="rl-card" style="margin:14px 36px"><div class="card-h"><h2>Recently learned</h2><span class="muted small" id="rl-head"></span></div>
+    <p class="small muted">What Mnemos kept on its own from your coding chats. Undo anything that is wrong or not worth keeping.</p>
+    <div id="rl-list" class="ap-list"></div>
+    <div id="rl-inbox-wrap" class="hidden"><h3 class="small">To check <span class="muted" id="rl-inbox-n"></span></h3>
+      <p class="small muted">Possible contradictions with a note you have, or things Mnemos was not sure about.</p><div id="rl-inbox" class="ap-list"></div></div>
+    <p class="small" id="rl-msg"></p></section>
   <section class="card hidden" id="eng-offer" style="margin:14px 36px"><h2>Improve my memory</h2>
     <p class="small muted">Download a small private AI model (<b id="eo-size"></b>, once) so Mnemos finds better facts when importing, spots duplicates that use different words, and catches notes that disagree. It runs on this Mac: nothing is sent anywhere. Without it Mnemos keeps working with simple rules.</p>
     <div class="me-actions"><button class="mbtn primary" id="eo-go">Download</button><button class="mbtn" id="eo-no">Not now</button><span class="muted small" id="eo-msg"></span></div>

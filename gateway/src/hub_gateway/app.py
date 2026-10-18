@@ -402,6 +402,8 @@ def build_server(
                "note": "la extracción al grafo corre en segundo plano; puede tardar en aparecer en búsquedas"}
         if local_mode:
             out["note"] = "guardado"
+            if _returned_id(res):
+                out["id"] = _returned_id(res)
             from .memfilter import classify
             chk = classify(text)
             if not chk["keep"] and chk["reason"] not in ("length", "secret"):
@@ -467,6 +469,57 @@ def build_server(
                                    "se corrige desde el conector de su contexto")
         raise MemoryError_(f"no hay ninguna nota con ese id en el contexto {ctx.name}")
 
+    async def _list_items(needle: str, project: str | None, include_shared: bool) -> list[dict[str, Any]]:
+        """Notes with provenance (pinned, obsolete, validity) — shared by memory_list and memory_profile."""
+        sc = scope()
+        items: list[dict[str, Any]] = []
+        scanned = 0
+        for name, ds_id in sc.listable(include_shared=include_shared, project=project):
+            for d in await cognee.list_data(ds_id):
+                scanned += 1
+                if scanned > MAX_LIST_SCAN:
+                    break
+                text = await cognee.raw_text(ds_id, str(d.get("id"))) or ""
+                if needle and needle not in text.lower():
+                    continue
+                it = item_summary(d, name)
+                it["editable"] = name in ctx.own_dataset_names
+                prov = safe(ledger.provenance, str(d.get("id")), name, text)
+                if prov:
+                    it["provenance"] = prov
+                    it["source_app"] = it["source_app"] or prov["source_app"]
+                    it["pinned"] = bool(prov.get("pinned"))
+                    it["obsolete"] = bool(prov.get("obsolete"))
+                    from .ledger import validity_state
+                    v = validity_state(prov.get("valid_from"), prov.get("valid_until"))
+                    if v:
+                        it["validity"] = v
+                sy = _syncing.get(str(d.get("id")))
+                if sy:
+                    text = sy["text"]
+                    it["sync"] = sy["state"]
+                it["chars"] = len(text)
+                it["text"] = text[:1500]
+                items.append(it)
+        return items
+
+    @mcp.tool(annotations={**READ_ONLY, "title": "Perfil del usuario"})
+    async def memory_profile() -> dict[str, Any]:
+        """Short profile of the user for this space (who they are, preferences, people, goals, projects), most
+        important first. Call it at the start of a conversation, before memory_search."""
+        login = _current_login(settings)
+        try:
+            from .local_profile import build
+            items = await _list_items("", None, True)
+        except MemoryError_ as exc:
+            raise ToolError(str(exc)) from exc
+        except Exception as exc:
+            audit.log("memory_profile", login, "error", error=type(exc).__name__)
+            raise ToolError("la memoria no respondió; probá de nuevo más tarde") from exc
+        items.sort(key=lambda i: str(i.get("created_at") or ""), reverse=True)
+        audit.log("memory_profile", login, "ok", notes=len(items))
+        return {"context": ctx.name, "profile": build(items), "notes": len(items)}
+
     @mcp.tool(annotations={**READ_ONLY, "title": "Listar notas de memoria"})
     async def memory_list(
         contains: Annotated[str | None, Field(description="Filtrar por texto (sin distinguir mayúsculas)", max_length=200)] = None,
@@ -480,36 +533,7 @@ def build_server(
         login = _current_login(settings)
         needle = (contains or "").strip().lower()
         try:
-            sc = scope()
-            items: list[dict[str, Any]] = []
-            scanned = 0
-            for name, ds_id in sc.listable(include_shared=include_shared, project=project):
-                for d in await cognee.list_data(ds_id):
-                    scanned += 1
-                    if scanned > MAX_LIST_SCAN:
-                        break
-                    text = await cognee.raw_text(ds_id, str(d.get("id"))) or ""
-                    if needle and needle not in text.lower():
-                        continue
-                    it = item_summary(d, name)
-                    it["editable"] = name in ctx.own_dataset_names
-                    prov = safe(ledger.provenance, str(d.get("id")), name, text)
-                    if prov:
-                        it["provenance"] = prov
-                        it["source_app"] = it["source_app"] or prov["source_app"]
-                        it["pinned"] = bool(prov.get("pinned"))
-                        it["obsolete"] = bool(prov.get("obsolete"))
-                        from .ledger import validity_state
-                        v = validity_state(prov.get("valid_from"), prov.get("valid_until"))
-                        if v:
-                            it["validity"] = v
-                    sy = _syncing.get(str(d.get("id")))
-                    if sy:
-                        text = sy["text"]
-                        it["sync"] = sy["state"]
-                    it["chars"] = len(text)
-                    it["text"] = text[:1500]
-                    items.append(it)
+            items = await _list_items(needle, project, include_shared)
         except MemoryError_ as exc:
             audit.log("memory_list", login, "rejected", reason=str(exc))
             raise ToolError(str(exc)) from exc

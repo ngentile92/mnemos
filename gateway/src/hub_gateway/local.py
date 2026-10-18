@@ -249,12 +249,15 @@ def http_app(home: Path, port: int, remote_opts: dict | None = None):
             from . import local_engine as _le
             _le.get(home).autostart()  # 0.4 → 0.5 model upgrade / resume an interrupted download, in the background
             ui.miner.resume_on_start()  # full-history mining continues where it stopped
+            ui.capture.start()  # live capture: read quiet coding sessions banked by the hooks
             if os.environ.get("MNEMOS_HYGIENE", "1") != "0":
                 from .local_hygiene import nightly
                 task = asyncio.create_task(nightly(home, list(subs), ui.call))
             yield
             if task:
                 task.cancel()
+            if ui.capture.task:
+                ui.capture.task.cancel()
 
     async def home_page(_r):
         from starlette.responses import HTMLResponse
@@ -379,6 +382,9 @@ tokens by hand.</p></body>""",
         await local_evidence.add_batch(home, src, batch)
     ui.miner = Miner(ui, disc, on_batch=_evidence)
     ui.miner.install()
+    from .local_capture import Capture
+    ui.capture = Capture(ui, local_engine.get(home), router.router.apps)
+    ui.capture.install()
     app = Starlette(routes=[Route("/", home_page), Route("/health", health), *ui.routes(),
                             Route("/mcp", endpoint=router_app, methods=["GET", "POST", "DELETE"]),
                             *[Mount(f"/{c}", app=s) for c, s in subs.items()]], lifespan=lifespan)

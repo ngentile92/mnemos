@@ -571,3 +571,39 @@ async def test_claude_desktop_reliability(make_server):
     assert "FIRST in every new conversation" in tools["memory_profile"].description
     assert "use-my-memory" in prompts
     assert "memory_save" in r.get("note", "")
+
+
+async def test_hub_model_sync_dry_run_apply_undo_and_ranking(make_server, monkeypatch, tmp_path):
+    """Docker hub port: model_admin links Cognee notes into the sidecar model (dry run, apply, exact undo); with
+    HUB_MEMORY_MODEL=1 the gateway reads the model (memory_profile)."""
+    import argparse
+
+    from hub_gateway import model_admin
+    from hub_gateway.config import Settings
+    monkeypatch.setenv("HUB_MEMORY_MODEL", "1")
+    server, rec = make_server("personal")
+    rec.texts[NOTE_IDS["personal"]] = "Prefers short answers and works on [[Orion]]."
+    dd = Settings.from_env().data_dir
+    ns = argparse.Namespace
+    dry = await model_admin.run(ns(cmd="sync", apply=False), server, dd)
+    assert dry["dry_run"] and dry["notes"] == 1 and any(e["name"] == "Orion" for e in dry["entities"])
+    assert not model_admin.Model(model_admin.model_path(dd)).facts()  # dry run wrote nothing
+    done = await model_admin.run(ns(cmd="sync", apply=True), server, dd)
+    assert done["migrated"] == 1 and done["batch"].startswith("mig-")
+    again = await model_admin.run(ns(cmd="sync", apply=True), server, dd)
+    assert again["migrated"] == 0  # idempotent: only new notes
+    cons = await model_admin.run(ns(cmd="consolidate", ollama=None, model=None), server, dd)
+    assert cons["job"].startswith("cons-")
+    async with Client(server) as c:
+        prof = data(await c.call_tool("memory_profile", {}))
+    assert "short answers" in prof["profile"]
+    undo = await model_admin.run(ns(cmd="undo-sync", batch=done["batch"]), server, dd)
+    assert undo["facts"] == 1 and not model_admin.Model(model_admin.model_path(dd)).facts(status=None)
+
+
+def test_hub_model_off_by_default(monkeypatch):
+    from hub_gateway.app import model_enabled
+    monkeypatch.delenv("HUB_MEMORY_MODEL", raising=False)
+    assert not model_enabled()
+    monkeypatch.setenv("HUB_MEMORY_MODEL", "1")
+    assert model_enabled()

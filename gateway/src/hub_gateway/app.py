@@ -113,6 +113,10 @@ def _returned_id(res: Any) -> str | None:
     return None
 
 
+def model_enabled() -> bool:
+    return os.environ.get("HUB_MEMORY_MODEL", "").strip().lower() in ("1", "on", "true", "yes")
+
+
 def build_server(
     settings: Settings,
     *,
@@ -133,8 +137,8 @@ def build_server(
     _syncing: dict[str, dict[str, Any]] = {}  # background corrections still being re-processed by Cognee
     _tasks: set = set()
     local_mode = settings.dev_no_auth and settings.auth_provider == "local"  # mnemos-local / Desktop
-    model = None  # layered memory model (local mode): what each note is about, kind, validity, usage
-    if local_mode:
+    model = None  # layered memory model: what each note is about, kind, validity, usage
+    if local_mode or model_enabled():  # Docker hub: opt-in (HUB_MEMORY_MODEL=1), filled by `model_admin sync`
         from .local_model import Model
         model = Model(os.path.join(settings.data_dir, "model.sqlite"))
     index = index or LocalIndex(os.path.join(settings.data_dir, "search.sqlite"), OllamaEmbedder.from_env())

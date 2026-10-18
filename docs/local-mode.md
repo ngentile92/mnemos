@@ -105,3 +105,12 @@ When a local model is there (built-in or Ollama; never an API or Apple Intellige
 background pass that reads the notes 12 at a time and stores (subject, relation, object) triples per note in
 `<home>/data/<ctx>/graph.sqlite` (`local_graph.py`). Only new or edited notes are read again; deleted notes drop out.
 The view shows those entities and their relations; without a model it keeps the name/tag graph. No Cognee involved.
+
+## Spaces screen (0.6)
+
+**Open my memory → Spaces**: per space a name (`label`), a colour and a one-line description (what goes there; the
+AI uses it to route), Shared explained, and **read-only bridges as toggles** ("Work can read Personal"). Edits go
+to `contexts.yaml` (validated by the same parser, backup in `data/contexts.yaml.bak`) and are reloaded in place:
+the single connector and the app pick them up on the next call, including stdio processes started by AI apps
+(they watch the file's mtime). The space key (`work`) never changes. The legacy per-space URLs (`/<ctx>/mcp`)
+see bridge changes after a restart.

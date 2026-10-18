@@ -19,6 +19,7 @@
     <a href="#memoria" class="tab active" data-view="memoria" role="tab">Notes</a>
     <a href="#graph" class="tab" data-view="graph" role="tab">Graph</a>
     <a href="#skills" class="tab" data-view="skills" role="tab">Skills</a>
+    <a href="#spaces" class="tab" data-view="spaces" role="tab">Spaces</a>
     <a href="#import" class="tab" data-view="import" role="tab">Import</a>
     <a href="#settings" class="tab" data-view="settings" role="tab">Settings</a>
     <a href="#settings" class="badge" id="eng-badge" title="Which engine finds facts and cleans up your memory" style="align-self:center;margin-left:6px"></a>
@@ -82,6 +83,16 @@
     <div class="card me-listcard"><div class="card-h"><h2>Skills</h2></div><div id="s-list"></div></div>
     <div class="card me-detailcard"><div id="s-detail"><p class="muted">Pick a skill on the left.</p></div></div>
   </section>
+</main>
+<main id="view-spaces" class="view hidden">
+  <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Your spaces</h2><span class="muted small">memories that never mix</span></div>
+    <p class="small muted">Each space is a separate memory (for example Personal and Work). Every AI app saves to its default space and asks you before using another one. The one-line description tells the AI what goes where, so keep it concrete.</p>
+    <div id="sp-list" class="sp-list"></div><p class="small" id="sp-msg"></p></section>
+  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Shared</h2><span class="muted small">read by every space</span></div>
+    <p class="small muted" id="sp-shared"></p></section>
+  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Let one space read another</h2><span class="muted small">read-only, off by default</span></div>
+    <p class="small muted">Turn one on when, say, your work AI should know your side project. It can only read: it never writes, edits or deletes there.</p>
+    <div id="sp-bridges"></div></section>
 </main>
 <main id="view-settings" class="view hidden">
   <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Engine</h2><span class="muted small">what does the smart parts</span></div>
@@ -160,5 +171,6 @@
 </div>
 <script src="/ui/vendor/cytoscape.min.js"></script>
 <script src="/ui/local.js"></script>
+<script src="/ui/spaces.js"></script>
 </body>
 </html>

@@ -49,7 +49,7 @@
   const loaded = {};
   function route() {
     const v = (location.hash.slice(1).split(/[?&]/)[0] || "memoria").replace(/^k=.*/, "memoria");
-    const view = ["memoria", "graph", "skills", "import", "settings"].includes(v) ? v : "memoria";
+    const view = ["memoria", "graph", "skills", "spaces", "import", "settings"].includes(v) ? v : "memoria";
     document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.id !== "view-" + view));
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
     if (!loaded[view]) {
@@ -59,6 +59,7 @@
       if (view === "skills") loadSkills();
     }
     if (view === "settings") loadEngine();
+    window.dispatchEvent(new CustomEvent("mnemos:view", { detail: view }));
   }
 
   // ------------------------------------------------ graph

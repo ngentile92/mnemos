@@ -118,9 +118,45 @@ class LocalRouter:
         self.active: OrderedDict[str, str] = OrderedDict()  # MCP session -> space chosen with hub_use_context
         self.on_event = on_event  # (app_key, label, space, tool, args, result|None, error|None) -> None
         self.language = language
+        self.reloader: Callable | None = None  # rebuild `servers` in place after contexts.yaml changed
+        self.mcp: FastMCP | None = None
+        self._mtime = self._stat()
+
+    def _stat(self) -> float:
+        try:
+            return (self.home / "contexts.yaml").stat().st_mtime
+        except OSError:
+            return 0.0
+
+    def set_descriptions(self, descriptions: dict[str, str]) -> None:
+        self.descriptions.clear()
+        self.descriptions.update(descriptions)
+        if self.mcp is not None:
+            text = instructions(self.descriptions, self.language)
+            self.mcp.instructions = text
+            try:
+                self.mcp._mcp_server.instructions = text  # what the next `initialize` returns
+            except AttributeError:
+                pass
+
+    def reload_now(self) -> None:
+        if self.reloader:
+            self.reloader()
+        self._mtime = self._stat()
+
+    def maybe_reload(self) -> None:
+        """Another process (the app) edited the spaces: pick it up before this call."""
+        m = self._stat()
+        if m != self._mtime:
+            try:
+                self.reload_now()
+            except Exception:  # noqa: BLE001 — a bad edit must not take the connector down; keep the old setup
+                log.warning("could not reload contexts.yaml", exc_info=True)
+                self._mtime = m
 
     # -- who is calling
     def caller(self) -> tuple[str, str, str, dict]:
+        self.maybe_reload()
         name, version = client_info()
         key, label = app_key(name)
         rec = self.apps.touch(key, label, self.via)
@@ -218,4 +254,5 @@ class LocalRouter:
             return {"active_space": space}
 
         mcp.router = self  # type: ignore[attr-defined]
+        self.mcp = mcp
         return mcp

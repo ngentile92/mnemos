@@ -131,12 +131,27 @@ def build_all(home: Path, port: int, only: str | None = None):
     return out
 
 
-def build_router(home: Path, servers: dict, via: str = "local"):
-    """The single connector over `servers` (from build_all)."""
+def _descriptions(servers: dict) -> dict[str, str]:
+    from . import contexts as _c
+    return {n: _c.CONTEXTS[n].description if n in _c.CONTEXTS else n for n in servers}
+
+
+def build_router(home: Path, servers: dict, via: str = "local", port: int = DEFAULT_PORT):
+    """The single connector over `servers` (from build_all). It reloads them when contexts.yaml changes (Spaces
+    screen: descriptions, bridges), also inside stdio processes launched by AI apps."""
     from . import contexts as _c
     from .local_router import LocalRouter
-    descs = {n: _c.CONTEXTS[n].description if n in _c.CONTEXTS else n for n in servers}
-    return LocalRouter(home, servers, descs, language=_c.LANGUAGE, via=via).build()
+    lr = LocalRouter(home, servers, _descriptions(servers), language=_c.LANGUAGE, via=via)
+
+    def reload() -> None:
+        _c.reload(home / "contexts.yaml")
+        fresh = build_all(home, port)
+        servers.update(fresh)
+        for gone in [k for k in servers if k not in fresh]:
+            servers.pop(gone, None)
+        lr.set_descriptions(_descriptions(servers))
+    lr.reloader = reload
+    return lr.build()
 
 
 BROWSER_HINT = b"""<!doctype html><meta charset=utf-8><title>Mnemos</title>
@@ -190,7 +205,7 @@ def http_app(home: Path, port: int):
 
     servers = build_all(home, port)
     subs = {c: create_streamable_http_app(server=m, streamable_http_path="/mcp") for c, m in servers.items()}
-    router = build_router(home, servers, via="http")
+    router = build_router(home, servers, via="http", port=port)
     router_app = create_streamable_http_app(server=router, streamable_http_path="/mcp")
 
     @contextlib.asynccontextmanager
@@ -234,6 +249,23 @@ tokens by hand.</p></body>""",
 
     async def _act(b):
         return await lh.act(home, b, ui.call)
+    from . import local_spaces as lsp
+
+    async def _spaces(_b):
+        return lsp.read(home)
+
+    async def _space_update(b):
+        out = lsp.update_space(home, str(b.get("name", "")), b.get("label"), b.get("color"), b.get("description"))
+        router.router.reload_now()
+        return out
+
+    async def _bridge(b):
+        out = lsp.set_bridge(home, str(b.get("from", "")), str(b.get("to", "")), bool(b.get("on")))
+        router.router.reload_now()
+        return out
+    ui.hooks[("GET", "spaces")] = _spaces
+    ui.hooks[("POST", "spaces/update")] = _space_update
+    ui.hooks[("POST", "spaces/bridge")] = _bridge
     ui.hooks[("GET", "hygiene")] = _pending
     ui.hooks[("POST", "hygiene/act")] = _act
     from . import local_engine
@@ -309,7 +341,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.cmd == "stdio":
         if not a.context:  # one connector, every space (Connect apps writes this)
-            build_router(home, build_all(home, a.port), via="stdio").run(transport="stdio", show_banner=False)
+            build_router(home, build_all(home, a.port), via="stdio", port=a.port).run(transport="stdio",
+                                                                                      show_banner=False)
             return 0
         servers = build_all(home, a.port, only=a.context)
         if a.context not in servers:

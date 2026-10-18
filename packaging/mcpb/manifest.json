@@ -3,7 +3,7 @@
   "manifest_version": "0.4",
   "name": "mnemos",
   "display_name": "Mnemos (local memory)",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Your memory and skills for Claude, stored on this computer, split into spaces.",
   "long_description": "Runs Mnemos in local mode: notes in SQLite under your Mnemos folder, no Docker, no account. By default one install serves every space (personal, work…): Claude saves to its default space and asks before using another. Set Space to one name to limit it to that space. Claude is told to treat it as its own long-term memory: it searches Mnemos at the start of each conversation and saves durable facts you share (preferences, decisions, people, projects) without being asked.",
   "author": {

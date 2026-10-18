@@ -4,6 +4,17 @@
 - `Mnemos-macos.app.zip` — same app, zipped.
 - `mnemos.mcpb` — Claude Desktop extension (optional; the app's "Connect to Claude Desktop" button is enough).
 
+**New in 0.8: coding apps teach Mnemos as you work.**
+- **Auto-capture for Claude Code, Cursor and Codex** (Apps → Auto-capture, opt-in). A small hook keeps each message
+  you send in a local queue on this computer. It runs no AI and takes under a second, and paused apps are skipped.
+  New sessions start with your profile. Codex asks you to trust the hooks once (`/hooks`). Turning auto-capture off
+  removes the hooks, and a backup of each file is kept.
+- **Learned when the chat goes quiet.** After 15 idle minutes, the local model reads the session and keeps lasting
+  facts. Clear ones go straight to **Recently learned** (Notes), where each has an Undo. Only possible
+  contradictions or unsure facts go to a short inbox (at most 20 a day).
+- **`memory_profile`**: a new tool that gives an AI who you are in a few lines. Instructions now ask apps to call it at
+  the start of every conversation.
+
 **New in 0.7: memory that keeps what lasts and drops the noise.**
 - **Write filter.** Before anything is saved, Mnemos drops trivia (paths, URLs, ports, errors, code, ids, "thanks",
   what the assistant said, task logs, one-off questions, encyclopedic facts). Facts that only hold for a while

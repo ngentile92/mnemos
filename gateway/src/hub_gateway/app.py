@@ -518,6 +518,12 @@ def build_server(
         login = _current_login(settings)
         try:
             from .local_profile import build
+            if model is not None:  # 0.9: the consolidated profile when there is one
+                from .local_consolidate import build_profile, profile_text
+                txt = profile_text(model) or build_profile(model)[0]
+                if txt:
+                    audit.log("memory_profile", login, "ok", source="model")
+                    return {"context": ctx.name, "profile": txt}
             items = await _list_items("", None, True)
         except MemoryError_ as exc:
             raise ToolError(str(exc)) from exc

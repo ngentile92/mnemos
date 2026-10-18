@@ -408,6 +408,82 @@ tokens by hand.</p></body>""",
     ui.hooks[("POST", "model/migrate")] = _migrate
     ui.hooks[("POST", "model/migrate/undo")] = _migrate_undo
     ui.model_for = lambda ctx: _model({"context": ctx})[1]
+    from . import local_consolidate as _lc
+
+    async def _consolidate(b):
+        return await ui.capture.consolidate_all(force=True)
+
+    async def _cons_undo(b):
+        _ctx, m = _model(b)
+        job = str(b.get("job") or "")
+        if not job.startswith("cons-"):
+            raise ValueError("unknown job")
+        n = m.undo_job(job)
+        await ui.capture.refresh_profile(None)
+        return {"undone": n}
+
+    async def _digest(b):
+        _ctx, m = _model(b)
+        return {"items": _lc.digest(m)}
+
+    async def _digest_act(b):
+        ctx, m = _model(b)
+        nid, act = str(b.get("note_id") or ""), str(b.get("action") or "")
+        if act == "keep":
+            m.confirm(nid)
+        elif act == "forget":
+            await ui.call(ctx, "memory_delete", {"id": nid})
+        elif act == "fix":
+            await ui.call(ctx, "memory_update", {"id": nid, "text": str(b.get("text") or "")[:20000]})
+            m.confirm(nid)
+        else:
+            raise ValueError("action: keep | fix | forget")
+        return {"items": _lc.digest(m)}
+
+    async def _profile(b):
+        _ctx, m = _model(b)
+        txt = _lc.profile_text(m)
+        return {"profile": txt or _lc.build_profile(m)[0]}
+
+    async def _entities(b):
+        _ctx, m = _model(b)
+        return {"entities": [{k: e[k] for k in ("id", "name", "kind", "summary", "importance", "n", "aliases", "pinned")}
+                             for e in m.entities() if e["n"]]}
+
+    async def _entity(b):
+        ctx, m = _model(b)
+        eid = str(b.get("id") or "")
+        e = next((x for x in m.entities() if x["id"] == eid), None)
+        if not e:
+            raise ValueError("unknown entity")
+        allf = m.facts(eid, status=None)
+        from . import local_evidence
+        try:
+            ev = await local_evidence.search(home, ctx, e["name"], 3)
+        except Exception:  # noqa: BLE001
+            ev = []
+        return {"entity": e, "facts": [f for f in allf if f["status"] == "active"],
+                "past": [f for f in allf if f["status"] in ("superseded", "expired")], "evidence": ev}
+
+    async def _not_relevant(b):
+        _ctx, m = _model(b)
+        m.not_relevant(str(b.get("note_id") or ""))
+        return {"ok": True}
+
+    async def _why(b):
+        _ctx, m = _model(b)
+        f = m.fact(str(b.get("note_id") or ""))
+        if not f:
+            raise ValueError("no details for this note yet (run the migration in Settings)")
+        return {k: f.get(k) for k in ("text", "entity", "kind", "importance", "durability", "valid_from", "valid_to",
+                                       "origin", "source_app", "quote", "recorded_at", "use_count", "last_used_at",
+                                       "status", "superseded_by", "expires_at")}
+    for k, fn in {("POST", "model/consolidate"): _consolidate, ("POST", "model/consolidate/undo"): _cons_undo,
+                  ("GET", "model/digest"): _digest, ("POST", "model/digest/act"): _digest_act,
+                  ("GET", "model/profile"): _profile, ("GET", "model/entities"): _entities,
+                  ("GET", "model/entity"): _entity, ("POST", "model/not-relevant"): _not_relevant,
+                  ("GET", "model/why"): _why}.items():
+        ui.hooks[k] = fn
     from .local_capture import Capture
     ui.capture = Capture(ui, local_engine.get(home), router.router.apps)
     ui.capture.install()

@@ -171,16 +171,45 @@ class Capture:
         self.st["recent"] = (self.st["recent"] + [{**base, "note_id": r.get("id"), "status": "kept"}])[-MAX_RECENT:]
         res["learned"] += 1
 
-    # ---- profile
+    # ---- profile + nightly consolidation
     async def refresh_profile(self, _b: dict | None) -> dict:
-        from . import local_profile
+        from . import local_consolidate, local_profile
         out = {}
         for ctx in self.ui.servers:
-            items = (await self.ui.action("list", {"context": ctx, "include_shared": True, "limit": 500})).get("items", [])
-            txt = local_profile.build(items)
+            txt = ""
+            mf_ = getattr(self.ui, "model_for", None)
+            if mf_:
+                try:
+                    m = mf_(ctx)
+                    txt, _ids = local_consolidate.build_profile(m)
+                except Exception:  # noqa: BLE001
+                    txt = ""
+            if not txt:
+                items = (await self.ui.action("list", {"context": ctx, "include_shared": True, "limit": 500})).get("items", [])
+                txt = local_profile.build(items)
             local_profile.write_cache(self.ui.home, ctx, txt)
             out[ctx] = len(txt)
         return {"profiles": out}
+
+    async def consolidate_all(self, force: bool = False) -> dict:
+        """Once a day (or on demand): consolidation per space, then refresh the cached profiles."""
+        from . import local_consolidate
+        last = float(self.st.get("consolidated_at") or 0)
+        if not force and time.time() - last < 20 * 3600:
+            return {}
+        mf_ = getattr(self.ui, "model_for", None)
+        if not mf_:
+            return {}
+        llm = await asyncio.to_thread(self.engine.llm, "hygiene") if hasattr(self.engine, "llm") else None
+        out = {}
+        for ctx in self.ui.servers:
+            out[ctx] = await local_consolidate.consolidate(mf_(ctx), llm)
+        self.st["consolidated_at"] = time.time()
+        self.st.setdefault("jobs", []).append({ctx: r["job"] for ctx, r in out.items()})
+        self.st["jobs"] = self.st["jobs"][-14:]
+        self._save()
+        await self.refresh_profile(None)
+        return out
 
     # ---- hooks (UI)
     async def h_status(self, _b: dict) -> dict:
@@ -228,6 +257,8 @@ class Capture:
         while True:
             try:
                 await self.run_once()
+                if time.localtime().tm_hour in (2, 3, 4, 5) or not self.st.get("consolidated_at"):
+                    await self.consolidate_all()
             except Exception as e:  # noqa: BLE001
                 log.warning("capture: %s", type(e).__name__)
             await asyncio.sleep(every)

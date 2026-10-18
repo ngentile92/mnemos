@@ -98,8 +98,11 @@ step "memory screen screenshots"
 to 30 "$BIN" --open-memory || fail "open my memory (token from Keychain)"; sleep 20; shot 2-memory
 
 step "Connect to Claude Desktop (same code as the button)"
-to 30 "$BIN" --connect-claude personal || fail "connect"
-CMD="$(/usr/bin/python3 -c 'import json,os;s=json.load(open(os.environ["MNEMOS_CLAUDE_CONFIG"]))["mcpServers"]["mnemos-personal"];print(json.dumps([s["command"]]+s["args"]))')"
+mkdir -p "$(dirname "$MNEMOS_CLAUDE_CONFIG")"  # an older per-context entry (0.5) must be replaced, other servers kept
+echo '{"mcpServers":{"mnemos-personal":{"command":"x","args":["-m","hub_gateway.local","stdio","--context","personal"]},"other":{"command":"y"}}}' > "$MNEMOS_CLAUDE_CONFIG"
+to 30 "$BIN" --connect-claude || fail "connect"
+CMD="$(/usr/bin/python3 -c 'import json,os;m=json.load(open(os.environ["MNEMOS_CLAUDE_CONFIG"]))["mcpServers"];assert "mnemos-personal" not in m and "other" in m, m;s=m["mnemos"];print(json.dumps([s["command"]]+s["args"]))')"
+ls "$(dirname "$MNEMOS_CLAUDE_CONFIG")" | grep -q mnemos-backup || fail "no backup of the Claude config"
 echo "$CMD"
 echo "$CMD" | grep -q "/Applications/Mnemos.app/Contents/Resources/python/bin/python3" || fail "Claude config does not point at the app"
 
@@ -112,7 +115,7 @@ def send(m): p.stdin.write(json.dumps(m) + "\n"); p.stdin.flush()
 send({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "friend-test", "version": "1"}}})
 assert "serverInfo" in p.stdout.readline()
 send({"jsonrpc": "2.0", "method": "notifications/initialized"})
-send({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "memory_search", "arguments": {"query": "cats", "mode": "keyword"}}})
+send({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "memory_search", "arguments": {"query": "cats", "mode": "keyword", "context": "personal"}}})
 out = p.stdout.readline(); p.kill()
 assert "Mia" in out, out[:400]
 print("stdio OK: Claude would find the imported note")

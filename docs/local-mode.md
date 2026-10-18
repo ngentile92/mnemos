@@ -7,8 +7,9 @@ Claude Desktop `.mcpb` bundle runs over stdio. Your Docker setup (Mnemos Server)
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e gateway
 .venv/bin/mnemos-local init --home ~/Mnemos --contexts personal,work
-.venv/bin/mnemos-local serve --home ~/Mnemos            # http://127.0.0.1:8765/<context>/mcp
-.venv/bin/mnemos-local stdio --home ~/Mnemos --context personal
+.venv/bin/mnemos-local serve --home ~/Mnemos            # http://127.0.0.1:8765/mcp (every space)
+.venv/bin/mnemos-local stdio --home ~/Mnemos            # every space, for Claude Desktop / Cursor / Codex
+.venv/bin/mnemos-local stdio --home ~/Mnemos --context personal   # one space only (older configs, .mcpb)
 ```
 
 | | Server (Docker) | Local mode |
@@ -22,6 +23,22 @@ python3 -m venv .venv && .venv/bin/pip install -e gateway
 
 Same tools, ledger (provenance, history, undo, pin/obsolete, validity) and dashboard logic in both modes.
 Tested in `gateway/tests/test_local_mode.py` (end-to-end tools, cross-context isolation, HTTP token/Host guard).
+
+## One connector, a default space per app (0.6)
+
+The UI calls contexts **spaces**. Instead of one connector per space, every AI app gets **one** Mnemos
+(`/mcp` over HTTP, or `mnemos-local stdio` without `--context`; `gateway/src/hub_gateway/local_router.py`):
+
+- every tool takes an optional `context` (the space). Without it, the call uses **this app's default space**;
+  `hub_use_context` switches for the rest of the chat; `hub_whoami` tells the AI its spaces, what each is for and
+  its default. The instructions tell it to save to the default and **ask before saving in another space**.
+- apps are recognised by the name they declare on connect (`clientInfo`: Claude Desktop, Cursor, Claude Code,
+  Codex, VS Code…) and listed in `data/apps.json` with their default space and the spaces they may use (all, by
+  default). It is a label, not a secret: anything that can start Mnemos on this computer already owns the data.
+- the call runs on that space's own server in-process, so isolation, history, undo and provenance ("saved by
+  Cursor") are unchanged. `/<context>/mcp` and `stdio --context` still work for older configs.
+- **Connect Claude Desktop** writes one `mnemos` entry and removes the older `mnemos-<context>` entries it had
+  written (after a backup of the config).
 
 ## Auto-discover import
 

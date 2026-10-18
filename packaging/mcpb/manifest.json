@@ -4,8 +4,8 @@
   "name": "mnemos",
   "display_name": "Mnemos (local memory)",
   "version": "0.5.0",
-  "description": "Your memory and skills for Claude, stored on this computer, one context at a time.",
-  "long_description": "Runs Mnemos in local mode: notes in SQLite under your Mnemos folder, no Docker, no account. Each install of this extension serves one context (e.g. personal); other contexts are not visible to it. Claude is told to treat it as its own long-term memory: it searches Mnemos at the start of each conversation and saves durable facts you share (preferences, decisions, people, projects) without being asked.",
+  "description": "Your memory and skills for Claude, stored on this computer, split into spaces.",
+  "long_description": "Runs Mnemos in local mode: notes in SQLite under your Mnemos folder, no Docker, no account. By default one install serves every space (personal, work…): Claude saves to its default space and asks before using another. Set Space to one name to limit it to that space. Claude is told to treat it as its own long-term memory: it searches Mnemos at the start of each conversation and saves durable facts you share (preferences, decisions, people, projects) without being asked.",
   "author": {
     "name": "Mnemos"
   },
@@ -38,9 +38,9 @@
     },
     "context": {
       "type": "string",
-      "title": "Context",
-      "description": "Which context Claude uses here (e.g. personal, work).",
-      "default": "personal",
+      "title": "Space",
+      "description": "\"all\" (default): every space. Or one space name (e.g. personal) to limit Claude to it.",
+      "default": "all",
       "required": true
     }
   },

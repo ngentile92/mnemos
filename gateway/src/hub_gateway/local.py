@@ -1,8 +1,9 @@
 """Mnemos single-process mode: every context in ONE Python process, no Docker, no Cognee, no Infisical.
 
     mnemos-local init  [--home ~/Mnemos] [--contexts personal,work] [--owner Name]
-    mnemos-local serve [--home ~/Mnemos] [--port 8765]        # http://127.0.0.1:8765/<ctx>/mcp
-    mnemos-local stdio [--home ~/Mnemos] --context personal   # for Claude Desktop (.mcpb) / Cursor stdio
+    mnemos-local serve [--home ~/Mnemos] [--port 8765]        # http://127.0.0.1:8765/mcp (all spaces, one URL)
+    mnemos-local stdio [--home ~/Mnemos]                      # all spaces, for Claude Desktop / Cursor / Codex
+    mnemos-local stdio [--home ~/Mnemos] --context personal   # one space only (older configs, .mcpb)
     mnemos-local hygiene [--home ~/Mnemos]                    # cleanup proposals now (serve runs it nightly)
     mnemos-local token [--home ~/Mnemos]                      # print the local bearer token
     mnemos-local set-password [--home ~/Mnemos] < password    # store a login password hash (auth.json, 0600)
@@ -15,6 +16,8 @@ Everything lives in one directory (MNEMOS_HOME, default ~/Mnemos):
     data/notes/          notes, one SQLite file per dataset (localstore.py)
     token                bearer token for the HTTP listener (0600)
 
+One connector serves every space (local_router.py): tools take an optional `context` and default to the
+app's default space (data/apps.json). /<ctx>/mcp still serves one space each, for older configs.
 HTTP listens on 127.0.0.1 only and needs `Authorization: Bearer <token>`; Host must be 127.0.0.1/localhost
 (DNS-rebinding guard). stdio needs no auth: the client that spawned the process owns it.
 Smart parts (import facts, cleanup, semantic search): local_engine picks API (opt-in) / Ollama / the built-in
@@ -128,6 +131,14 @@ def build_all(home: Path, port: int, only: str | None = None):
     return out
 
 
+def build_router(home: Path, servers: dict, via: str = "local"):
+    """The single connector over `servers` (from build_all)."""
+    from . import contexts as _c
+    from .local_router import LocalRouter
+    descs = {n: _c.CONTEXTS[n].description if n in _c.CONTEXTS else n for n in servers}
+    return LocalRouter(home, servers, descs, language=_c.LANGUAGE, via=via).build()
+
+
 BROWSER_HINT = b"""<!doctype html><meta charset=utf-8><title>Mnemos</title>
 <body style="font:16px system-ui;max-width:640px;margin:8vh auto;padding:0 16px">
 <h1>This address is for AI apps, not for your browser</h1>
@@ -179,11 +190,13 @@ def http_app(home: Path, port: int):
 
     servers = build_all(home, port)
     subs = {c: create_streamable_http_app(server=m, streamable_http_path="/mcp") for c, m in servers.items()}
+    router = build_router(home, servers, via="http")
+    router_app = create_streamable_http_app(server=router, streamable_http_path="/mcp")
 
     @contextlib.asynccontextmanager
     async def lifespan(_app):
         async with contextlib.AsyncExitStack() as stack:
-            for s in subs.values():
+            for s in [router_app, *subs.values()]:
                 await stack.enter_async_context(s.router.lifespan_context(s))
             task = None
             from . import local_engine as _le
@@ -198,14 +211,14 @@ def http_app(home: Path, port: int):
 
     async def home_page(_r):
         from starlette.responses import HTMLResponse
-        rows = "".join(f"<li><code>http://127.0.0.1:{port}/{c}/mcp</code></li>" for c in subs)
+        rows = f"<li><code>http://127.0.0.1:{port}/mcp</code> (spaces: {', '.join(subs)})</li>"
         return HTMLResponse(f"""<!doctype html><meta charset=utf-8><title>Mnemos</title>
 <body style="font:16px system-ui;max-width:640px;margin:8vh auto;padding:0 16px">
-<h1>Mnemos is running</h1><p>Local mode · {len(subs)} contexts. AI app addresses (one per context):</p><ul>{rows}</ul>
+<h1>Mnemos is running</h1><p>Local mode · {len(subs)} spaces. One address for AI apps (every space):</p><ul>{rows}</ul>
 <p><a href="/app">Open my memory</a> (notes, graph, skills)</p>
 <p style="color:#666">These are addresses for AI apps (Claude, ChatGPT, Cursor), not web pages: opening them here
-will not show your notes. Each needs your private local token; use <b>Connect to Claude Desktop</b> in Mnemos
-Desktop so you never copy addresses or tokens by hand.</p></body>""",
+will not show your notes. Each needs your private local token; use <b>Connect apps</b> in Mnemos Desktop so you never copy addresses or
+tokens by hand.</p></body>""",
                             headers={"Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
 
     async def health(_r):
@@ -236,6 +249,7 @@ Desktop so you never copy addresses or tokens by hand.</p></body>""",
     ui.miner = Miner(ui, disc, on_batch=_evidence)
     ui.miner.install()
     app = Starlette(routes=[Route("/", home_page), Route("/health", health), *ui.routes(),
+                            Route("/mcp", endpoint=router_app, methods=["GET", "POST", "DELETE"]),
                             *[Mount(f"/{c}", app=s) for c, s in subs.items()]], lifespan=lifespan)
     app.state.ui = ui
     return TokenGate(app, token, port)
@@ -294,8 +308,9 @@ def main(argv: list[str] | None = None) -> int:
         print(os.environ.get("MNEMOS_TOKEN") or (home / "token").read_text().strip())
         return 0
     if a.cmd == "stdio":
-        if not a.context:
-            raise SystemExit("--context is required for stdio")
+        if not a.context:  # one connector, every space (Connect apps writes this)
+            build_router(home, build_all(home, a.port), via="stdio").run(transport="stdio", show_banner=False)
+            return 0
         servers = build_all(home, a.port, only=a.context)
         if a.context not in servers:
             raise SystemExit(f"unknown context {a.context!r}")

@@ -12,16 +12,6 @@ async function refresh() {
   $("state").textContent = up ? "Mnemos is running" : last.running ? "Starting…" : "Mnemos is stopped";
   $("where").textContent = `Your memory lives in ${last.home}`;
   $("start").disabled = last.running; $("stop").disabled = !last.running; $("open").disabled = !up;
-  const box = $("connect");
-  if (box.dataset.ctx !== last.contexts.join(",")) {
-    box.dataset.ctx = last.contexts.join(",");
-    box.replaceChildren(...last.contexts.map((c) => {
-      const b = document.createElement("button");
-      b.textContent = `Connect “${c}”`;
-      b.onclick = (e) => run(e.target, async () => { $("ok").textContent = await invoke("connect_claude", { context: c }); });
-      return b;
-    }));
-  }
   $("details").textContent = JSON.stringify(last, null, 1);
 }
 
@@ -31,6 +21,7 @@ async function run(btn, fn) {
   await refresh();
 }
 
+$("connect").onclick = (e) => run(e.target, async () => { $("ok").textContent = await invoke("connect_claude"); });
 $("start").onclick = (e) => run(e.target, () => invoke("start_hub"));
 $("stop").onclick = (e) => run(e.target, () => invoke("stop_hub"));
 $("open").onclick = (e) => run(e.target, async () => window.__TAURI__.opener.openUrl(await invoke("memory_url")));

@@ -70,15 +70,20 @@ fn claude_config_path() -> PathBuf {
     }
 }
 
-/// Add (or replace) a `mnemos-<ctx>` stdio server in Claude Desktop's config, backing the file up first.
-/// stdio needs no URL or token: Claude Desktop launches this app's own runtime directly.
+/// Is this Claude config entry one Mnemos Desktop wrote (an older per-context `mnemos-<ctx>` entry)?
+fn is_our_entry(v: &serde_json::Value) -> bool {
+    let args = v.get("args").and_then(|a| a.as_array()).cloned().unwrap_or_default();
+    let words: Vec<&str> = args.iter().filter_map(|a| a.as_str()).collect();
+    words.contains(&"stdio") && words.iter().any(|w| *w == "hub_gateway.local" || *w == "mnemos-local")
+}
+
+/// Write ONE `mnemos` stdio server into Claude Desktop's config (every space; Claude uses its default space and
+/// can pass `context`), backing the file up first. Older `mnemos-<ctx>` entries written by this app are removed,
+/// so Claude does not see the same memory twice. stdio needs no URL or token: Claude launches the app's runtime.
 #[tauri::command]
-fn connect_claude(context: String) -> Result<String, String> {
-    if !contexts().contains(&context) {
-        return Err(format!("unknown context: {context}"));
-    }
+fn connect_claude() -> Result<String, String> {
     let (prog, mut args) = hub_program()?;
-    args.extend(["stdio", "--home", &home().display().to_string(), "--context", &context].map(String::from));
+    args.extend(["stdio", "--home", &home().display().to_string()].map(String::from));
     let path = claude_config_path();
     let mut cfg: serde_json::Value = match std::fs::read_to_string(&path) {
         Ok(t) if !t.trim().is_empty() => {
@@ -99,11 +104,21 @@ fn connect_claude(context: String) -> Result<String, String> {
     if !servers.is_object() {
         return Err("mcpServers in the Claude config is not an object; not touching it".into());
     }
-    servers.as_object_mut().unwrap().insert(format!("mnemos-{context}"), serde_json::json!({"command": prog, "args": args}));
+    let map = servers.as_object_mut().unwrap();
+    let old: Vec<String> = map
+        .iter()
+        .filter(|(k, v)| k.starts_with("mnemos-") && is_our_entry(v))
+        .map(|(k, _)| k.clone())
+        .collect();
+    for k in &old {
+        map.remove(k);
+    }
+    map.insert("mnemos".into(), serde_json::json!({"command": prog, "args": args}));
     let tmp = path.with_extension("json.mnemos-tmp");
     std::fs::write(&tmp, serde_json::to_string_pretty(&cfg).unwrap() + "\n").map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
-    Ok(format!("Added mnemos-{context} to Claude Desktop. Quit and reopen Claude Desktop to use it."))
+    let moved = if old.is_empty() { String::new() } else { format!(" Replaced the older entries: {}.", old.join(", ")) };
+    Ok(format!("Added Mnemos to Claude Desktop (all your spaces).{moved} Quit and reopen Claude Desktop to use it."))
 }
 
 fn home() -> PathBuf {
@@ -341,7 +356,7 @@ fn show_main(app: &tauri::AppHandle) {
 
 /// Headless entry points (same code paths as the buttons; used by the end-to-end "friend test" and scripts):
 ///   Mnemos --setup <contexts> <name>   (password on stdin)   = the first-run wizard
-///   Mnemos --connect-claude <context>                       = the Connect button
+///   Mnemos --connect-claude                                 = the Connect button (one entry, every space)
 ///   Mnemos --open-memory                                    = menu "Open my memory" (browser, token from Keychain)
 fn headless() -> Option<i32> {
     let args: Vec<String> = std::env::args().collect();
@@ -361,7 +376,7 @@ fn headless() -> Option<i32> {
         setup(ctxs.split(',').map(String::from).collect(), args.get(3).cloned().unwrap_or_default(),
               pw.trim_end_matches(['\r', '\n']).to_string())
     } else {
-        connect_claude(args.get(2).cloned().unwrap_or_default())
+        connect_claude()
     };
     Some(match res {
         Ok(m) => { println!("{m}"); 0 }

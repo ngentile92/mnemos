@@ -24,7 +24,9 @@ When it is ready you see a green **Mnemos is running**, and the Mnemos icon appe
 ![Mnemos running, with the Connect buttons](img/install-1-app.png)
 
 ## 4. Connect Claude Desktop
-Click **Connect to Claude Desktop** next to a context. Then quit Claude completely (**Cmd+Q**) and open it again.
+Click **Connect Claude Desktop** (one entry for all your spaces). Then quit Claude completely (**Cmd+Q**) and open
+it again. If you installed an older Mnemos extension (`.mcpb`) in Claude, remove it in **Settings → Extensions** so
+Claude does not see two Mnemos.
 Ask Claude *"what do you know about me?"* — it now reads and saves to Mnemos on its own.
 
 ## 5. See and fix your memory
@@ -80,7 +82,8 @@ Logs: `~/Mnemos/hub.log`. Report problems at https://github.com/ngentile92/mnemo
    está firmada por Apple.) Si solo aparece "Mover a la papelera": **Ajustes del Sistema → Privacidad y
    seguridad → Abrir igualmente**.
 3. **Configuralo:** poné tu nombre y tus contextos (por ejemplo `personal` y `trabajo`) y tocá **Create**.
-4. **Conectá Claude Desktop:** tocá **Connect to Claude Desktop**, cerrá Claude con **Cmd+Q** y abrilo de nuevo.
+4. **Conectá Claude Desktop:** tocá **Connect Claude Desktop** (una sola entrada para todos tus espacios), cerrá
+   Claude con **Cmd+Q** y abrilo de nuevo. Si tenías la extensión vieja (`.mcpb`), sacala en **Settings → Extensions**.
    Preguntale "¿qué sabés de mí?".
 5. **Mirá y corregí tu memoria:** **Open my memory** → notas, grafo, skills e **Import** (traer lo que ya saben
    ChatGPT o Claude).

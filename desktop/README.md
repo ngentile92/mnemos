@@ -5,8 +5,10 @@ A small Tauri 2 app around the single-process hub (`mnemos-local`, see `docs/loc
 - first-run wizard: your name, contexts, a password (only the scrypt hash is stored, in `~/Mnemos/auth.json`);
 - start / stop the local hub (`mnemos-local serve` on 127.0.0.1:8765), status light, "Open Mnemos page";
 - quitting the app stops the hub (no leftover processes);
-- **Connect to Claude Desktop**, one button per context: adds a `mnemos-<context>` stdio server to
-  `claude_desktop_config.json` (backs the file up first, never touches other servers). No URL or token to copy.
+- **Connect Claude Desktop**, one button for every space: adds ONE `mnemos` stdio server to
+  `claude_desktop_config.json` (backs the file up first, replaces older `mnemos-<context>` entries this app wrote,
+  never touches other servers). Claude uses its default space and can pass `context` for another one (see
+  `docs/local-mode.md`, "One connector"). No URL or token to copy.
 
 - **Menu bar icon** (Open my memory / Show / Quit); closing the window keeps Mnemos running.
 - **Starts with your Mac** (LaunchAgent `~/Library/LaunchAgents/io.mnemos.desktop.plist`, opens in the background;

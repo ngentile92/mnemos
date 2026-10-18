@@ -4,6 +4,20 @@
 - `Mnemos-macos.app.zip` — same app, zipped.
 - `mnemos.mcpb` — Claude Desktop extension (optional; the app's "Connect to Claude Desktop" button is enough).
 
+**New in 0.7: memory that keeps what lasts and drops the noise.**
+- **Write filter.** Before anything is saved, Mnemos drops trivia (paths, URLs, ports, errors, code, ids, "thanks",
+  what the assistant said, task logs, one-off questions, encyclopedic facts). Facts that only hold for a while
+  ("this week", "right now") get an expiry date. In the synthetic eval (repo `eval/`), precision of what is kept went
+  from 0.40 to 0.75 on 80 held-out examples the rules were never tuned on; no durable fact was lost.
+- **Sensitive topics are off by default** (health, religion, politics, sexuality, money, ID numbers, relationship
+  crises). You can turn them on per import.
+- **Import mines one conversation at a time**, keeping its date, app and a running topic. Candidates come typed
+  (preference, decision, person, project, goal…) with importance and how long they last, and are grouped by subject.
+- **Sharper instructions for AI apps.** What to save and what never to save comes first. `memory_save` warns when a
+  note looks like a task detail. Apps → Activity shows counts per app.
+- **Harvest what other AIs already learned:** Claude Code auto-memory, Codex memories, Cursor rules, CLAUDE.md and
+  Claude/ChatGPT exports show up in Import. *Ask Grok* lets you paste a memory list from Grok or ChatGPT.
+
 **New in 0.6: one Mnemos for every AI app, sharing the same memory.**
 - **One connector, all your spaces.** Claude Desktop, Cursor, Claude Code, Codex and VS Code each get a single
   `mnemos` entry; every tool takes an optional `context` and uses the app's default space otherwise. *Connect

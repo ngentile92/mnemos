@@ -14,7 +14,8 @@ def test_persona_files_are_consistent():
 
 def test_v06_baseline_is_what_baseline_json_says():
     m = fe.candidate_metrics(fe.keep_v06, fe.load("candidates.jsonl"))
-    assert m["dfp"] == BASE["filter"]["dfp"] and m["trivia_kept"] == BASE["filter"]["trivia_kept"]
+    assert m["dfp"] == BASE["v06"]["filter"]["dfp"] and m["trivia_kept"] == BASE["v06"]["filter"]["trivia_kept"]
+    assert fe.candidate_metrics(fe.keep_v06, fe.load("holdout.jsonl"))["dfp"] == BASE["v06"]["holdout"]["dfp"]
 
 
 def test_no_regression_vs_baseline():
@@ -24,6 +25,8 @@ def test_no_regression_vs_baseline():
     assert f["durable_recall"] >= b["durable_recall"] - 0.05
     assert f["secret_kept"] == 0
     assert f["trivia_kept"] <= b["trivia_kept"] and f["sensitive_kept"] <= b["sensitive_kept"]
+    assert r["holdout"]["dfp"] >= BASE["holdout"]["dfp"]
+    assert r["holdout"]["durable_recall"] >= BASE["holdout"]["durable_recall"]
     assert r["rules"]["gold_recall"] >= BASE["rules"]["gold_recall"] - 0.06
 
 

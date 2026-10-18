@@ -70,6 +70,8 @@ def run(root: Path = ROOT, keep: Callable[[list[str]], list[str]] | None = None)
     rf = keep(rules_facts(convs))
     out["rules"] = {"facts": len(rf), **gold_recall(rf, gold)}
     out["filter_gold"] = gold_recall(keep([c["text"] for c in cands]), gold)
+    if (root / "holdout.jsonl").exists():  # written separately and never used to tune the rules
+        out["holdout"] = candidate_metrics(keep, load("holdout.jsonl", root))
     return out
 
 

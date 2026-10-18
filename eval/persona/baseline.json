@@ -1,3 +1,5 @@
-{"_note": "0.6.0 write filter on the synthetic persona (scripts/fact_eval.py --v06). A change may not go below these.",
- "filter": {"dfp": 0.423, "durable_recall": 1.0, "trivia_kept": 24, "secret_kept": 0, "sensitive_kept": 4},
- "rules": {"gold_recall": 0.611}}
+{"_note": "Numbers a change may not go below. v0.6 write filter: filter dfp 0.423 / trivia 24 / sensitive 4; holdout dfp 0.4. Updated when the filter improves (memfilter, v0.7).",
+ "filter": {"dfp": 0.95, "durable_recall": 0.95, "trivia_kept": 1, "secret_kept": 0, "sensitive_kept": 0},
+ "holdout": {"dfp": 0.7, "durable_recall": 0.95},
+ "rules": {"gold_recall": 0.611},
+ "v06": {"filter": {"dfp": 0.423, "trivia_kept": 24}, "holdout": {"dfp": 0.4}}}

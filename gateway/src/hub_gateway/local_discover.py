@@ -345,7 +345,8 @@ async def batch_facts(llm: Any, batch: str) -> list[str]:
         facts = (await llm.json(PROMPT + batch)).get("facts") or []
     except Exception:  # noqa: BLE001 — one bad call does not stop the import
         return []
-    return [f.strip() for f in facts if isinstance(f, str) and 10 <= len(f.strip()) <= 300]
+    from .memfilter import keep_texts  # paths, URLs, errors, code, acks, sensitive topics, time-bound → not notes
+    return keep_texts([f.strip() for f in facts if isinstance(f, str)])
 
 
 
@@ -397,15 +398,17 @@ async def preview(sources: list[dict], existing: dict[str, list[str]], progress:
         if llm and msgs and time.monotonic() < deadline:
             progress({"phase": f"Finding facts in {src['label']} ({llm.name})", "done": i, "total": len(sources)})
             facts = (await llm_facts(llm, msgs)) or facts
+        from .memfilter import keep_texts
         cands = notes + facts
-        kept = [t for t in cands if not has_secret(t)]
+        kept = [t for t in notes if not has_secret(t)] + keep_texts(facts)
         ctx = src.get("context") or ""
         pool = existing.get(ctx, []) + [it["text"] for it in items if it["context"] == ctx]
         pv = li.preview(kept[:MAX_PER_SOURCE * 3], pool)
         for it in pv["items"][:MAX_PER_SOURCE]:
             items.append({**it, "context": ctx, "source": src["kind"], "source_label": src["label"]})
         stats.append({"id": src["id"], "label": src["label"], "messages": len(msgs), "candidates": len(kept),
-                      "new": pv["new"], "secrets_dropped": len(cands) - len(kept)})
+                      "new": pv["new"], "secrets_dropped": sum(1 for t in cands if has_secret(t)),
+                      "filtered": len(cands) - len(kept)})
     sem = 0
     if embedder:
         progress({"phase": f"Checking for repeats ({embedder.name})", "done": len(sources), "total": len(sources)})

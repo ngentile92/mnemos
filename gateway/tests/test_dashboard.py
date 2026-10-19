@@ -117,6 +117,20 @@ def test_merge_graphs_in_context_view_counts_datasets_not_contexts():
     assert g2["nodes"][0]["common"] is False  # en la vista global es el mismo contexto
 
 
+def test_merge_graphs_lists_the_notes_behind_a_concept():
+    a = _g(("1", "Snowflake", "Entity"), ("2", "Atlas", "Entity"), ("c1", "DocumentChunk_x", "DocumentChunk"),
+           ("c2", "DocumentChunk_y", "DocumentChunk"), ("d1", "note one", "TextDocument"),
+           ("d2", "note two", "TextDocument"),
+           edges=[("c1", "1", "contains"), ("c1", "2", "contains"), ("c1", "d1", "is_part_of"),
+                  ("c2", "1", "contains"), ("c2", "d2", "is_part_of")])
+    b = _g(("9", "snowflake", "Entity"), ("c9", "DocumentChunk_z", "DocumentChunk"), ("d9", "other", "TextDocument"),
+           edges=[("c9", "9", "contains"), ("c9", "d9", "is_part_of")])
+    by = {n["id"]: n for n in explore.merge_graphs([("work", a), ("shared", b)], "work")["nodes"]}
+    assert by["Entity:snowflake"]["notes"] == ["d1", "d2", "d9"]  # from both datasets, once each
+    assert by["Entity:atlas"]["notes"] == ["d1"]
+    assert "notes" not in by["c1"] and "notes" not in by["d1"]
+
+
 def test_secrets_view_has_names_and_hosts_only():
     rows = explore.Explorer._secrets("personal")
     assert rows and all(r["context"] == "personal" for r in rows)

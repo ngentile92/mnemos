@@ -123,7 +123,11 @@
       <div class="gctl">
         <input id="ex-search" type="search" placeholder="Search concept…" autocomplete="off">
         <label><input type="checkbox" id="ex-entities" checked> concepts only</label>
-        <label><input type="checkbox" id="ex-common"> shared only</label>
+        <label><input type="checkbox" id="ex-common"> in common only</label>
+        <select id="ex-source" aria-label="Datasets shown">
+          <option value="all">all datasets</option><option value="own">own only (hide shared)</option><option value="shared">shared only</option>
+        </select>
+        <label title="Dragging a node also moves its direct neighbours"><input type="checkbox" id="ex-pull" checked> drag pulls neighbours</label>
         <button id="ex-fit" class="btn">Fit</button>
       </div>
     </div>

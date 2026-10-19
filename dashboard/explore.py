@@ -44,6 +44,7 @@ ADMIN_EMAIL = "hub-admin@example.com"
 SKILLS_EXEC = ["docker", "compose", "exec", "-T", "skills-sync"]
 MAX_TEXT = 6000
 MAX_NODES = 2500
+MAX_NOTES = 20  # notes listed behind one concept
 # tipos de nodo de Cognee que son "conceptos" (los que conectan memorias entre sí)
 ENTITY_TYPES = {"Entity", "EntityType"}
 
@@ -102,6 +103,15 @@ def merge_graphs(parts: list[tuple[str, dict]], view: str) -> dict:
             k = (s, t, str(e.get("label", "")))
             if k not in edges:
                 edges[k] = {"source": s, "target": t, "label": k[2][:60]}
+    # the notes behind each concept: DocumentChunk -contains-> Entity, DocumentChunk -is_part_of-> TextDocument,
+    # and a TextDocument's id is the memory's data id
+    chunk_doc = {e["source"]: e["target"] for e in edges.values() if e["label"] == "is_part_of"}
+    for e in edges.values():
+        doc = chunk_doc.get(e["source"])
+        if e["label"] == "contains" and doc and nodes[e["target"]]["type"] in ENTITY_TYPES:
+            notes = nodes[e["target"]].setdefault("notes", [])
+            if doc not in notes and len(notes) < MAX_NOTES:
+                notes.append(doc)
     for node in nodes.values():
         ctxs = sorted({dataset_context(d) for d in node["datasets"]})
         node["contexts"] = ctxs

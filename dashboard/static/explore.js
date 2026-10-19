@@ -18,6 +18,7 @@
   let view = localStorage.getItem("mnemos.view");
   if (!VIEWS.includes(view)) view = VIEWS[0];
   let data = null, cy = null, inflight = null;
+  const PULL = 0.6;  // share of the drag applied to the dragged node's direct neighbours
 
   // ---------------------------------------------------------------- pestañas
   function route() {
@@ -86,7 +87,7 @@
   // ---------------------------------------------------------------- grafo
   function renderGraph() {
     const d = data;
-    const onlyEnt = $("ex-entities").checked, onlyCommon = $("ex-common").checked;
+    const onlyEnt = $("ex-entities").checked, onlyCommon = $("ex-common").checked, source = $("ex-source").value;
     const keep = new Set();
     const els = [];
     const deg = {};
@@ -94,6 +95,8 @@
     for (const n of d.graph.nodes) {
       if (onlyEnt && n.type !== "Entity") continue;
       if (onlyCommon && !n.common) continue;
+      if (source === "own" && n.datasets.every((x) => x === "shared")) continue;
+      if (source === "shared" && !n.datasets.includes("shared")) continue;
       keep.add(n.id);
       const main = n.datasets.find((x) => x !== "shared") || n.datasets[0];
       els.push({ data: { id: n.id, label: n.type === "Entity" ? n.label : n.type, color: DS_COLOR[main] || "#94a3b8", size: Math.min(60, 16 + 4 * Math.sqrt(deg[n.id] || 0) * 2), kind: n.type === "Entity" ? "ent" : "doc" }, classes: (n.common ? "common " : "") + (n.type === "Entity" ? "ent" : "doc") });
@@ -118,6 +121,17 @@
       layout: { name: "cose", animate: false, randomize: true, nodeRepulsion: 9000, idealEdgeLength: 70, gravity: 0.35, numIter: 1500, padding: 30 },
     });
     cy.on("tap", "node", (ev) => select(ev.target));
+    let prev = null;
+    cy.on("grab", "node", (ev) => { prev = { ...ev.target.position() }; });
+    cy.on("free", "node", () => { prev = null; });
+    cy.on("drag", "node", (ev) => {
+      const p = ev.target.position();
+      if (prev && $("ex-pull").checked) {
+        const dx = (p.x - prev.x) * PULL, dy = (p.y - prev.y) * PULL;
+        ev.target.neighborhood("node").not(":grabbed").forEach((m) => { const q = m.position(); m.position({ x: q.x + dx, y: q.y + dy }); });
+      }
+      prev = { ...p };
+    });
     cy.on("tap", (ev) => { if (ev.target === cy) { cy.elements().removeClass("faded show"); } });
     const present = [...new Set(d.graph.nodes.flatMap((n) => n.datasets))];
     $("ex-legend").className = "legend dsleg";
@@ -137,9 +151,12 @@
       const out = e.source().id() === node.id();
       return `<li>${out ? "→" : "←"} <i>${esc(e.data("label"))}</i> <b>${esc(other.data("label"))}</b></li>`;
     }).slice(0, 25).join("");
+    const byId = new Map(data.memories.map((m) => [m.id, m]));
+    const notes = (n.notes || []).map((id) => byId.get(id)).filter(Boolean);
     $("ex-node").innerHTML = `<h4>${esc(n.label)}</h4><div class="tags">${n.datasets.map((ds) => `<span class="tag" style="border-color:${DS_COLOR[ds] || "#94a3b8"}">${esc(ds)}</span>`).join("")}${n.common ? '<span class="tag wn">shared</span>' : ""}</div>
       <p class="muted small">${esc(n.type)}${n.contexts.length > 1 ? " · contexts: " + esc(n.contexts.join(", ")) : ""}</p>
-      ${n.desc ? `<p>${esc(n.desc)}</p>` : ""}${neigh ? `<p class="muted small">Connections</p><ul class="nlist">${neigh}</ul>` : ""}`;
+      ${n.desc ? `<p>${esc(n.desc)}</p>` : ""}${neigh ? `<p class="muted small">Connections</p><ul class="nlist">${neigh}</ul>` : ""}
+      ${notes.length ? `<p class="muted small">From these notes</p>${notes.map((m) => memCard(m, 160)).join("")}` : ""}`;
   }
 
   function search(q) {
@@ -156,19 +173,24 @@
   function renderMemories() {
     const ms = data.memories;
     $("ex-mem-sum").textContent = `${ms.length} en ${data.datasets.length} datasets`;
-    $("ex-memories").innerHTML = ms.length ? ms.map((m, i) => `<div class="mem" style="--c:${DS_COLOR[m.dataset] || "#94a3b8"}" data-i="${i}">
+    $("ex-memories").innerHTML = ms.length ? ms.map((m) => memCard(m, 380)).join("") : '<p class="muted">No memories in this context.</p>';
+  }
+  function memCard(m, fold) {
+    return `<div class="mem" style="--c:${DS_COLOR[m.dataset] || "#94a3b8"}">
       <div class="mh"><span class="tag">${esc(m.dataset)}</span><span class="muted small">${esc(fmt(m.created_at))}</span>
         ${m.source_app ? `<span class="tag">app: ${esc(m.source_app)}</span>` : '<span class="tag muted">app: unknown</span>'}
         ${m.in_graph === true ? '<span class="tag ok">in graph</span>' : m.in_graph === false ? '<span class="tag wn">pending processing</span>' : ""}
         ${(m.tags || []).map((t) => `<span class="chip">#${esc(t)}</span>`).join("")}</div>
       <div class="mt">${m.text != null ? esc(m.text) + (m.truncated ? "…" : "") : `<span class="muted">(no text: ${esc(m.text_error || "not text")})</span>`}</div>
-      ${m.text && m.text.length > 380 ? '<button class="more">show all</button>' : ""}</div>`).join("") : '<p class="muted">No memories in this context.</p>';
+      ${m.text && m.text.length > fold ? '<button class="more">show all</button>' : ""}</div>`;
   }
-  $("ex-memories").addEventListener("click", (ev) => {
+  function toggleMore(ev) {
     const b = ev.target.closest(".more"); if (!b) return;
     const card = b.closest(".mem"); card.classList.toggle("open");
     b.textContent = card.classList.contains("open") ? "show less" : "show all";
-  });
+  }
+  $("ex-memories").addEventListener("click", toggleMore);
+  $("ex-node").addEventListener("click", toggleMore);
 
   function renderSkills() {
     const sk = data.skills;
@@ -242,6 +264,7 @@
   $("ex-refresh").addEventListener("click", () => { data = null; load(true); });
   $("ex-entities").addEventListener("change", () => data && renderGraph());
   $("ex-common").addEventListener("change", () => data && renderGraph());
+  $("ex-source").addEventListener("change", () => data && renderGraph());
   $("ex-fit").addEventListener("click", () => cy && cy.fit(undefined, 30));
   let t = null;
   $("ex-search").addEventListener("input", (ev) => { clearTimeout(t); t = setTimeout(() => search(ev.target.value), 250); });

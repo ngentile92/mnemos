@@ -547,6 +547,29 @@ class MemoryRepo:
     def history(self, rel: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         return self.git.log(rel, limit)
 
+    def import_files(self, files: dict[str, str], ids: dict[str, list[str]], meta: dict[str, dict[str, Any]],
+                     message: str, author: str = "mnemos") -> str | None:
+        """Write many files at once (a migration) as ONE commit. `ids` gives each bullet its existing note id,
+        so search, history and links keep working. Bullets that do not match are reconciled normally."""
+        with self.locked():
+            idx = self._load()
+            for rel, text in files.items():
+                self._write(rel, text)
+                bs = bullets(split_front(text)[1])
+                order = list(ids.get(rel) or [])
+                while len(order) < len(bs):
+                    order.append(str(uuid.uuid4()))
+                order = order[:len(bs)]
+                idx["files"][rel] = {"v": self.version(text), "ids": order,
+                                     "hashes": [text_hash(b["text"]) for b in bs]}
+                for nid, b in zip(order, bs):
+                    m = meta.get(nid) or {}
+                    mm = idx["meta"].setdefault(nid, {"created_at": m.get("created_at") or now_iso(), "tags": []})
+                    mm.update({k: v for k, v in m.items() if v not in (None, [], "")})
+                    mm["text"], mm["file"] = b["text"], rel
+            self._save(idx)
+            return self.git.commit(list(files), message, author)
+
 
 # ------------------------------------------------------------------ routing a new note to a file
 KIND_FILE = {"identity": PROFILE, "preference": PROFILE, "habit": PROFILE, "relationship": "topics/people.md",

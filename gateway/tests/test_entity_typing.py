@@ -64,3 +64,59 @@ def test_known_tools_are_configurable(monkeypatch):
     assert is_tool("GitHub") and not is_tool("Ticketera")
     monkeypatch.setenv("MNEMOS_KNOWN_TOOLS", "Ticketera, Foo Bar")
     assert is_tool("ticketera") and is_tool("Foo  Bar")
+
+
+# ---- v0.10.2: the second dry run's noise, synthetic
+from hub_gateway.local_model import is_acronym, repeated_initial_names, strip_trailers  # noqa: E402
+
+NOTES2 = [
+    {"id": "a1", "text": "Acme deploys go through the staging gateway first. Acme customers get release notes weekly."},
+    {"id": "a2", "text": "Fixed the login flow.\n\nCo-authored-by: Bot Helper <bot@example.com>"},
+    {"id": "a3", "text": "Kestrelo is the side project for resale tickets; it needs OAuth before launch."},
+    {"id": "a4", "text": "Kestrelo payments move to a new provider next month."},
+    {"id": "a5", "text": "The app enables RLS on every table and uses ADC for cloud credentials."},
+    {"id": "a6", "text": "Update the READMEs before shipping the Funnel setup for the project."},
+    {"id": "a7", "text": "Thermacorp sent the quote for the boiler project at home."},
+    {"id": "a8", "text": "My sister Marta lives in Valencia and works with Acme."},
+]
+
+
+def _dry(tmp_path, context="acme"):
+    return Model(tmp_path / "m.sqlite").migrate(NOTES2, owner="Ana", context=context)
+
+
+def test_person_needs_a_nearby_person_cue(tmp_path):
+    ents = {e["name"]: e["kind"] for e in _dry(tmp_path)["entities"]}
+    assert ents.get("Marta") == "person"
+    for n in ("Thermacorp", "Kestrelo", "READMEs", "Acme"):
+        assert ents.get(n) != "person", n
+
+
+def test_repeated_sentence_initial_names_count(tmp_path):
+    assert "Kestrelo" in repeated_initial_names(n["text"] for n in NOTES2)
+    assert "Fixed" not in repeated_initial_names(["Fixed it.", "Fixed again. we fixed more"])
+    ents = {e["name"]: e["kind"] for e in _dry(tmp_path)["entities"]}
+    assert ents.get("Kestrelo") == "project"
+
+
+def test_commit_trailers_are_ignored(tmp_path):
+    assert "Co-authored-by" not in strip_trailers(NOTES2[1]["text"])
+    names = {e["name"] for e in _dry(tmp_path)["entities"]}
+    assert not any("authored" in n.lower() or "Bot Helper" == n for n in names)
+
+
+def test_acronyms_and_tech_terms_are_not_projects_or_people(tmp_path):
+    for a in ("PR", "ADC", "RLS", "OAuth", "READMEs"):
+        assert is_acronym(a), a
+    assert not is_acronym("Kestrelo") and not is_acronym("Laura")
+    for e in _dry(tmp_path)["entities"]:
+        if e["name"] in ("OAuth", "RLS", "ADC", "Funnel", "READMEs"):
+            assert e["kind"] in ("topic", "tool"), e
+
+
+def test_context_name_is_a_background_org(tmp_path):
+    r = _dry(tmp_path)
+    ents = {e["name"].lower(): e for e in r["entities"]}
+    assert "acme" not in ents or (ents["acme"]["kind"] == "org" and ents["acme"]["facts"] == 0)
+    # personal-style context names are not seeded as orgs
+    assert all(e["name"].lower() != "personal" for e in _dry(tmp_path, "personal")["entities"])

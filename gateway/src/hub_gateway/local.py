@@ -430,6 +430,47 @@ tokens by hand.</p></body>""",
         fresh = build_all(home, port)
         servers.update(fresh)
 
+    async def _files(b):
+        from .localstore import dataset_id as _did
+        ctx = str((b or {}).get("context") or "")
+        if ctx not in servers:
+            return {"error": "unknown space"}
+        st = (servers[ctx].mnemos_local or {}).get("store")
+        if not getattr(st, "is_files", False):
+            return {"error": "this space is not on simple memory"}
+        op = str(b.get("op") or "topics")
+        sc = (servers[ctx].mnemos_local or {}).get("scope")
+        readable = [n for n, _ in sc.listable(include_shared=True)]
+        editable = [n for n, _ in sc.editable()]
+        try:
+            if op == "topics":
+                return {"spaces": [{"space": n, "editable": n in editable, "topics": st.topics(_did(n))}
+                                   for n in readable]}
+            rel = str(b.get("file") or "")
+            space = rel.split("/")[0]
+            if space not in readable:
+                return {"error": "that file is not in this space"}
+            ds = _did(space)
+            if op in ("write", "restore") and space not in editable:
+                return {"error": "read-only here: edit it from its own space"}
+            if op == "read":
+                return st.read_file(ds, rel)
+            if op == "history":
+                return {"history": st.history(ds, rel or None)}
+            if op == "write":
+                return st.write_file(ds, rel, str(b.get("text") or ""), "you", b.get("version"))
+            if op == "restore":
+                return st.restore(ds, rel, str(b.get("sha") or ""), "you")
+            return {"error": "unknown op"}
+        except Exception as e:  # noqa: BLE001
+            return {"error": str(e)}
+
+    async def _files_get(b):
+        return await _files({**b, "op": b.get("op", "topics")})
+
+    ui.hooks[("GET", "files")] = _files_get
+    ui.hooks[("POST", "files")] = _files
+
     async def _memstatus(_b=None):
         import json as _json
         from . import memfiles

@@ -115,6 +115,57 @@ async def test_background_update_returns_fast_and_overlays(make_server):  # noqa
         assert h["previous_versions"][0]["text"] == "nota de personal sobre orion"
 
 
+def slow_patch(rec, apply: bool):
+    """Cognee busy: the PATCH times out on the client; with apply=True Cognee still applies it afterwards."""
+    orig = rec.handler
+
+    def handler(request):
+        if request.method == "PATCH":
+            if apply:
+                orig(request)
+            raise httpx.ReadTimeout("timed out", request=request)
+        return orig(request)
+    rec.handler = handler
+
+
+async def wait_sync_cleared(c, timeout=2.0):
+    import asyncio
+    for _ in range(int(timeout / 0.02)):
+        items = {i["id"]: i for i in data(await c.call_tool("memory_list", {}))["items"]}
+        if items[PID].get("sync") != "processing":
+            return items[PID]
+        await asyncio.sleep(0.02)
+    return items[PID]
+
+
+async def test_update_timeout_becomes_processing_then_confirms(make_server, monkeypatch):  # noqa: F811
+    from hub_gateway import app as app_mod
+    monkeypatch.setattr(app_mod, "UPDATE_POLL_S", 0.01)
+    server, rec = make_server("personal")
+    slow_patch(rec, apply=True)
+    async with Client(server) as c:
+        out = data(await c.call_tool("memory_update", {"id": PID, "text": "texto nuevo con Cognee ocupado"}))
+        assert out["status"] == "processing"
+        item = await wait_sync_cleared(c)
+        assert "sync" not in item and item["text"] == "texto nuevo con Cognee ocupado"
+        h = data(await c.call_tool("memory_history", {"id": PID}))
+        assert h["previous_versions"][0]["text"] == "nota de personal sobre orion"
+
+
+async def test_update_timeout_never_applied_ends_in_error(make_server, monkeypatch):  # noqa: F811
+    from hub_gateway import app as app_mod
+    monkeypatch.setattr(app_mod, "UPDATE_POLL_S", 0.01)
+    monkeypatch.setattr(app_mod, "UPDATE_CONFIRM_S", 0.05)
+    server, rec = make_server("personal")
+    slow_patch(rec, apply=False)
+    async with Client(server) as c:
+        out = data(await c.call_tool("memory_update", {"id": PID, "text": "esto nunca llega a Cognee"}))
+        assert out["status"] == "processing"
+        item = await wait_sync_cleared(c)
+        assert item["sync"] == "error"
+    assert rec.texts[PID] == "nota de personal sobre orion"
+
+
 async def test_history_falls_back_for_old_notes(make_server):  # noqa: F811
     server, _ = make_server("personal")
     async with Client(server) as c:

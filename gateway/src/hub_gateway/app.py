@@ -10,6 +10,7 @@ import re
 import time
 from typing import Annotated, Any, Literal
 
+import httpx
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError, ResourceError
 from pydantic import Field
@@ -38,6 +39,8 @@ log = logging.getLogger("hub.gateway")
 
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False}
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+UPDATE_CONFIRM_S = 1800  # after a timed-out memory_update: how long to wait for Cognee to show the new text
+UPDATE_POLL_S = 15
 MAX_LIST_SCAN = 500  # tope de notas leídas por memory_list (cada una es un GET a Cognee)
 SHARED_EDIT_HINT = ("la memoria compartida (shared) no se borra ni se corrige desde un conector: "
                     "lo hace el dueño como hub-admin con scripts/memory_admin.py")
@@ -661,7 +664,33 @@ def build_server(
                 return {"updated": id, "dataset": name, "status": "processing",
                         "version": len(h.get("previous_versions", [])) + 1,
                         "note": "guardado; Cognee lo re-procesa en segundo plano (memory_list: sync)"}
-            res = await cognee.update(ds_id, id, text, node_set=new_ns if ns_changed else None)
+            try:
+                res = await cognee.update(ds_id, id, text, node_set=new_ns if ns_changed else None)
+            except httpx.TimeoutException:
+                # Cognee is busy (e.g. still cognifying earlier notes) but may apply the PATCH later: record it
+                # like the background path and confirm it by reading the note back, instead of an error.
+                safe(ledger.record_change, id, text=text, by=app, tags=clean_tags)
+                safe(index.put, id, name, text, old["created_at"])
+                _syncing[id] = {"state": "processing", "text": text}
+
+                async def _confirm(ds_id=ds_id) -> None:
+                    deadline = time.monotonic() + UPDATE_CONFIRM_S
+                    while time.monotonic() < deadline:
+                        await asyncio.sleep(UPDATE_POLL_S)
+                        try:
+                            if await cognee.raw_text(ds_id, id) == text:
+                                _syncing.pop(id, None)
+                                return
+                        except Exception:  # noqa: BLE001
+                            pass
+                    _syncing[id] = {"state": "error", "text": text, "error": "timeout"}
+                task = asyncio.create_task(_confirm())
+                _tasks.add(task)
+                task.add_done_callback(_tasks.discard)
+                audit.log("memory_update", login, "ok", data_id=id, dataset=name, chars=len(text), app=app,
+                          status="processing", reason="timeout")
+                return {"updated": id, "dataset": name, "status": "processing",
+                        "note": "Cognee está ocupado: la corrección quedó en cola (memory_list: sync)"}
         except MemoryError_ as exc:
             audit.log("memory_update", login, "rejected", data_id=id, reason=str(exc))
             raise ToolError(str(exc)) from exc

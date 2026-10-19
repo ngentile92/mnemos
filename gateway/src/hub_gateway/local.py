@@ -414,6 +414,33 @@ tokens by hand.</p></body>""",
         from . import contexts as _c
         return str(getattr(_c, "OWNER", "") or "me")
 
+    async def _memmigrate(b):
+        from . import memmigrate
+        action = str((b or {}).get("action") or "preview")
+        fn = {"undo": memmigrate.undo, "apply": memmigrate.apply}.get(action, memmigrate.preview)
+        try:
+            res = await asyncio.to_thread(fn, ui.home)
+        except SystemExit as e:
+            return {"error": str(e)}
+        if action in ("apply", "undo"):
+            await asyncio.to_thread(_rebuild)
+        return res
+
+    def _rebuild() -> None:  # the store changed: every space now reads the other one
+        fresh = build_all(home, port)
+        servers.update(fresh)
+
+    async def _memstatus(_b=None):
+        import json as _json
+        from . import memfiles
+        st = home / "data" / "migration.json"
+        prev = home / "migration-preview" / "report.json"
+        return {"active": memfiles.active(home), "applied": _json.loads(st.read_text()) if st.exists() else None,
+                "preview": _json.loads(prev.read_text()) if prev.exists() else None}
+
+    ui.hooks[("POST", "memory-migrate")] = _memmigrate
+    ui.hooks[("GET", "memory-migrate")] = _memstatus
+
     async def _migrate(b):
         ctx, m = _model(b)
         return m.migrate(await _own_notes(ctx), apply=bool(b.get("apply")), owner=_contexts_owner())
@@ -538,7 +565,8 @@ def _exit_with_parent() -> None:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="mnemos-local", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["init", "serve", "stdio", "token", "set-password", "hygiene"])
+    ap.add_argument("cmd", choices=["init", "serve", "stdio", "token", "set-password", "hygiene", "migrate"])
+    ap.add_argument("action", nargs="?", help="migrate: preview | apply | undo")
     ap.add_argument("--home")
     ap.add_argument("--contexts", default="personal,work")
     ap.add_argument("--owner", default="me")
@@ -561,6 +589,9 @@ def main(argv: list[str] | None = None) -> int:
         rep = asyncio.run(run(home, list(servers), UI(servers, home, "").call))
         print(f"{len(rep['items'])} cleanup proposals ({rep['mode']}) → {home / 'data' / 'hygiene.json'}")
         return 0
+    if a.cmd == "migrate":
+        from .memmigrate import main as migrate_main
+        return migrate_main([a.action or "preview", "--home", str(home)])
     if a.cmd == "token":
         print(os.environ.get("MNEMOS_TOKEN") or (home / "token").read_text().strip())
         return 0

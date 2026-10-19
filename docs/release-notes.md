@@ -9,6 +9,9 @@
 - Entity typing on the memory model: well-known tools (GitHub, ClickUp, Claude, Tailscale, …) are typed `tool` and never become the subject of a fact just for being named in it; extend the list with `MNEMOS_KNOWN_TOOLS`.
 - Acronyms (PR, API), document words (Instructions), languages and dates are no longer taken as names; sentence-initial capitals are ignored.
 - Fewer `unknown` kinds: instructions, habits, skills and project state are recognised.
+## v0.10.2
+
+- Entity typing on the memory model, second pass: a new person needs a person cue next to the name; names that open sentences in several notes count; git commit trailers (Co-authored-by) are ignored; acronyms and technical terms (OAuth, RLS) are topics; the context name is a background org, never the subject.
 **New in 0.10: the memory model on the full Docker hub.**
 - The hub can now use the same memory model as the local app: entities, typed facts, the nightly tidy-up, the
   profile and better ranking. It is stored in a separate file per context, next to the ledger, and never rewrites

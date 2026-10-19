@@ -560,8 +560,10 @@ def route(repo: MemoryRepo, dataset: str, text: str, tags: list[str] | None = No
     existing topic, else its kind (tags kind-*), else topics/notes.md."""
     tags = [str(t).lower() for t in (tags or [])]
     existing = {Path(r).stem: r for r in repo.files(dataset)}
+    if topic and topic.startswith(dataset + "/") and topic.endswith(".md") and ".." not in topic:
+        return _profile_or_overflow(repo, dataset) if topic == f"{dataset}/{PROFILE}" else topic
     if topic:
-        t = slugify(topic)
+        t = slugify(topic.removesuffix(".md").split("/")[-1])
         if t in ("profile", "about-me-profile", "me", "about-me") and t != "about-me":
             return _profile_or_overflow(repo, dataset)
         return existing.get(t) or f"{dataset}/{TOPICS}/{t}.md"
@@ -829,3 +831,18 @@ class FileNoteStore:
         if not rel.startswith(name + "/") or not re.fullmatch(r"[0-9a-f]{7,40}", sha or ""):
             raise MemoryError_("archivo o versión inválidos")
         return self.repo.restore(rel, sha, author)
+
+
+# ------------------------------------------------------------------ which store a local home uses
+def active(home: str | Path) -> bool:
+    """True when this home uses the files store (new homes, or after `migrate apply`)."""
+    return (Path(home) / "memory" / ".mnemos" / "active").exists()
+
+
+def set_active(home: str | Path, on: bool) -> None:
+    f = Path(home) / "memory" / ".mnemos" / "active"
+    if on:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(now_iso() + "\n")
+    elif f.exists():
+        f.unlink()

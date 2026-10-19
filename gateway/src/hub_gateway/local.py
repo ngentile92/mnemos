@@ -56,6 +56,11 @@ def init_home(home: Path, contexts: list[str], owner: str = "me") -> list[str]:
     os.chmod(home, 0o700)
     cf = home / "contexts.yaml"
     if not cf.exists():
+        # a brand-new home starts on simple memory (Markdown files); MNEMOS_STORE=notes keeps the older store
+        if not (home / "data" / "notes").exists() and os.environ.get("MNEMOS_STORE", "files").strip() != "notes":
+            from .memfiles import set_active
+            set_active(home, True)
+            made.append(str(home / "memory"))
         lines = [f"owner: {owner}", "", "contexts:"] + [f"  {c}:\n    description: \"{c}\"" for c in contexts]
         cf.write_text("\n".join(lines) + "\n")
         made.append(str(cf))
@@ -102,6 +107,7 @@ def build_all(home: Path, port: int, only: str | None = None):
     from .local_engine import EmbedProxy
     from .local_search import LocalIndex
     from .localstore import LocalNoteStore, dataset_id
+    from .memfiles import FileNoteStore, active as files_active
     from .memory import DatasetMap, MemoryScope
     from .secrets import SecretBroker
 
@@ -121,7 +127,9 @@ def build_all(home: Path, port: int, only: str | None = None):
                       secret_policy_file=str(home / "secret-policy.yaml"), infisical_url=None,
                       infisical_client_id=None, infisical_client_secret=None, infisical_environment="prod",
                       host="127.0.0.1", port=port, auth_provider="local")
-        store = LocalNoteStore(home / "data" / "notes", MemoryScope(spec, dmap).allowed_ids(), names)
+        store_cls = FileNoteStore if files_active(home) else LocalNoteStore
+        store = store_cls(home / ("memory" if store_cls is FileNoteStore else "data/notes"),
+                          MemoryScope(spec, dmap).allowed_ids(), names)
         index = LocalIndex(str(data / "search.sqlite"), EmbedProxy(engine))  # built-in/Ollama embeddings when present
         from . import local_evidence
 

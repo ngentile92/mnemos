@@ -178,6 +178,11 @@ class Capture:
         for ctx in self.ui.servers:
             txt = ""
             mf_ = getattr(self.ui, "model_for", None)
+            st = (getattr(self.ui.servers[ctx], "mnemos_local", None) or {}).get("store")
+            if getattr(st, "is_files", False):  # simple memory: the profile is the space's profile.md
+                from .memfiles import PROFILE, split_front
+                txt = "\n".join(split_front(st.repo.read(f"{ctx}/{PROFILE}"))[1]).strip()
+                mf_ = None
             if mf_:
                 try:
                     m = mf_(ctx)

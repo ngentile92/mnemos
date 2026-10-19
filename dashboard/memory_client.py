@@ -34,8 +34,12 @@ def discover_url(root: Path, env: dict[str, str], ctx: str) -> str:
     override = env.get(f"MNEMOS_INTERNAL_URL_{suffix(ctx)}")
     if override:
         return override
-    r = subprocess.run(["docker", "compose", "port", f"ts-{ctx}", "8100"], cwd=root, capture_output=True,
-                       text=True, timeout=20)
+    try:
+        r = subprocess.run(["docker", "compose", "port", f"ts-{ctx}", "8100"], cwd=root, capture_output=True,
+                           text=True, timeout=20)
+    except FileNotFoundError as e:  # dashboard running where there is no docker CLI (e.g. in a container)
+        raise MemoryEditorOff(f"no docker CLI to find the internal listener of {ctx}: "
+                              f"set MNEMOS_INTERNAL_URL_{suffix(ctx)} in .env") from e
     hostport = (r.stdout.strip().splitlines() or [""])[0]
     if r.returncode != 0 or not hostport.startswith("127.0.0.1:"):
         raise MemoryEditorOff(f"internal listener of {ctx} is not published (run scripts/update.sh)")

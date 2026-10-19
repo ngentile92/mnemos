@@ -166,7 +166,8 @@ function renderHubs(d, cm) {
       <div class="title"><h3>hub-${esc(c)}</h3>${h.up ? tag("ok", "● online") : tag("bad", "● down")}</div>
       <div class="url">${esc(h.url || "")}/mcp</div>
       <div class="tags">
-        ${tag(ctState(ct) === "live" ? "ok" : "bad", "container " + (ct ? (ct.health || ct.state) : "missing"))}
+        ${d.containers && d.containers.ok === false ? tag("wn", "container unknown")
+          : tag(ctState(ct) === "live" ? "ok" : "bad", "container " + (ct ? (ct.health || ct.state) : "missing"))}
         ${h.oauth_required ? tag("ok", "OAuth required") : tag("wn", "OAuth ?")}
         ${h.latency_ms != null ? tag("", h.latency_ms + " ms") : ""}
         ${h.error ? tag("bad", h.error) : ""}

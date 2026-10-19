@@ -23,8 +23,14 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 PY="$HUB_DIR/.venv/bin/python3"
-[[ -x "$PY" ]] || { [[ -n "$DRY" ]] || { echo "missing venv: python3 -m venv .venv && .venv/bin/pip install -e gateway" >&2; exit 1; }; }
 want() { [[ ",$ONLY," == *",$1,"* ]]; }
+# backup and cognify are shell scripts (cognify falls back to the gateway image without a venv); the watchdog and
+# the dashboard run on the host and need the venv.
+if [[ ! -x "$PY" && -z "$DRY" ]] && { want watchdog || want dashboard; }; then
+  echo "missing venv for the watchdog/dashboard: python3 -m venv .venv && .venv/bin/pip install -e gateway" >&2
+  echo "(without python3-venv: --only backup,cognify)" >&2
+  exit 1
+fi
 PATHS="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin"
 
 service() {  # name, description, ExecStart, type(oneshot|simple)

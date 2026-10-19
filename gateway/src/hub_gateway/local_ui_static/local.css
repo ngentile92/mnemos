@@ -25,3 +25,6 @@ label.small{display:block;margin:10px 0 4px}label.small input,label.small textar
 
 /* Labs (0.11): optional layers, hidden unless turned on in Settings → Labs */
 body.nolabs .labs{display:none!important}
+/* Simple memory (0.11): when files mode is on, hide the notes list and show the files view */
+body.filesmode .me-bar, body.filesmode .me-dispute, body.filesmode .me-inbox, body.filesmode .me-grid,
+body.filesmode #empty-cta { display: none !important }

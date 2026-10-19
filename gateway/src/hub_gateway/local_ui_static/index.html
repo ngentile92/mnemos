@@ -35,6 +35,21 @@
 </section>
 <div id="app" class="hidden">
 <main id="view-memoria" class="view">
+  <section class="card hidden" id="mig-card" style="margin:14px 36px"><div class="card-h"><h2>Switch to simple memory</h2><span class="muted small">files you can read</span></div>
+    <p class="small muted">Your memory becomes a few Markdown files on this computer (one folder per space), with full history and undo. You can preview exactly what it will look like first, and switch back afterwards; your current notes are never deleted.</p>
+    <div class="me-actions"><button class="mbtn" id="mig-preview">Preview</button><button class="mbtn primary" id="mig-apply">Switch</button><span class="small" id="mig-msg"></span></div>
+    <pre id="mig-report" class="me-note hidden" style="white-space:pre-wrap"></pre></section>
+  <section class="card hidden" id="files-view" style="margin:14px 36px"><div class="card-h"><h2>Memory files</h2><span class="muted small" id="fv-head"></span></div>
+    <p class="small muted">One folder per space. Click a file to read or edit it; every save is a new version you can restore.</p>
+    <div id="fv-list" class="ap-list"></div>
+    <div id="fv-editor" class="hidden" style="margin-top:12px">
+      <div class="card-h"><h3 id="fv-title" style="margin:0"></h3><span class="muted small" id="fv-meta"></span></div>
+      <textarea id="fv-text" rows="18" style="width:100%;font-family:ui-monospace,monospace;font-size:13px"></textarea>
+      <div class="me-actions" style="margin-top:8px"><button class="mbtn primary" id="fv-save">Save</button>
+        <button class="mbtn" id="fv-history">History</button><button class="mbtn" id="fv-back">Back</button>
+        <span class="small" id="fv-msg"></span></div>
+      <div id="fv-hist" class="ap-list"></div>
+    </div></section>
   <section class="card hidden labs" id="pf-card" style="margin:14px 36px"><div class="card-h"><h2>What your AI knows about you</h2><span class="muted small" id="pf-head"></span></div>
     <p class="small muted">The short profile every connected AI reads at the start of a chat, rebuilt each night from your notes. Tap a name to see everything Mnemos knows about it.</p>
     <div id="pf-text" class="me-note" style="white-space:pre-wrap"></div>
@@ -132,6 +147,9 @@
     <div id="ap-feed" class="ap-feed"></div></section>
 </main>
 <main id="view-settings" class="view hidden">
+  <section class="card" style="margin:14px 36px" id="sm-card"><div class="card-h"><h2>Simple memory</h2><span class="ap-pill" id="sm-state">…</span></div>
+    <p class="small muted">Your memory as Markdown files with history (in the <code>memory</code> folder of your Mnemos home).</p>
+    <div class="me-actions"><button class="mbtn hidden" id="sm-undo">Switch back to the previous store</button><span class="small" id="sm-msg"></span></div></section>
   <section class="card" style="margin:14px 36px" id="labs-card"><div class="card-h"><h2>Labs</h2><span class="muted small" id="labs-head">optional extras</span></div>
     <p class="small muted">Extras on top of your memory files: the Graph, people and project pages built by a model, the “still true?” check and the nightly tidy-up of the memory model. They are kept up to date but off by default: your memory works without them.</p>
     <label class="small"><input type="checkbox" id="labs-on" style="width:auto"> Show Labs features</label> <span class="small" id="labs-msg"></span></section>
@@ -221,5 +239,6 @@
 <script src="/ui/remote.js"></script>
 <script src="/ui/capture.js"></script>
 <script src="/ui/model.js"></script>
+<script src="/ui/files.js"></script>
 </body>
 </html>

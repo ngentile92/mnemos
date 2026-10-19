@@ -16,6 +16,7 @@ dependencies = [
   "cryptography>=44",
   "uvicorn>=0.30",
   "webauthn>=2.2,<4",
+  "dulwich>=0.22",          # memory files history (pure Python git)
 ]
 
 [project.urls]

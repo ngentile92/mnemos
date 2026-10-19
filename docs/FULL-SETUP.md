@@ -109,6 +109,8 @@ stay `__COMPLETAR__` in `.env` and are ignored, as long as you set `HUB_ALLOWED_
      sidecar's network and cannot take `extra_hosts`: point `HUB_EMBED_URL` at the host's Docker bridge IP instead
      (`ip -4 addr show docker0`, usually `http://172.17.0.1:11434`). Make Ollama listen there
      (`OLLAMA_HOST=0.0.0.0` in its systemd unit) and firewall port 11434 from the LAN.
+     Simpler on a server: run Ollama as a container on the compose network, with no port on the host
+     ([ollama-linux.md](ollama-linux.md), which also covers AMD iGPUs and the context/output caps).
 
 ## 4. Bootstrap the configuration
 

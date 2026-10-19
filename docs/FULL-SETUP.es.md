@@ -109,6 +109,8 @@ Con el login propio **no** necesitás cuenta ni OAuth App de GitHub. Las líneas
      `ts-<ctx>` y no aceptan `extra_hosts`: apuntá `HUB_EMBED_URL` a la IP del bridge de Docker del host
      (`ip -4 addr show docker0`, normalmente `http://172.17.0.1:11434`). Hacé que Ollama escuche ahí
      (`OLLAMA_HOST=0.0.0.0` en su unidad de systemd) y bloqueá el puerto 11434 desde la LAN.
+     Más simple en un servidor: Ollama como contenedor en la red de compose, sin puerto en el host
+     ([ollama-linux.md](ollama-linux.md), en inglés; cubre también iGPUs de AMD y los topes de contexto y salida).
 
 ## 4. Preparar la configuración
 

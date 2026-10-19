@@ -43,6 +43,74 @@ _CAP = re.compile(r"\b([A-ZÁÉÍÓÚÑ][\wáéíóúñ'-]+(?:\s+[A-ZÁÉÍÓÚ�
 _STOP = {"I", "The", "A", "An", "El", "La", "Los", "Las", "Un", "Una", "Mi", "My", "She", "He", "They", "We", "It",
          "This", "That", "Prefers", "Prefiere", "Uses", "Usa", "Works", "Trabaja", "Lives", "Vive", "Wants", "Quiere",
          "Goal", "Her", "His", "Su", "Sus", "En", "In", "On", "For", "Para", "Since", "Desde", "Monday", "Friday"}
+# Well-known products and technologies: typed "tool", and never the subject of a fact just for being named in it
+# ("opened a PR on GitHub" is about the work, not about GitHub). Extend with MNEMOS_KNOWN_TOOLS="Foo,Bar Baz".
+KNOWN_TOOLS = {
+    "github", "gitlab", "bitbucket", "git", "jira", "linear", "clickup", "asana", "trello", "notion", "obsidian",
+    "airtable", "confluence", "slack", "discord", "teams", "microsoft teams", "zoom", "google meet", "meet", "whatsapp",
+    "telegram", "signal", "gmail", "outlook", "google calendar", "calendar", "google drive", "drive", "google docs",
+    "google sheets", "dropbox", "figma", "canva", "excel", "word", "powerpoint", "keynote", "claude", "claude code",
+    "claude desktop", "chatgpt", "openai", "anthropic", "gemini", "grok", "copilot", "github copilot", "cursor", "codex",
+    "ollama", "lm studio", "vs code", "vscode", "visual studio code", "neovim", "vim", "emacs", "xcode", "terminal",
+    "iterm", "docker", "docker desktop", "kubernetes", "k8s", "helm", "terraform", "ansible", "tailscale", "wireguard",
+    "vpn", "wifi", "wi-fi", "bluetooth", "aws", "gcp", "google cloud", "azure", "vercel", "netlify", "cloudflare",
+    "heroku", "fly.io", "render", "supabase", "firebase", "postgres", "postgresql", "mysql", "sqlite", "redis",
+    "mongodb", "elasticsearch", "kafka", "rabbitmq", "python", "javascript", "typescript", "go", "golang", "rust",
+    "java", "kotlin", "swift", "ruby", "php", "node", "node.js", "deno", "bun", "react", "next.js", "nextjs", "vue",
+    "svelte", "sveltekit", "angular", "django", "fastapi", "flask", "rails", "tauri", "electron", "npm", "pip", "uv",
+    "homebrew", "macos", "ios", "android", "windows", "linux", "ubuntu", "iphone", "ipad", "mac", "chrome", "safari",
+    "firefox", "twitter", "x", "linkedin", "instagram", "facebook", "youtube", "tiktok", "reddit", "spotify",
+    "stripe", "paypal", "mercadopago", "mercado pago", "shopify", "wordpress", "zapier", "make", "n8n", "infisical",
+    "vaultwarden", "bitwarden", "1password", "cognee", "mcp",
+}
+# Capitalised words that are not names (acronyms, document words) in English and Spanish.
+COMMON_WORDS = {
+    "pr", "prs", "api", "apis", "url", "urls", "ui", "ux", "ci", "cd", "mvp", "ok", "ai", "ia", "llm", "llms", "sql",
+    "json", "csv", "pdf", "yaml", "html", "css", "todo", "faq", "kpi", "okr", "okrs", "qa", "id", "ids", "dm", "eta",
+    "instructions", "instrucciones", "notes", "notas", "note", "nota", "idea", "ideas", "task", "tasks", "tarea",
+    "tareas", "bug", "bugs", "issue", "issues", "ticket", "tickets", "docs", "doc", "readme", "release", "deploy",
+    "update", "summary", "resumen", "meeting", "reunión", "reunion", "plan", "roadmap", "backlog", "sprint", "status",
+    "estado", "important", "importante", "nuevo", "nueva", "new", "old", "draft", "borrador", "rules", "reglas",
+    "regla", "rule", "guide", "guía", "guia", "checklist", "workflow", "flujo", "setup", "config", "test", "tests",
+    # languages, weekdays, months
+    "english", "spanish", "inglés", "ingles", "español", "espanol", "portuguese", "portugués", "french", "german",
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "lunes", "martes", "miércoles",
+    "jueves", "viernes", "sábado", "domingo", "january", "february", "march", "april", "may", "june", "july",
+    "august", "september", "october", "november", "december", "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+}
+
+
+def _extra_tools() -> set[str]:
+    import os
+    return {t.strip().lower() for t in os.environ.get("MNEMOS_KNOWN_TOOLS", "").split(",") if t.strip()}
+
+
+def is_tool(name: str) -> bool:
+    n = " ".join(str(name or "").lower().split())
+    return n in KNOWN_TOOLS or n in _extra_tools()
+
+
+def is_common(name: str) -> bool:
+    return " ".join(str(name or "").lower().split()) in COMMON_WORDS
+
+
+def name_candidates(text: str) -> list[str]:
+    """Capitalised spans that may be names: not sentence-initial (a capital there proves nothing), not a stop or
+    common word, not a known tool."""
+    out = []
+    for m in _CAP.finditer(text):
+        span = m.group(1)
+        before = text[:m.start()].rstrip()
+        if not before or before[-1] in ".!?:;\n-•*\"'(":
+            continue
+        words = [w for w in span.split() if w not in _STOP]
+        span = " ".join(words)
+        if span and not is_common(span) and not is_tool(span) and not all(is_common(w) for w in words):
+            out.append(span)
+    return out
+
+
 _KIND_HINT = [("person", re.compile(r"\b(?:manager|jefe|jefa|partner|pareja|wife|husband|esposa|esposo|sister|hermana|"
                                     r"brother|hermano|friend|amig[oa]|colleague|colega|works with|trabaja con|"
                                     r"mother|madre|father|padre|son|hijo|daughter|hija|dog|perro|cat|gat[oa])\b", re.I)),
@@ -67,12 +135,28 @@ def guess_kind(text: str, tags: Iterable[str] = ()) -> str | None:
         return "decision"
     if re.search(r"\b(goal|meta|objetivo|wants to|quiere|learning|aprendiendo|plans? to|planea)\b", low):
         return "goal"
+    m = re.search(r"\b(?:works? with|trabaja con|uses?|usa|utiliza)\s+([\w.+ -]{2,30}?)(?=[\s,;.]|$)", text, re.I)
+    if m and any(is_tool(" ".join(m.group(1).split()[:k])) for k in (1, 2, 3)):
+        return "skill_fact"  # "works with ClickUp" is about a tool, not a person
     if re.search(r"\b(manager|jefe|partner|pareja|wife|husband|sister|hermana|brother|friend|works with|trabaja con)\b", low):
         return "relationship"
     if re.search(r"\b(project|proyecto|building|construyendo|stack|uses .* for)\b", low):
         return "project_state"
     if re.search(r"\b(lives|vive|works as|trabaja como|is a|es una?|born|nació|name is|se llama)\b", low):
         return "identity"
+    # instructions and working habits ("PRs should be small", "no usar X", "always ask before")
+    if re.search(r"\b(should|shouldn't|must|debe\w*|debería\w*|hay que|tiene que|no usar|don't|do not|avoid|evitar|"
+                 r"prefer\w*|rather|mejor que|in (english|spanish|inglés|español)|format|formato|style|estilo|"
+                 r"workflow|flujo|always|siempre|never|nunca|before|antes de|instead|en vez de|every|each|cada|"
+                 r"todos los|daily|weekly|usually|suele|routine|rutina|first|primero|template|plantilla|wants?|quiere)\b",
+                 low):
+        return "preference"
+    if re.search(r"\b(uses?|usa|uso|utiliza\w*|knows?|sabe|experienced? in|experiencia en|expert|maneja|"
+                 r"works? (?:on|with)|trabaja (?:en|con)|maintains?|mantiene|owns?|administra|runs?)\b", low):
+        return "skill_fact"
+    if re.search(r"\b(is (?:now|currently)|está (?:ahora|en)|status|estado|deployed|desplegad\w*|launched|lanzad\w*|"
+                 r"released|version|versión|v\d|in progress|en curso|pending|pendiente|done|terminad\w*)\b", low):
+        return "project_state"
     return None
 
 
@@ -120,6 +204,8 @@ class Model:
                 return e["id"]
         if not create:
             return None
+        if is_tool(n):
+            kind = "tool"
         eid = "e-" + uuid.uuid4().hex[:10]
         with self.db() as c:
             c.execute("INSERT INTO entities(id, name, kind, aliases, created_at, batch) VALUES (?,?,?,?,?,?)",
@@ -139,13 +225,13 @@ class Model:
         capitalised name with a kind hint > me."""
         w = _WIKI.findall(text)
         if w:
-            return self.resolve(w[0], self._kind_for(text), batch=batch) or self.me()
-        if about and about.strip().lower() not in ("", "me", "user", "the user", "yo"):
-            return self.resolve(about, self._kind_for(text), batch=batch) or self.me()
+            return self.resolve(w[0], "tool" if is_tool(w[0]) else self._kind_for(text), batch=batch) or self.me()
+        if about and about.strip().lower() not in ("", "me", "user", "the user", "yo") and not is_common(about):
+            return self.resolve(about, "tool" if is_tool(about) else self._kind_for(text), batch=batch) or self.me()
         low = text.lower()
         best = None
         for e in self.entities():
-            if e["kind"] == "me":
+            if e["kind"] in ("me", "tool"):  # a tool named in passing is not what the fact is about
                 continue
             for nm in [e["name"], *e["aliases"]]:
                 if len(nm) >= 3 and re.search(r"\b" + re.escape(nm.lower()) + r"\b", low):
@@ -155,9 +241,9 @@ class Model:
             return best[0]
         kind = self._kind_for(text)
         if kind in ("project", "person", "org"):
-            caps = [m for m in _CAP.findall(text) if m.split()[0] not in _STOP]
+            caps = name_candidates(text)
             if caps:
-                return self.resolve(caps[-1] if kind != "person" else caps[-1], kind, batch=batch) or self.me()
+                return self.resolve(caps[-1], kind, batch=batch) or self.me()
         return self.me()
 
     @staticmethod

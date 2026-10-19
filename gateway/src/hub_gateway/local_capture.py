@@ -257,8 +257,10 @@ class Capture:
         while True:
             try:
                 await self.run_once()
-                if time.localtime().tm_hour in (2, 3, 4, 5) or not self.st.get("consolidated_at"):
-                    await self.consolidate_all()
+                from . import local_labs
+                if local_labs.enabled(Path(self.ui.home)) and (
+                        time.localtime().tm_hour in (2, 3, 4, 5) or not self.st.get("consolidated_at")):
+                    await self.consolidate_all()  # Labs: nightly consolidation of the memory model
             except Exception as e:  # noqa: BLE001
                 log.warning("capture: %s", type(e).__name__)
             await asyncio.sleep(every)

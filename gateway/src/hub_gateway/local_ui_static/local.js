@@ -36,7 +36,14 @@
   }
 
   function boot(s) {
-    window.MNEMOS = { contexts: s.contexts.map((name) => ({ name })) };
+    window.MNEMOS = { contexts: s.contexts.map((name) => ({ name })), labs: !!s.labs, store: s.store || "notes" };
+    document.body.classList.toggle("nolabs", !s.labs);
+    $("labs-on").checked = !!s.labs;
+    if (s.labs_forced) { $("labs-on").disabled = true; $("labs-head").textContent = "set by MNEMOS_LABS"; }
+    $("labs-on").onchange = async () => {
+      try { const r = await api("/api/labs", { on: $("labs-on").checked }); document.body.classList.toggle("nolabs", !r.on); window.MNEMOS.labs = r.on;
+        $("labs-msg").textContent = r.on ? "On ✓" : "Off ✓"; } catch (e) { $("labs-msg").textContent = e.message; }
+    };
     $("app").classList.remove("hidden"); $("tabs").classList.remove("hidden");
     for (const id of ["g-ctx", "s-ctx", "i-ctx"]) $(id).innerHTML = s.contexts.map((c) => `<option>${esc(c)}</option>`).join("");
     const sc = document.createElement("script");
@@ -49,7 +56,8 @@
   const loaded = {};
   function route() {
     const v = (location.hash.slice(1).split(/[?&]/)[0] || "memoria").replace(/^k=.*/, "memoria");
-    const view = ["memoria", "graph", "skills", "spaces", "apps", "import", "settings"].includes(v) ? v : "memoria";
+    let view = ["memoria", "graph", "skills", "spaces", "apps", "import", "settings"].includes(v) ? v : "memoria";
+    if (view === "graph" && document.body.classList.contains("nolabs")) view = "memoria";
     document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.id !== "view-" + view));
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
     if (!loaded[view]) {

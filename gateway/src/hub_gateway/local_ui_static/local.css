@@ -22,3 +22,6 @@ label.small{display:block;margin:10px 0 4px}label.small input,label.small textar
 .g-legend{display:flex;flex-wrap:wrap;gap:6px 10px;font-size:12px;margin-bottom:8px}.g-legend span{display:inline-flex;align-items:center;gap:4px}
 .g-legend i{width:10px;height:10px;border-radius:50%;display:inline-block}#g-top{margin-top:10px;font-size:13px}#g-top a{cursor:pointer;color:inherit}#g-top li{margin:2px 0}
 .rm-warn{color:var(--warn,#fbbf24)}
+
+/* Labs (0.11): optional layers, hidden unless turned on in Settings → Labs */
+body.nolabs .labs{display:none!important}

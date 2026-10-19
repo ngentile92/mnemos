@@ -315,6 +315,13 @@ class UI:
         except Exception:  # noqa: BLE001
             return None
 
+    def store_kind(self) -> str:
+        """files (simple memory, 0.11) or notes (the SQLite store of earlier versions)."""
+        for srv in self.servers.values():
+            st = (getattr(srv, "mnemos_local", None) or {}).get("store")
+            return "files" if getattr(st, "is_files", False) else "notes"
+        return "notes"
+
     # -- auth
     def _authed(self, request) -> bool:
         sid = request.cookies.get(COOKIE, "")
@@ -465,7 +472,9 @@ class UI:
             from fastmcp.exceptions import ToolError
             try:
                 if path == "session" and request.method == "GET":
-                    return j(200, {"contexts": list(self.servers)})
+                    from . import local_labs
+                    return j(200, {"contexts": list(self.servers), "labs": local_labs.enabled(self.home),
+                                   "labs_forced": local_labs.forced() is not None, "store": self.store_kind()})
                 if path.startswith("memory/") and request.method == "GET" and path[7:] in ("list", "history", "related"):
                     return j(200, await self.action(path[7:], body))
                 if path == "memory/move" and request.method == "POST":

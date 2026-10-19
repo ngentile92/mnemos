@@ -149,10 +149,10 @@
     // every relation reads subject-first, as the triple was extracted: "Y — works with → X"
     const name = (el) => el.id() === node.id() ? `<b class="self">${esc(el.data("label"))}</b>` : `<b>${esc(el.data("label"))}</b>`;
     const rel = (e) => `<li>${name(e.source())} — <i>${esc(e.data("label"))}</i> → ${name(e.target())}</li>`;
-    const edges = node.connectedEdges().filter((e) => e.data("label") !== "is a");
+    const edges = node.connectedEdges().filter((e) => !["is a", "is_a"].includes(e.data("label")));
     const outgoing = edges.filter((e) => e.source().id() === node.id()), incoming = edges.filter((e) => e.target().id() === node.id());
     const group = (title, es) => es.length ? `<p class="muted small">${title} (${es.length})</p><ul class="nlist">${es.map(rel).slice(0, 25).join("")}</ul>` : "";
-    const types = data.graph.edges.filter((e) => e.source === n.id && e.label === "is_a")
+    const types = data.graph.edges.filter((e) => e.source === n.id && ["is a", "is_a"].includes(e.label))
       .map((e) => (data.graph.nodes.find((x) => x.id === e.target) || {}).label).filter(Boolean);
     const kind = n.type === "Entity" ? "concept" : n.type;
     const byId = new Map(data.memories.map((m) => [m.id, m]));

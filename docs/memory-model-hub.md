@@ -19,4 +19,7 @@ Cognee stays the source of truth: the model never rewrites or deletes a Cognee n
    the nightly sync rather than at save time). Example for the existing nightly agent: add both lines to
    `scripts/cognify_nightly.sh` after cognify.
 
+Known tools (GitHub, ClickUp, Claude, Tailscale, …) are typed "tool" and never become the subject of a fact just
+for being named in it; add your own with `MNEMOS_KNOWN_TOOLS="Foo,Bar"` in the gateway environment.
+
 Inspect: `model_admin profile`, `model_admin entities`, `model_admin digest` (the weekly "still true?" list).

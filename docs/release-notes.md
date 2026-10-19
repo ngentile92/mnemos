@@ -4,6 +4,11 @@
 - `Mnemos-macos.app.zip` — same app, zipped.
 - `mnemos.mcpb` — Claude Desktop extension (optional; the app's "Connect to Claude Desktop" button is enough).
 
+## v0.10.1
+
+- Entity typing on the memory model: well-known tools (GitHub, ClickUp, Claude, Tailscale, …) are typed `tool` and never become the subject of a fact just for being named in it; extend the list with `MNEMOS_KNOWN_TOOLS`.
+- Acronyms (PR, API), document words (Instructions), languages and dates are no longer taken as names; sentence-initial capitals are ignored.
+- Fewer `unknown` kinds: instructions, habits, skills and project state are recognised.
 **New in 0.10: the memory model on the full Docker hub.**
 - The hub can now use the same memory model as the local app: entities, typed facts, the nightly tidy-up, the
   profile and better ranking. It is stored in a separate file per context, next to the ledger, and never rewrites

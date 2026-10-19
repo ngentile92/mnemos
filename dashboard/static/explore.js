@@ -73,7 +73,7 @@
       ["Memories", d.memories.length, `${d.memories.filter((m) => m.in_graph === false).length} pending processing`],
       ["Concepts", nodes.filter((n) => n.type === "Entity").length, `${nodes.length} nodes in total`],
       ["Relations", d.graph.edges.length, `${d.datasets.length} datasets`],
-      ["Shared", common.length, view === "todos" ? "across contexts" : "across its datasets"],
+      ["In common", common.length, view === "todos" ? "concepts across contexts" : "concepts across its datasets"],
       ["Skills", d.skills.length, "shared + own"],
       ["Secrets", d.secrets.length, "names only"],
     ];
@@ -136,7 +136,7 @@
     const present = [...new Set(d.graph.nodes.flatMap((n) => n.datasets))];
     $("ex-legend").className = "legend dsleg";
     $("ex-legend").innerHTML = present.map((ds) => `<span class="lgi"><i style="background:${DS_COLOR[ds] || "#94a3b8"}"></i>${esc(ds)}</span>`).join("") +
-      `<span class="lgi"><i class="ring"></i>shared (${view === "todos" ? "across contexts" : "across datasets"})</span><span class="lgi muted">size = number of connections</span>`;
+      `<span class="lgi"><i class="ring"></i>in common (${view === "todos" ? "across contexts" : "across datasets"})</span><span class="lgi muted">size = number of connections</span>`;
     if (!els.length) $("ex-node").innerHTML = `<p class="muted">${d.graph.nodes.length ? "Nothing matches these filters." : "No graph for this context yet (pending memories are processed in the background)."}</p>`;
   }
 
@@ -146,16 +146,20 @@
     cy.elements().addClass("faded").removeClass("show");
     const hood = node.closedNeighborhood();
     hood.removeClass("faded"); hood.edges().addClass("show");
-    const neigh = node.connectedEdges().map((e) => {
-      const other = e.source().id() === node.id() ? e.target() : e.source();
-      const out = e.source().id() === node.id();
-      return `<li>${out ? "→" : "←"} <i>${esc(e.data("label"))}</i> <b>${esc(other.data("label"))}</b></li>`;
-    }).slice(0, 25).join("");
+    // every relation reads subject-first, as the triple was extracted: "Y — works with → X"
+    const name = (el) => el.id() === node.id() ? `<b class="self">${esc(el.data("label"))}</b>` : `<b>${esc(el.data("label"))}</b>`;
+    const rel = (e) => `<li>${name(e.source())} — <i>${esc(e.data("label"))}</i> → ${name(e.target())}</li>`;
+    const edges = node.connectedEdges().filter((e) => !["is a", "is_a"].includes(e.data("label")));
+    const outgoing = edges.filter((e) => e.source().id() === node.id()), incoming = edges.filter((e) => e.target().id() === node.id());
+    const group = (title, es) => es.length ? `<p class="muted small">${title} (${es.length})</p><ul class="nlist">${es.map(rel).slice(0, 25).join("")}</ul>` : "";
+    const types = data.graph.edges.filter((e) => e.source === n.id && ["is a", "is_a"].includes(e.label))
+      .map((e) => (data.graph.nodes.find((x) => x.id === e.target) || {}).label).filter(Boolean);
+    const kind = n.type === "Entity" ? "concept" : n.type;
     const byId = new Map(data.memories.map((m) => [m.id, m]));
     const notes = (n.notes || []).map((id) => byId.get(id)).filter(Boolean);
-    $("ex-node").innerHTML = `<h4>${esc(n.label)}</h4><div class="tags">${n.datasets.map((ds) => `<span class="tag" style="border-color:${DS_COLOR[ds] || "#94a3b8"}">${esc(ds)}</span>`).join("")}${n.common ? '<span class="tag wn">shared</span>' : ""}</div>
-      <p class="muted small">${esc(n.type)}${n.contexts.length > 1 ? " · contexts: " + esc(n.contexts.join(", ")) : ""}</p>
-      ${n.desc ? `<p>${esc(n.desc)}</p>` : ""}${neigh ? `<p class="muted small">Connections</p><ul class="nlist">${neigh}</ul>` : ""}
+    $("ex-node").innerHTML = `<h4>${esc(n.label)}</h4><div class="tags">${n.datasets.map((ds) => `<span class="tag" style="border-color:${DS_COLOR[ds] || "#94a3b8"}">${esc(ds)}</span>`).join("")}${n.common ? '<span class="tag wn">in common</span>' : ""}</div>
+      <p class="muted small">${esc(kind)}${types.length ? " · type: " + esc(types.join(", ")) : ""}${n.contexts.length > 1 ? " · contexts: " + esc(n.contexts.join(", ")) : ""}</p>
+      ${n.desc ? `<p>${esc(n.desc)}</p>` : ""}${group("Outgoing", outgoing)}${group("Incoming", incoming)}
       ${notes.length ? `<p class="muted small">From these notes</p>${notes.map((m) => memCard(m, 160)).join("")}` : ""}`;
   }
 

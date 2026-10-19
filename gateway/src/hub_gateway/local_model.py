@@ -81,6 +81,43 @@ COMMON_WORDS = {
 }
 
 
+# Protocols and technical terms: a topic, never a person or a project.
+TECH_TERMS = {
+    "oauth", "oidc", "openid", "jwt", "sso", "saml", "rls", "rbac", "acl", "dns", "tls", "ssl", "http", "https", "ssh",
+    "vpn", "cdn", "smtp", "imap", "webhook", "webhooks", "cron", "funnel", "proxy", "reverse proxy", "gateway",
+    "router", "backend", "frontend", "endpoint", "endpoints", "token", "tokens", "embedding", "embeddings", "rag",
+    "prompt", "prompts", "agent", "agents", "server", "servidor", "client", "cliente", "database", "base de datos",
+}
+_TRAILER = re.compile(r"(?im)^\s*(?:co-authored-by|signed-off-by|reviewed-by|acked-by|tested-by|reported-by|"
+                      r"suggested-by|change-id|[a-z]+(?:-[a-z]+)*-by)\s*:.*$")
+_PERSON_CUE = re.compile(r"\b(?:manager|jefe|jefa|boss|partner|pareja|wife|husband|esposa|esposo|novia|novio|"
+                         r"girlfriend|boyfriend|sister|hermana|brother|hermano|friend|amig[oa]|colleague|colega|"
+                         r"coworker|compañer[oa]|mother|madre|mom|mamá|father|padre|dad|papá|son|hijo|daughter|hija|"
+                         r"dog|perro|cat|gat[oa]|cousin|prim[oa]|uncle|t[ií][oa]|client[ea]?|cliente|mentor|"
+                         r"met|conoció|named|llamad[oa]|se llama|told|dijo|said|asked|pidió|he|she|él|ella)\b", re.I)
+
+
+def strip_trailers(text: str) -> str:
+    """Drop git commit trailers (Co-authored-by: …) that pasted commit messages bring along."""
+    return _TRAILER.sub("", text or "").strip()
+
+
+def is_acronym(name: str) -> bool:
+    """PR, ADC, RLS, OAuth, READMEs: all capitals, or a short word with capitals after the first letter."""
+    w = str(name or "").strip()
+    if " " in w or not w:
+        return False
+    core = w[:-1] if w.endswith("s") and len(w) > 2 and w[:-1].isupper() else w
+    if core.isupper() and core.isalpha() and len(core) <= 6:
+        return True
+    return core.lower() in TECH_TERMS or (core[:-1].lower() in COMMON_WORDS if core.endswith("s") else False)
+
+
+def is_tech(name: str) -> bool:
+    n = " ".join(str(name or "").lower().split())
+    return n in TECH_TERMS or is_acronym(name)
+
+
 def _extra_tools() -> set[str]:
     import os
     return {t.strip().lower() for t in os.environ.get("MNEMOS_KNOWN_TOOLS", "").split(",") if t.strip()}
@@ -92,23 +129,50 @@ def is_tool(name: str) -> bool:
 
 
 def is_common(name: str) -> bool:
-    return " ".join(str(name or "").lower().split()) in COMMON_WORDS
+    n = " ".join(str(name or "").lower().split())
+    return n in COMMON_WORDS or (n.endswith("s") and n[:-1] in COMMON_WORDS)
 
 
-def name_candidates(text: str) -> list[str]:
-    """Capitalised spans that may be names: not sentence-initial (a capital there proves nothing), not a stop or
-    common word, not a known tool."""
+def _camel(w: str) -> bool:
+    return any(ch.isupper() for ch in w[1:]) and any(ch.islower() for ch in w)
+
+
+def name_candidates(text: str, known: Iterable[str] = ()) -> list[str]:
+    """Capitalised spans that may be names: not sentence-initial (a capital there proves nothing) unless the word is
+    CamelCase or in `known` (names seen sentence-initially across several notes), and not a stop or common word,
+    an acronym or technical term, or a known tool."""
+    known_l = {k.lower() for k in known}
     out = []
-    for m in _CAP.finditer(text):
+    for m in _CAP.finditer(strip_trailers(text)):
         span = m.group(1)
         before = text[:m.start()].rstrip()
-        if not before or before[-1] in ".!?:;\n-•*\"'(":
-            continue
         words = [w for w in span.split() if w not in _STOP]
+        if not before or before[-1] in ".!?:;\n-•*\"'(":
+            if not words or not (_camel(words[0]) or words[0].lower() in known_l or span.lower() in known_l):
+                continue
         span = " ".join(words)
-        if span and not is_common(span) and not is_tool(span) and not all(is_common(w) for w in words):
+        if span.lower().endswith("-by") or "-by " in span.lower():
+            continue
+        if (span and not is_common(span) and not is_tool(span) and not is_tech(span)
+                and not all(is_common(w) or is_tech(w) for w in words)):
             out.append(span)
     return out
+
+
+def repeated_initial_names(texts: Iterable[str], min_notes: int = 2) -> set[str]:
+    """Words that open sentences in several notes and never appear in lower case: probably names (a project that is
+    always the subject), not ordinary words ("Usar", "Siempre")."""
+    texts = [strip_trailers(t) for t in texts]
+    lower = set()
+    for t in texts:
+        lower |= set(re.findall(r"\b[a-záéíóúñ][\wáéíóúñ'-]+", t))
+    seen: dict[str, int] = {}
+    for t in texts:
+        firsts = set(re.findall(r"(?:^|[.!?:;\n]\s*)([A-ZÁÉÍÓÚÑ][\wáéíóúñ'-]{2,})", t))
+        for w in firsts:
+            seen[w] = seen.get(w, 0) + 1
+    return {w for w, n in seen.items() if n >= min_notes and w.lower() not in lower and w not in _STOP
+            and not is_common(w) and not is_tool(w) and not is_tech(w)}
 
 
 _KIND_HINT = [("person", re.compile(r"\b(?:manager|jefe|jefa|partner|pareja|wife|husband|esposa|esposo|sister|hermana|"
@@ -206,6 +270,8 @@ class Model:
             return None
         if is_tool(n):
             kind = "tool"
+        elif is_tech(n) and kind in ("person", "project", "org"):
+            kind = "topic"
         eid = "e-" + uuid.uuid4().hex[:10]
         with self.db() as c:
             c.execute("INSERT INTO entities(id, name, kind, aliases, created_at, batch) VALUES (?,?,?,?,?,?)",
@@ -222,16 +288,19 @@ class Model:
 
     def link_entity(self, text: str, about: str | None = None, batch: str | None = None) -> str:
         """Pick the entity a fact is about: [[Name]] > the extractor's 'about' > a known name in the text > a new
-        capitalised name with a kind hint > me."""
+        capitalised name with a kind hint > me. Tools and background entities (the context's own org) named in
+        passing are never the subject; a new person needs a person cue next to the name."""
+        text = strip_trailers(text)
         w = _WIKI.findall(text)
         if w:
-            return self.resolve(w[0], "tool" if is_tool(w[0]) else self._kind_for(text), batch=batch) or self.me()
+            return self.resolve(w[0], self._entity_kind(w[0], text), batch=batch) or self.me()
         if about and about.strip().lower() not in ("", "me", "user", "the user", "yo") and not is_common(about):
-            return self.resolve(about, "tool" if is_tool(about) else self._kind_for(text), batch=batch) or self.me()
+            return self.resolve(about, self._entity_kind(about, text), batch=batch) or self.me()
         low = text.lower()
+        bg = {b.lower() for b in getattr(self, "background", ())}
         best = None
         for e in self.entities():
-            if e["kind"] in ("me", "tool"):  # a tool named in passing is not what the fact is about
+            if e["kind"] in ("me", "tool") or e["name"].lower() in bg:  # named in passing is not what it is about
                 continue
             for nm in [e["name"], *e["aliases"]]:
                 if len(nm) >= 3 and re.search(r"\b" + re.escape(nm.lower()) + r"\b", low):
@@ -241,10 +310,32 @@ class Model:
             return best[0]
         kind = self._kind_for(text)
         if kind in ("project", "person", "org"):
-            caps = name_candidates(text)
+            caps = [c for c in name_candidates(text, getattr(self, "known_names", ())) if c.lower() not in bg]
+            if kind == "person":
+                caps = [c for c in caps if self._person_near(c, text)][:1]  # the name right after the cue
             if caps:
                 return self.resolve(caps[-1], kind, batch=batch) or self.me()
         return self.me()
+
+    @staticmethod
+    def _person_near(name: str, text: str, words: int = 3) -> bool:
+        """A person cue within a few words of the name ("my manager Laura", "Laura, mi jefa")."""
+        i = text.find(name)
+        if i < 0:
+            return False
+        left = " ".join(text[:i].split()[-words:])
+        right = " ".join(text[i + len(name):].split()[:words])
+        return bool(_PERSON_CUE.search(left) or _PERSON_CUE.search(right))
+
+    def _entity_kind(self, name: str, text: str) -> str | None:
+        if is_tool(name):
+            return "tool"
+        if is_tech(name):
+            return "topic"
+        if name.lower() in {b.lower() for b in getattr(self, "background", ())}:
+            return "org"
+        k = self._kind_for(text)
+        return None if k == "person" and not self._person_near(name, text) else k
 
     @staticmethod
     def _kind_for(text: str) -> str | None:
@@ -347,15 +438,22 @@ class Model:
             c.execute("UPDATE facts SET confirmed_at=?, confidence=MIN(1.0, confidence+0.2) WHERE note_id=?", (now(), note_id))
 
     # ---------------------------------------------------------------- migration (dry run / apply / undo)
-    def migrate(self, notes: list[dict[str, Any]], apply: bool = False, owner: str = "me") -> dict[str, Any]:
-        """notes: memory_list items. Dry run: what would be linked (no write). Apply: add rows tagged with a batch."""
+    def migrate(self, notes: list[dict[str, Any]], apply: bool = False, owner: str = "me",
+                context: str | None = None) -> dict[str, Any]:
+        """notes: memory_list items. Dry run: what would be linked (no write). Apply: add rows tagged with a batch.
+        context: the context's name (e.g. a company), an org that is background to every note, never their subject."""
         known = {r["note_id"] for r in self.facts(status=None)}
         todo = [n for n in notes if n.get("id") and n["id"] not in known and str(n.get("text", "")).strip()]
+        names = repeated_initial_names(str(n.get("text", "")) for n in notes)
+        bg = [context] if context and context.lower() not in ("personal", "default", "shared", "me") else []
         if not apply:
             import tempfile  # the dry run works on a throw-away copy
             with tempfile.TemporaryDirectory() as td:
                 probe = Model(Path(td) / "m.sqlite")
+                probe.known_names, probe.background = names, bg
                 probe.me(owner)
+                for b in bg:
+                    probe.resolve(b, "org")
                 for e in self.entities():
                     probe.resolve(e["name"], e["kind"])
                 kinds: dict[str, int] = {}
@@ -367,6 +465,7 @@ class Model:
             return {"dry_run": True, "notes": len(todo), "already": len(known), "kinds": kinds,
                     "entities": sorted(ents, key=lambda e: -e["facts"])[:40]}
         batch = "mig-" + uuid.uuid4().hex[:8]
+        self.known_names, self.background = names, bg
         self.me(owner)
         for n in todo:
             self.add_fact(n["id"], n["text"], tags=n.get("tags") or [], origin="imported", source_app=n.get("source_app"),

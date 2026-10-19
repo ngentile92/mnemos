@@ -61,7 +61,8 @@ async def run(args: argparse.Namespace, server: Any = None, data_dir: str | None
     m = Model(model_path(data_dir))
     if args.cmd == "sync":
         from . import contexts as _c
-        return m.migrate(await own_notes(server), apply=args.apply, owner=str(getattr(_c, "OWNER", "") or "me"))
+        return m.migrate(await own_notes(server), apply=args.apply, owner=str(getattr(_c, "OWNER", "") or "me"),
+                         context=os.environ.get("HUB_CONTEXT"))
     if args.cmd == "undo-sync":
         return m.undo_migration(args.batch)
     if args.cmd == "consolidate":

@@ -485,6 +485,14 @@ def build_server(
                 out.append({"id": h["id"], "kind": kind, "similarity": round(j, 2), "text": h["text"][:300]})
         return sorted(out, key=lambda n: -n["similarity"])[:3]
 
+    def _summary(item: dict[str, Any], name: str) -> dict[str, Any]:
+        """item_summary with the ledger's tags when Cognee has none: a tag change rebuilds the note in Cognee,
+        which drops its external_metadata (tags included)."""
+        s = item_summary(item, name)
+        if not s["tags"]:
+            s["tags"] = (safe(ledger.provenance, str(item.get("id")), name) or {}).get("tags") or []
+        return s
+
     async def _locate(sc: MemoryScope, data_id: str) -> tuple[str, str, dict[str, Any]]:
         """Busca la nota en los datasets PROPIOS del contexto. Nunca toca datasets ajenos."""
         if not _UUID_RE.match(data_id or ""):
@@ -521,6 +529,7 @@ def build_server(
                 if prov:
                     it["provenance"] = prov
                     it["source_app"] = it["source_app"] or prov["source_app"]
+                    it["tags"] = it["tags"] or prov.get("tags") or []
                     it["pinned"] = bool(prov.get("pinned"))
                     it["obsolete"] = bool(prov.get("obsolete"))
                     from .ledger import validity_state
@@ -596,7 +605,7 @@ def build_server(
         app = _client_app()
         try:
             name, ds_id, item = await _locate(scope(), id)
-            old = item_summary(item, name)
+            old = _summary(item, name)
             text = await cognee.raw_text(ds_id, id)
             if text is not None:
                 safe(ledger.snapshot, data_id=id, dataset=name, context=ctx.name, text=text, tags=old["tags"],
@@ -630,7 +639,7 @@ def build_server(
         app = _client_app()
         try:
             name, ds_id, item = await _locate(scope(), id)
-            old = item_summary(item, name)
+            old = _summary(item, name)
             clean_tags = [t.strip()[:40] for t in (tags if tags is not None else old["tags"]) if str(t).strip()]
             old_text = await cognee.raw_text(ds_id, id)
             if old_text is None:
@@ -719,7 +728,7 @@ def build_server(
         try:
             sc = scope()
             name, ds_id, item = await _locate(sc, id)
-            old = item_summary(item, name)
+            old = _summary(item, name)
             text = await cognee.raw_text(ds_id, id)
             if not text:
                 raise MemoryError_("no pude leer el texto de la nota; probá de nuevo")
@@ -764,7 +773,7 @@ def build_server(
         if not h:  # older note, never edited through Mnemos: fall back to Cognee's metadata
             try:
                 name, _ds, item = await _locate(scope(), id)
-                old = item_summary(item, name)
+                old = _summary(item, name)
                 h = {"id": id, "dataset": name, "deleted": False, "previous_versions": [],
                      "provenance": {"source_app": old["source_app"], "saved_at": old["created_at"],
                                     "source": "cognee metadata (no Mnemos history yet)"}}
@@ -806,7 +815,7 @@ def build_server(
                 action = "restored"
             else:
                 name, _ds, item = await _locate(sc, id)
-                cur = item_summary(item, name)
+                cur = _summary(item, name)
                 cur_text = await cognee.raw_text(ds_id, id)
                 if cur_text is None:
                     raise MemoryError_("no pude leer el texto actual de la nota; probá de nuevo")
@@ -837,7 +846,7 @@ def build_server(
             name, ds_id, item = await _locate(scope(), id)
             if not safe(ledger.set_flags, id, by=app, **kw):
                 text = await cognee.raw_text(ds_id, id) or ""
-                old = item_summary(item, name)
+                old = _summary(item, name)
                 safe(ledger.record_save, dataset=name, text=text, context=ctx.name, source_app=old["source_app"],
                      login=None, tags=old["tags"], data_id=id)
                 safe(ledger.set_flags, id, by=app, **kw)

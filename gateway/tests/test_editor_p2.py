@@ -198,3 +198,33 @@ def test_validity_state():
     assert validity_state(None, "2026-01-01", "2026-02-01") == "expired"
     assert validity_state("2026-03-01", None, "2026-02-01") == "future"
     assert validity_state("2026-01-01", "2026-12-31", "2026-02-01") is None
+
+
+def drop_metadata_on_rebuild(rec):
+    """Like Cognee: an update that sends node_set rebuilds the note and loses its external_metadata."""
+    orig = rec.handler
+
+    def handler(request):
+        res = orig(request)
+        if request.method == "PATCH" and "node_set" in request.content.decode():
+            for items in rec.items.values():
+                for it in items:
+                    if it["id"] == request.url.params["data_id"]:
+                        it["externalMetadata"] = {}
+        return res
+    rec.handler = handler
+
+
+async def test_tags_survive_a_rebuild_through_the_ledger(make_server):  # noqa: F811
+    server, rec = make_server("personal")
+    drop_metadata_on_rebuild(rec)
+    async with Client(server) as c:
+        await c.call_tool("memory_update", {"id": PID, "text": "nota de personal sobre orion", "tags": ["homelab", "red"]})
+        items = {i["id"]: i for i in data(await c.call_tool("memory_list", {}))["items"]}
+        assert items[PID]["tags"] == ["homelab", "red"]
+        n = len(rec.patches)
+        # a text-only correction keeps the tags and does not force another rebuild
+        await c.call_tool("memory_update", {"id": PID, "text": "nota de personal sobre orion, corregida"})
+        assert "node_set" not in rec.patches[n][2]
+        items = {i["id"]: i for i in data(await c.call_tool("memory_list", {}))["items"]}
+        assert items[PID]["tags"] == ["homelab", "red"]

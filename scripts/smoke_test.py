@@ -6,7 +6,8 @@ Modos:
            Prueba aislamiento real de memoria (escribe y busca hechos marcados), skills por contexto,
            policy de secretos y el 403 de Cognee entre contextos.
   --quick  contra producción: health de Cognee y, por cada hostname público, 401 en /mcp sin token y
-           metadata OAuth correcta. No necesita credenciales.
+           metadata OAuth correcta. No necesita credenciales. Con MNEMOS_EXPOSURE=tailnet (.env) los hubs se
+           prueban por MagicDNS y un registro DNS público es un aviso, no un requisito.
 
 Requiere: pip install "fastmcp==4.0.*" httpx
 """
@@ -41,6 +42,10 @@ def _prod_contexts() -> list[str]:
     return list(ctxs)
 
 failures: list[str] = []
+
+
+def warn(msg: str) -> None:
+    print("  WARN " + msg)
 
 
 def check(cond: bool, msg: str) -> None:
@@ -187,7 +192,25 @@ def _tailnet_from_env() -> str | None:
     return None
 
 
-async def quick(cognee_url: str, tailnet: str | None) -> None:
+def _exposure_from_env() -> str:
+    """MNEMOS_EXPOSURE (entorno > .env): funnel (default) o tailnet."""
+    val = os.environ.get("MNEMOS_EXPOSURE")
+    env = Path(__file__).resolve().parent.parent / ".env"
+    if not val and env.exists():
+        for line in env.read_text().splitlines():
+            if line.startswith("MNEMOS_EXPOSURE="):
+                val = line.split("=", 1)[1].split("#", 1)[0].strip()
+    return (val or "funnel").lower()
+
+
+def public_dns_verdict(mode: str, answers: int) -> str:
+    """ok / fail / warn para el paso 3. funnel exige registro público; tailnet lo tolera como aviso."""
+    if mode == "tailnet":
+        return "warn" if answers else "ok"
+    return "ok" if answers else "fail"
+
+
+async def quick(cognee_url: str, tailnet: str | None, mode: str = "funnel") -> None:
     print("1) Cognee")
     try:
         r = httpx.get(f"{cognee_url}/health", timeout=10)
@@ -197,7 +220,7 @@ async def quick(cognee_url: str, tailnet: str | None) -> None:
     if not tailnet:
         print("   (sin TS_TAILNET: salteo los endpoints públicos)")
         return
-    print("2) endpoints públicos (Funnel)")
+    print("2) endpoints de los hubs " + ("(MagicDNS, sin Funnel)" if mode == "tailnet" else "(Funnel)"))
     for c in CONTEXTS:
         base = f"https://hub-{c}.{tailnet}.ts.net"
         try:
@@ -211,17 +234,24 @@ async def quick(cognee_url: str, tailnet: str | None) -> None:
             check(False, f"{c}: {base} no responde ({exc})")
     # Desde la Mac, MagicDNS resuelve los nombres del tailnet aunque el registro PÚBLICO de Funnel falte
     # (pasó el 30/09 con hub-work: NXDOMAIN afuera, 401 adentro). Preguntamos a un resolver público (DoH).
-    print("3) DNS público de Funnel (dns.google)")
+    print("3) DNS público de Funnel (dns.google)" + (": no debería haber registro" if mode == "tailnet" else ""))
     for c in CONTEXTS:
         name = f"hub-{c}.{tailnet}.ts.net"
         try:
             j = httpx.get("https://dns.google/resolve", params={"name": name, "type": "A"}, timeout=10).json()
-            n = sum(1 for a in j.get("Answer", []) if a.get("type") == 1)
-            check(j.get("Status") == 0 and n > 0,
+            n = sum(1 for a in j.get("Answer", []) if a.get("type") == 1) if j.get("Status") == 0 else 0
+            verdict = public_dns_verdict(mode, n)
+            if verdict == "warn":
+                warn(f"{c}: {name} → {n} A: Funnel parece prendido aunque MNEMOS_EXPOSURE=tailnet")
+                continue
+            check(verdict == "ok",
                   f"{c}: {name} → {n} A (status {j.get('Status')})"
-                  + ("" if n else "  ⇒ recreá el sidecar: docker compose up -d --force-recreate ts-" + c + " gateway-" + c))
+                  + ("" if verdict == "ok" else "  ⇒ recreá el sidecar: docker compose up -d --force-recreate ts-" + c + " gateway-" + c))
         except (httpx.HTTPError, ValueError) as exc:
-            check(False, f"{c}: no pude consultar DNS público ({exc})")
+            if mode == "tailnet":
+                warn(f"{c}: no pude consultar DNS público ({exc})")
+            else:
+                check(False, f"{c}: no pude consultar DNS público ({exc})")
 
 
 def main() -> None:
@@ -238,7 +268,8 @@ def main() -> None:
     else:
         global CONTEXTS
         CONTEXTS = _prod_contexts()
-        asyncio.run(quick(args.cognee_url or "http://127.0.0.1:8010", os.environ.get("TS_TAILNET") or _tailnet_from_env()))
+        asyncio.run(quick(args.cognee_url or "http://127.0.0.1:8010", os.environ.get("TS_TAILNET") or _tailnet_from_env(),
+                          _exposure_from_env()))
     print()
     if failures:
         print(f"FALLARON {len(failures)} chequeos")

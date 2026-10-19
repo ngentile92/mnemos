@@ -128,7 +128,7 @@ services:
       TS_ACCEPT_DNS: "false"          # que el DNS de Docker resuelva cognee/infisical
     volumes:
       - ts_work:/var/lib/tailscale
-      - ./config/tailscale/funnel:/config:ro   # mismo serve.json en todos los sidecars
+      - ./config/tailscale/${MNEMOS_EXPOSURE:-funnel}:/config:ro   # mismo serve.json en todos los sidecars (funnel | tailnet)
 
   gateway-work:
     <<: *gateway
@@ -165,7 +165,7 @@ services:
       TS_ACCEPT_DNS: "false"
     volumes:
       - ts_personal:/var/lib/tailscale
-      - ./config/tailscale/funnel:/config:ro   # mismo serve.json en todos los sidecars
+      - ./config/tailscale/${MNEMOS_EXPOSURE:-funnel}:/config:ro   # mismo serve.json en todos los sidecars (funnel | tailnet)
 
   gateway-personal:
     <<: *gateway
@@ -202,7 +202,7 @@ services:
       TS_ACCEPT_DNS: "false"
     volumes:
       - ts_side:/var/lib/tailscale
-      - ./config/tailscale/funnel:/config:ro   # mismo serve.json en todos los sidecars
+      - ./config/tailscale/${MNEMOS_EXPOSURE:-funnel}:/config:ro   # mismo serve.json en todos los sidecars (funnel | tailnet)
 
   gateway-side:
     <<: *gateway
@@ -240,7 +240,7 @@ services:
       TS_ACCEPT_DNS: "false"
     volumes:
       - ts_mnemos:/var/lib/tailscale
-      - ./config/tailscale/funnel:/config:ro   # same serve.json: 443 → 127.0.0.1:8000 (the router)
+      - ./config/tailscale/${MNEMOS_EXPOSURE:-funnel}:/config:ro   # same serve.json: 443 → 127.0.0.1:8000 (the router)
     ports: ["127.0.0.1:${MNEMOS_ROUTER_ADMIN_PORT:-8210}:8001"]   # grant admin for the dashboard (key-gated)
 
   hub-router:

@@ -55,3 +55,18 @@ def test_stale_local_target_is_fixed_not_conflict():
     assert i["cmds"][1][-1] == "http://127.0.0.1:8790" and "WRONG PORT" in mx.describe(i)
     st["Web"][f"{DNS}:8444"]["Handlers"]["/"]["Proxy"] = "https://other.example"
     assert mx.host_actions(st, DNS, {8444: ("dashboard", 8790)})[0]["state"] == "conflict"
+
+
+def test_hubs_tailnet_mode_needs_only_mcp_and_warns_on_public_dns():
+    running = {"ts-a", "gateway-a", "ts-b", "gateway-b", "ts-c", "gateway-c"}
+    pub = {"a": {"dns": False, "mcp": True}, "b": {"dns": True, "mcp": True}, "c": {"dns": False, "mcp": False}}
+    items = {i["what"]: i for i in mx.hub_actions(["a", "b", "c"], running, pub, "tailnet")}
+    assert items["hub-a"]["state"] == "ok" and "note" not in items["hub-a"]
+    assert items["hub-b"]["state"] == "ok" and "Funnel" in items["hub-b"]["note"]
+    assert items["hub-c"]["state"] == "unreachable"
+    assert "tailnet via ts-a" in mx.describe(items["hub-a"]) and "public DNS" not in mx.describe(items["hub-a"])
+
+
+def test_hubs_funnel_mode_unchanged_by_default():
+    i = mx.hub_actions(["a"], {"ts-a", "gateway-a"}, {"a": {"dns": False, "mcp": True}})[0]
+    assert i["state"] == "unreachable" and "Funnel via ts-a" in mx.describe(i)

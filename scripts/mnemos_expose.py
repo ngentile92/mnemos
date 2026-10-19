@@ -10,6 +10,9 @@ What "exposed" means:
   - public (Funnel): each context's `ts-<ctx>` sidecar + `gateway-<ctx>` are running; the sidecar's serve.json
     turns Funnel on for that hostname only. Check: public DNS (DoH 1.1.1.1/8.8.8.8) resolves
     hub-<ctx>.<tailnet>.ts.net and POST /mcp answers 401 + WWW-Authenticate (OAuth required).
+  - hubs on the tailnet only (MNEMOS_EXPOSURE=tailnet in .env): same containers, but the sidecars mount
+    config/tailscale/tailnet/serve.json (no Funnel). Check: POST /mcp answers 401 over MagicDNS; a public DNS
+    record is reported as a warning (Funnel is still on somewhere), not required.
   - tailnet only (`tailscale serve` on the host): Vaultwarden :443 → 127.0.0.1:8081, Infisical :8443 →
     127.0.0.1:8082 and, with --dashboard, :8444 → 127.0.0.1:8790.
 
@@ -82,23 +85,27 @@ def host_actions(status: dict[str, Any], dns_name: str, wanted: dict[int, tuple[
     return out
 
 
-def hub_actions(contexts: list, running: set[str], public: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+def hub_actions(contexts: list, running: set[str], public: dict[str, dict[str, Any]],
+                mode: str = "funnel") -> list[dict[str, Any]]:
     """contexts: names, or (key, label, services) targets (hub_watchdog.targets, includes the router);
-    running: compose services in state running; public: key → {"dns": bool, "mcp": bool}."""
+    running: compose services in state running; public: key → {"dns": bool, "mcp": bool};
+    mode: MNEMOS_EXPOSURE (funnel needs public DNS + /mcp; tailnet needs /mcp only)."""
     out = []
     for t in contexts:
         c, label, svcs = t if isinstance(t, tuple) else (t, f"hub-{t}", [f"ts-{t}", f"gateway-{t}"])
         down = [s for s in svcs if s not in running]
         p = public.get(c) or {}
         item = {"kind": "hub", "what": label, "services": svcs, "down": down,
-                "dns": p.get("dns"), "mcp": p.get("mcp")}
+                "dns": p.get("dns"), "mcp": p.get("mcp"), "exposure": mode}
         if down:
             item.update(state="missing", cmd=["up", "-d", *svcs])
-        elif p and not (p.get("dns") and p.get("mcp")):
-            # containers up but not reachable from the internet: recreate only this pair (same as the watchdog)
+        elif p and not (p.get("mcp") and (mode == "tailnet" or p.get("dns"))):
+            # containers up but not reachable: recreate only this pair (same as the watchdog)
             item.update(state="unreachable", cmd=["up", "-d", "--force-recreate", *svcs])
         else:
             item.update(state="ok")
+        if mode == "tailnet" and p.get("dns"):
+            item["note"] = "public DNS record found: Funnel looks on for this hub"
         out.append(item)
     return out
 
@@ -111,8 +118,12 @@ def describe(i: dict[str, Any]) -> str:
     if i["kind"] == "host":
         base = f"{i['what']:12} tailnet :{i['port']} → {i['target']}"
     else:
-        extra = "" if i["dns"] is None else f" (public DNS {'ok' if i['dns'] else 'NO'}, /mcp→401 {'ok' if i['mcp'] else 'NO'})"
-        base = f"{i['what']:12} Funnel via {i['services'][0]}{extra}"
+        if i.get("exposure") == "tailnet":
+            extra = "" if i["dns"] is None else f" (MagicDNS /mcp→401 {'ok' if i['mcp'] else 'NO'})"
+            base = f"{i['what']:12} tailnet via {i['services'][0]}{extra}"
+        else:
+            extra = "" if i["dns"] is None else f" (public DNS {'ok' if i['dns'] else 'NO'}, /mcp→401 {'ok' if i['mcp'] else 'NO'})"
+            base = f"{i['what']:12} Funnel via {i['services'][0]}{extra}"
     tail = {"ok": "ok", "missing": "MISSING", "unreachable": "UNREACHABLE", "conflict": "CONFLICT", "wrong_target": "WRONG PORT",
             "danger": "DANGER"}[i["state"]]
     return f"[{tail:11}] {base}" + (f" — {i['note']}" if i.get("note") else "")
@@ -149,13 +160,13 @@ def compose_running() -> set[str]:
     return {row.get("Service") for row in rows if row.get("State") == "running"}
 
 
-def public_checks(contexts: list, tailnet: str) -> dict[str, dict[str, Any]]:
-    from hub_watchdog import check_mcp, resolve_public_dns
+def public_checks(contexts: list, tailnet: str, mode: str = "funnel") -> dict[str, dict[str, Any]]:
+    from hub_watchdog import probe_hub
     out = {}
     for t in contexts:
         c, label = (t[0], t[1]) if isinstance(t, tuple) else (t, f"hub-{t}")
-        host = f"{label}.{tailnet}.ts.net"
-        out[c] = {"dns": resolve_public_dns(host)["ok"], "mcp": check_mcp(f"https://{host}")["ok"]}
+        dns, mcp = probe_hub(f"{label}.{tailnet}.ts.net", mode)
+        out[c] = {"dns": dns["ok"], "mcp": mcp["ok"]}
     return out
 
 
@@ -170,8 +181,9 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     from hub_gateway.contexts import CONTEXTS
-    from hub_watchdog import read_env, targets
+    from hub_watchdog import exposure, read_env, targets
     env = read_env(ROOT / ".env")
+    mode = exposure(env)
     tailnet = env.get("TS_TAILNET", "")
     contexts = targets(list(CONTEXTS), env)  # + the router (mnemos.<tailnet>) when COMPOSE_PROFILES has `router`
     ts = ts_bin()
@@ -185,9 +197,9 @@ def main(argv: list[str] | None = None) -> int:
         wanted[8444] = ("dashboard", int(dashboard_url(env).rsplit(":", 1)[1]))
 
     def plan() -> list[dict[str, Any]]:
-        pub = {} if args.no_public_check or not tailnet else public_checks(contexts, tailnet)
+        pub = {} if args.no_public_check or not tailnet else public_checks(contexts, tailnet, mode)
         return host_actions(ts_json(ts, "serve", "status"), self_dns, wanted) + hub_actions(
-            contexts, compose_running(), pub)
+            contexts, compose_running(), pub, mode)
 
     items = plan()
     if args.apply:

@@ -13,3 +13,12 @@
     { "src": ["autogroup:member"], "dst": ["autogroup:self"], "ip": ["*"] },
   ],
 }
+
+// Con MNEMOS_EXPOSURE=tailnet (hubs sin Funnel, solo para clientes del tailnet), en vez de lo anterior:
+//  - el "nodeAttrs" de funnel sobra: sacalo;
+//  - autogroup:self no incluye nodos con tag, así que tus dispositivos necesitan llegar a los sidecars:
+//
+//  "grants": [
+//    { "src": ["autogroup:member"], "dst": ["autogroup:self"], "ip": ["*"] },
+//    { "src": ["autogroup:member"], "dst": ["tag:hub-public"], "ip": ["tcp:443"] },
+//  ],

@@ -4,7 +4,9 @@
 Cada corrida (LaunchAgent cada 15 min):
   1. Resuelve hub-{work,personal,side}.<tailnet>.ts.net vía DNS público (1.1.1.1 / 8.8.8.8 DoH).
   2. GET/POST https://hub-*/mcp esperando 401 (OAuth).
-  3. Si DNS falta o la conexión falla → `docker compose up -d --force-recreate ts-<ctx> gateway-<ctx>`
+     Con MNEMOS_EXPOSURE=tailnet en .env (hubs sin Funnel) el DNS público no se exige: /mcp se prueba por
+     MagicDNS y un registro público es solo un aviso (quiere decir que Funnel quedó prendido).
+  3. Si DNS falta (solo Funnel) o la conexión falla → `docker compose up -d --force-recreate ts-<ctx> gateway-<ctx>`
      (con cooldown de 30 min por hub para no recrear en loop). Nunca hace Funnel-enable.
   4. Chequea Cognee en 127.0.0.1:8010 y el dashboard en :8790 (reinicia el LaunchAgent si cae).
   5. Escribe ~/Library/Logs/mnemos-watchdog-status.json (el dashboard lo muestra) y loggea a
@@ -92,6 +94,18 @@ def dashboard_url(env: dict[str, str] | None = None) -> str:
     port = (os.environ.get("MNEMOS_DASHBOARD_PORT") or env.get("MNEMOS_DASHBOARD_PORT")
             or os.environ.get("AIHUB_DASHBOARD_PORT") or env.get("AIHUB_DASHBOARD_PORT") or str(DEFAULT_DASHBOARD_PORT))
     return f"http://127.0.0.1:{int(port)}"
+EXPOSURES = ("funnel", "tailnet")
+
+
+def exposure(env: dict[str, str] | None = None) -> str:
+    """MNEMOS_EXPOSURE (entorno > .env): funnel (default, hubs públicos) o tailnet (solo MagicDNS)."""
+    env = read_env(ROOT / ".env") if env is None else env
+    val = (os.environ.get("MNEMOS_EXPOSURE") or env.get("MNEMOS_EXPOSURE") or "funnel").strip().lower()
+    if val not in EXPOSURES:
+        raise SystemExit(f"MNEMOS_EXPOSURE={val!r} no es válido ({' | '.join(EXPOSURES)})")
+    return val
+
+
 DOH_ENDPOINTS = (
     ("cloudflare", "https://cloudflare-dns.com/dns-query"),
     ("google", "https://dns.google/resolve"),
@@ -433,8 +447,26 @@ def process_alerts(state: dict, components: dict[str, bool], cfg: dict[str, Any]
     return sent
 
 
-def hub_ok(dns: dict, mcp: dict) -> bool:
+def probe_hub(name: str, mode: str = "funnel") -> tuple[dict[str, Any], dict[str, Any]]:
+    """(DNS público, /mcp → 401). funnel: /mcp solo se prueba si hay DNS público. tailnet: /mcp por MagicDNS;
+    el DNS público se consulta solo para avisar si Funnel quedó prendido."""
+    base = f"https://{name}"
+    dns = resolve_public_dns(name)
+    if mode == "funnel" and not dns.get("ok"):
+        return dns, {"url": f"{base}/mcp", "ok": False, "error": "sin DNS público"}
+    return dns, check_mcp(base)
+
+
+def hub_ok(dns: dict, mcp: dict, mode: str = "funnel") -> bool:
+    if mode == "tailnet":
+        return bool(mcp.get("ok"))
     return bool(dns.get("ok") and mcp.get("ok"))
+
+
+def exposure_warning(dns: dict, mode: str) -> str | None:
+    if mode == "tailnet" and dns.get("ok"):
+        return "hay registro DNS público: Funnel parece prendido (MNEMOS_EXPOSURE=tailnet)"
+    return None
 
 
 def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S,
@@ -442,6 +474,7 @@ def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S
     started = now_iso()
     log(f"== Inicio watchdog{' (dry-run)' if dry_run else ''}")
     tailnet = tailnet_from_env()
+    mode = exposure()
     state = load_json(STATE_PATH, {"recreates": {}, "prev": {}})
     prev = state.get("prev") or {}
 
@@ -451,6 +484,7 @@ def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S
         "ok": True,
         "dry_run": dry_run,
         "tailnet": tailnet,
+        "exposure": mode,
         "hubs": {},
         "cognee": {},
         "dashboard": {},
@@ -470,8 +504,7 @@ def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S
     for ctx, label, services in targets():
         name = f"{label}.{tailnet}.ts.net"
         base = f"https://{name}"
-        dns = resolve_public_dns(name)
-        mcp = check_mcp(base) if dns.get("ok") else {"url": f"{base}/mcp", "ok": False, "error": "sin DNS público"}
+        dns, mcp = probe_hub(name, mode)
         # Si DNS OK pero MCP falla, igualmente reintentamos (Funnel caído con registro viejo).
         if dns.get("ok") and not mcp.get("ok"):
             mcp = check_mcp(base)  # ya hecho; keep
@@ -483,17 +516,20 @@ def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S
             "mcp_ok": bool(mcp.get("ok")),
             "mcp_http": mcp.get("http"),
             "mcp_error": mcp.get("error"),
-            "ok": hub_ok(dns, mcp),
+            "ok": hub_ok(dns, mcp, mode),
+            "warning": exposure_warning(dns, mode),
             "recreated": False,
             "cooldown": False,
             "last_recreate": ((state.get("recreates") or {}).get(ctx) or {}).get("at"),
         }
         log(f"{label}: dns={'OK' if entry['dns_ok'] else 'FAIL'} "
             f"mcp={'OK' if entry['mcp_ok'] else 'FAIL'} addrs={entry['dns_addrs'] or '-'}")
+        if entry["warning"]:
+            log(f"{label}: AVISO {entry['warning']}")
 
         if not entry["ok"]:
             status["ok"] = False
-            reason = "dns" if not entry["dns_ok"] else "mcp"
+            reason = "dns" if mode == "funnel" and not entry["dns_ok"] else "mcp"
             resolvers = dns.get("resolvers") or {}
             if not entry["dns_ok"] and resolvers and all("error" in v for v in resolvers.values()):
                 # Ningún resolver DoH contestó (Mac sin red, recién despierta): no es el Funnel, no recrear.
@@ -515,14 +551,14 @@ def run(dry_run: bool = False, notify: bool = True, cooldown_s: int = COOLDOWN_S
                     entry["last_recreate"] = (state["recreates"][ctx]).get("at")
                     if rec.get("ok") and wait_after_recreate > 0:
                         time.sleep(wait_after_recreate)
-                        dns2 = resolve_public_dns(name)
-                        mcp2 = check_mcp(base) if dns2.get("ok") else {"ok": False, "error": "sin DNS público"}
+                        dns2, mcp2 = probe_hub(name, mode)
                         entry["dns_ok"] = bool(dns2.get("ok"))
                         entry["dns_addrs"] = dns2.get("addrs") or []
                         entry["mcp_ok"] = bool(mcp2.get("ok"))
                         entry["mcp_http"] = mcp2.get("http")
                         entry["mcp_error"] = mcp2.get("error")
-                        entry["ok"] = hub_ok(dns2, mcp2)
+                        entry["ok"] = hub_ok(dns2, mcp2, mode)
+                        entry["warning"] = exposure_warning(dns2, mode)
                         entry["recheck"] = True
                         log(f"{label}: recheck dns={'OK' if entry['dns_ok'] else 'FAIL'} "
                             f"mcp={'OK' if entry['mcp_ok'] else 'FAIL'}")

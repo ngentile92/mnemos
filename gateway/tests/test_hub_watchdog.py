@@ -141,6 +141,56 @@ def test_run_does_not_recreate_when_offline(tmp_path, monkeypatch):
     assert all(h.get("no_network") for h in st["hubs"].values())
 
 
+def test_exposure_default_and_validation(monkeypatch):
+    monkeypatch.delenv("MNEMOS_EXPOSURE", raising=False)
+    assert wd.exposure({}) == "funnel"
+    assert wd.exposure({"MNEMOS_EXPOSURE": "Tailnet"}) == "tailnet"
+    with pytest.raises(SystemExit):
+        wd.exposure({"MNEMOS_EXPOSURE": "public"})
+
+
+def test_hub_ok_tailnet_ignores_public_dns():
+    assert wd.hub_ok({"ok": False}, {"ok": True}, "tailnet") is True
+    assert wd.hub_ok({"ok": True}, {"ok": False}, "tailnet") is False
+    assert wd.exposure_warning({"ok": True}, "tailnet") and wd.exposure_warning({"ok": True}, "funnel") is None
+
+
+def _isolate(monkeypatch, tmp_path):
+    for name, val in (("ROOT", tmp_path), ("STATUS_PATH", tmp_path / "status.json"), ("STATE_PATH", tmp_path / "state.json"),
+                      ("LOG_PATH", tmp_path / "log.txt"), ("LOG_DIR", tmp_path)):
+        monkeypatch.setattr(wd, name, val)
+    monkeypatch.delenv("MNEMOS_EXPOSURE", raising=False)
+    monkeypatch.setattr(wd, "check_cognee", lambda: {"ok": True, "http": 200})
+    monkeypatch.setattr(wd, "check_dashboard", lambda: {"ok": True, "http": 200})
+
+
+def test_run_tailnet_mode_no_public_dns_is_ok(tmp_path, monkeypatch):
+    _isolate(monkeypatch, tmp_path)
+    (tmp_path / ".env").write_text("TS_TAILNET=tailtest\nMNEMOS_EXPOSURE=tailnet\n")
+    nx = {"ok": False, "addrs": [], "resolvers": {"cloudflare": {"ok": False, "addrs": [], "http": 200}}}
+    monkeypatch.setattr(wd, "resolve_public_dns", lambda name, timeout=8.0: dict(nx, name=name))
+    probed = []
+    monkeypatch.setattr(wd, "check_mcp", lambda base, timeout=15.0: probed.append(base) or {"ok": True, "http": 401})
+    called = []
+    monkeypatch.setattr(wd, "recreate_hub", lambda ctx, dry_run: called.append(ctx) or {"ok": True})
+    st = wd.run(dry_run=False, notify=False, wait_after_recreate=0)
+    assert st["ok"] is True and called == [] and st["exposure"] == "tailnet"
+    assert len(probed) == len(st["hubs"]) and not any(h["warning"] for h in st["hubs"].values())
+
+
+def test_run_tailnet_mode_recreates_on_mcp_fail_and_warns_on_public_dns(tmp_path, monkeypatch):
+    _isolate(monkeypatch, tmp_path)
+    (tmp_path / ".env").write_text("TS_TAILNET=tailtest\nMNEMOS_EXPOSURE=tailnet\n")
+    monkeypatch.setattr(wd, "resolve_public_dns",
+                        lambda name, timeout=8.0: {"name": name, "ok": True, "addrs": ["1.2.3.4"], "resolvers": {}})
+    monkeypatch.setattr(wd, "check_mcp", lambda base, timeout=15.0: {"ok": "personal" not in base, "http": 401})
+    called = []
+    monkeypatch.setattr(wd, "recreate_hub", lambda ctx, dry_run: called.append(ctx) or {"ok": True})
+    st = wd.run(dry_run=True, notify=False, wait_after_recreate=0)
+    assert called == ["personal"] and st["actions"][0]["reason"] == "mcp"
+    assert all(h["warning"] for h in st["hubs"].values())
+
+
 # --- alertas externas -------------------------------------------------------------------------
 
 ALERT_CFG = {"webhook_url": "https://hooks.example/x", "ntfy_topic": "", "ntfy_server": "https://ntfy.sh",

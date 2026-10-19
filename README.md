@@ -234,7 +234,8 @@ What it does, by hand (also for renames):
 3. A GitHub OAuth App and a folder `skills/<ctx>/` in your skills repo.
 4. Optional: `compose.dev.yaml` and `scripts/smoke_test.py --dev` keep the three default contexts.
 
-All sidecars share `config/tailscale/funnel/serve.json`. Volumes are named `<project>_<volume>`: keep
+All sidecars share `config/tailscale/funnel/serve.json` (or `config/tailscale/tailnet/serve.json`, without Funnel, with
+`MNEMOS_EXPOSURE=tailnet` in `.env` for tailnet-only clients). Volumes are named `<project>_<volume>`: keep
 `COMPOSE_PROJECT_NAME` stable or Docker creates new, empty volumes.
 
 The gateway, memory scoping, skills visibility, secret policy, dashboard (backend and UI), smoke test and watchdog

@@ -368,6 +368,15 @@ tokens by hand.</p></body>""",
     ui.hooks[("GET", "spaces")] = _spaces
     ui.hooks[("POST", "spaces/update")] = _space_update
     ui.hooks[("POST", "spaces/bridge")] = _bridge
+    from . import local_labs
+
+    async def _labs(_b):
+        return local_labs.status(home)
+
+    async def _labs_set(b):
+        return local_labs.set_enabled(home, bool(b.get("on")))
+    ui.hooks[("GET", "labs")] = _labs
+    ui.hooks[("POST", "labs")] = _labs_set
     ui.hooks[("GET", "hygiene")] = _pending
     ui.hooks[("POST", "hygiene/act")] = _act
     from . import local_engine

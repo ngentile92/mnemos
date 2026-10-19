@@ -111,19 +111,62 @@ def _run_sync(coro_fn: Callable):
 
 class LocalRouter:
     def __init__(self, home: Path, servers: dict[str, FastMCP], descriptions: dict[str, str] | None = None,
-                 language: str = "en", via: str = "local", on_event: Callable | None = None) -> None:
+                 language: str = "en", via: str = "local", on_event: Callable | None = None,
+                 auth: Any = None, identify: Callable | None = None) -> None:
         self.home, self.servers, self.via = Path(home), servers, via
+        self.auth = auth  # OAuth provider (Reach from anywhere); None for this computer's apps
+        self.identify = identify  # async (client_name) -> (key, label, granted spaces, extra fields)
         self.descriptions = descriptions or {c: c for c in servers}
         self.apps = Apps(self.home, list(servers))
         self.active: OrderedDict[str, str] = OrderedDict()  # MCP session -> space chosen with hub_use_context
         self.on_event = on_event  # (app_key, label, space, tool, args, result|None, error|None) -> None
         self.language = language
+        self.reloader: Callable | None = None  # rebuild `servers` in place after contexts.yaml changed
+        self.mcp: FastMCP | None = None
+        self._mtime = self._stat()
+
+    def _stat(self) -> float:
+        try:
+            return (self.home / "contexts.yaml").stat().st_mtime
+        except OSError:
+            return 0.0
+
+    def set_descriptions(self, descriptions: dict[str, str]) -> None:
+        self.descriptions.clear()
+        self.descriptions.update(descriptions)
+        if self.mcp is not None:
+            text = instructions(self.descriptions, self.language)
+            self.mcp.instructions = text
+            try:
+                self.mcp._mcp_server.instructions = text  # what the next `initialize` returns
+            except AttributeError:
+                pass
+
+    def reload_now(self) -> None:
+        if self.reloader:
+            self.reloader()
+        self._mtime = self._stat()
+
+    def maybe_reload(self) -> None:
+        """Another process (the app) edited the spaces: pick it up before this call."""
+        m = self._stat()
+        if m != self._mtime:
+            try:
+                self.reload_now()
+            except Exception:  # noqa: BLE001 — a bad edit must not take the connector down; keep the old setup
+                log.warning("could not reload contexts.yaml", exc_info=True)
+                self._mtime = m
 
     # -- who is calling
-    def caller(self) -> tuple[str, str, str, dict]:
+    async def caller(self) -> tuple[str, str, str, dict]:
+        self.maybe_reload()
         name, version = client_info()
-        key, label = app_key(name)
-        rec = self.apps.touch(key, label, self.via)
+        if self.identify:  # remote: the OAuth client and what the user granted it on the consent page
+            key, label, limit, extra = await self.identify(name)
+            rec = {**self.apps.touch(key, label, self.via, **extra), "_limit": list(limit)}
+        else:
+            key, label = app_key(name)
+            rec = self.apps.touch(key, label, self.via)
         return key, label, version, rec
 
     def sid(self) -> str | None:
@@ -131,6 +174,10 @@ class LocalRouter:
         return "stdio" if self.via == "stdio" else session_id()
 
     def pick(self, requested: str | None, rec: dict) -> str:
+        if rec.get("revoked"):
+            raise ToolError("the user removed this app's access to Mnemos (Mnemos → Apps → Allow again)")
+        if rec.get("paused"):
+            raise ToolError("the user paused this app in Mnemos; continue without memory and say so")
         allowed = self.apps.allowed(rec)
         if requested:
             if requested not in self.servers:
@@ -148,7 +195,7 @@ class LocalRouter:
         return d
 
     async def forward(self, tool: str, requested: str | None, args: dict):
-        key, label, version, rec = self.caller()
+        key, label, version, rec = await self.caller()
         try:
             space = self.pick(requested, rec)
         except ToolError as e:
@@ -160,17 +207,24 @@ class LocalRouter:
         return res
 
     def _event(self, key, label, space, tool, args, res, error) -> None:
-        if self.on_event:
-            try:
-                self.on_event(key, label, space, tool, args, res, error)
-            except Exception:  # noqa: BLE001 — activity is best effort, never breaks a call
-                log.warning("activity log failed", exc_info=True)
+        if not self.on_event:
+            return
+        result = res if isinstance(res, dict) or res is None else None
+        if res is not None and not isinstance(res, dict):
+            if getattr(res, "is_error", False):
+                error = error or " ".join(getattr(c, "text", "") for c in res.content or []).strip() or "error"
+            else:
+                result = getattr(res, "structured_content", None) or {}
+        try:
+            self.on_event(key, label, space, tool, args, result, error)
+        except Exception:  # noqa: BLE001 — activity is best effort, never breaks a call
+            log.warning("activity log failed", exc_info=True)
 
     # -- the MCP server
     def build(self) -> FastMCP:
         first = next(iter(self.servers.values()))
         remote_tools = _run_sync(first.list_tools)
-        mcp = FastMCP("mnemos", instructions=instructions(self.descriptions, self.language))
+        mcp = FastMCP("mnemos", instructions=instructions(self.descriptions, self.language), auth=self.auth)
         spaces = list(self.servers)
         for t in remote_tools:
             if t.name in OWN_TOOLS or t.name in SKIP:
@@ -185,17 +239,23 @@ class LocalRouter:
         async def hub_whoami() -> dict[str, Any]:
             """This app's spaces: which it may use, its default (used when a call has no `context`) and what each
             space is for. Shared is readable from every space."""
-            key, label, _v, rec = router.caller()
+            key, label, _v, rec = await router.caller()
+            if rec.get("revoked") or rec.get("paused"):
+                try:
+                    router.pick(None, rec)
+                except ToolError as e:
+                    router._event(key, label, None, "hub_whoami", {}, None, str(e))
+                    raise
             allowed = router.apps.allowed(rec)
             sid = router.sid()
             out = {"app": label, "app_id": key, "default_space": router.apps.default_for(rec),
                    "spaces": [{"name": c, "description": router.descriptions.get(c, c), "allowed": c in allowed}
                               for c in spaces],
                    "shared": "readable from every space (include_shared=true); save there only with target='shared'",
-                   "mode": "local"}
+                   "mode": "remote" if self.via == "remote" else "local"}
             if sid and router.active.get(sid) in allowed:
                 out["active_space"] = router.active[sid]
-            router._event(key, label, None, "hub_whoami", {}, None, None)
+            router._event(key, label, None, "hub_whoami", {}, out, None)
             return out
 
         @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False,
@@ -205,8 +265,12 @@ class LocalRouter:
         ) -> dict[str, Any]:
             """Use another space for the rest of this chat, so later calls can omit `context`. Only do it when the
             user asks for that space or clearly talks about it."""
-            key, label, _v, rec = router.caller()
-            space = router.pick(context, rec)
+            key, label, _v, rec = await router.caller()
+            try:
+                space = router.pick(context, rec)
+            except ToolError as e:
+                router._event(key, label, context, "hub_use_context", {}, None, str(e))
+                raise
             sid = router.sid()
             if not sid:
                 raise ToolError("no MCP session")
@@ -218,4 +282,5 @@ class LocalRouter:
             return {"active_space": space}
 
         mcp.router = self  # type: ignore[attr-defined]
+        self.mcp = mcp
         return mcp

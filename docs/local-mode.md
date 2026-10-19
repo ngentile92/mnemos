@@ -105,3 +105,70 @@ When a local model is there (built-in or Ollama; never an API or Apple Intellige
 background pass that reads the notes 12 at a time and stores (subject, relation, object) triples per note in
 `<home>/data/<ctx>/graph.sqlite` (`local_graph.py`). Only new or edited notes are read again; deleted notes drop out.
 The view shows those entities and their relations; without a model it keeps the name/tag graph. No Cognee involved.
+
+## Spaces screen (0.6)
+
+**Open my memory → Spaces**: per space a name (`label`), a colour and a one-line description (what goes there; the
+AI uses it to route), Shared explained, and **read-only bridges as toggles** ("Work can read Personal"). Edits go
+to `contexts.yaml` (validated by the same parser, backup in `data/contexts.yaml.bak`) and are reloaded in place:
+the single connector and the app pick them up on the next call, including stdio processes started by AI apps
+(they watch the file's mtime). The space key (`work`) never changes. The legacy per-space URLs (`/<ctx>/mcp`)
+see bridge changes after a restart.
+
+## Apps and Activity (0.6)
+
+**Open my memory → Apps** lists every AI app that used the single connector (`data/apps.json`): its **default
+space**, the spaces it **may use** (Shared is always readable), **Pause** (every call refused until resumed) and
+**Remove access** (refused until *Allow again*; remote apps also lose their sign-in). New apps get the default
+space chosen at the top. **Activity** shows one line per call, newest first: "Cursor saved “Uses pnpm” · work",
+"ChatGPT searched “trip” → 3 notes", refusals in red (`data/activity.sqlite`, last 5,000 events, short summaries
+only). Edits made in the Notes screen are yours and are not logged here (the ledger keeps their history). Older
+per-space entries (`/<ctx>/mcp`, `stdio --context`) bypass the connector, so they are not listed or pausable:
+reconnect those apps from *Connect apps*.
+
+## Graph fixes (0.6)
+
+- **Every note** a space can read (own + Shared + bridged), straight from the store instead of `memory_list`'s
+  500, ranked **pinned → written by hand or by an AI app → imported/mined**, newest first (up to 1,500 per space).
+  The model reads them in that order in the background, 600 per run.
+- **"Me" collapsed**: the prompt calls the author "me"; "me", "the user" and your name become one node, hidden
+  unless **show me** is ticked, so the graph is not a star around you.
+- **Alias merge**: same letters ignoring spaces/punctuation, plus EmbeddingGemma similarity ≥ 0.90 between names
+  of the same (or unknown) type.
+- **Types** (person, organisation, project, tool, place, topic) and **colour by** kind, space or group; **All
+  spaces** view where entities found in several spaces get a white ring.
+- **Directed, labelled edges** (subject → relation → object; labels shown when the graph is small, on hover and
+  for the selected node), **groups** by label propagation, and a **Top** list.
+
+## Reach from anywhere (0.6, opt-in)
+
+Cloud AI apps (Claude on the web and phone, ChatGPT, Grok) cannot start a program on your computer, so they need a
+public HTTPS address. **Open my memory → Apps → Reach from anywhere** sets one up with
+[Tailscale Funnel](https://tailscale.com/kb/1223/funnel). It is **off by default** and does nothing until you
+press *Turn on*.
+
+- **Needs**: Tailscale installed and signed in, and a Mnemos password (≥ 10 characters, stored hashed in
+  `auth.json`, 0600). The first time, Tailscale may ask the tailnet admin to allow Funnel and HTTPS once; the
+  screen shows that link.
+- **What it runs**: `tailscale funnel --bg --https=<port> http://127.0.0.1:<local port>` on the first Funnel port
+  (443, 8443, 10000) that nothing else on this machine uses, remembered in `data/remote.json`. *Turn off* runs
+  `tailscale funnel --https=<port> off` for that port only; other Serve/Funnel settings are never touched.
+- **What is reachable**: requests whose `Host` is the public name go to a separate app with only the OAuth
+  endpoints (discovery, dynamic client registration, PKCE S256, refresh-token rotation, lockout after 5 wrong
+  passwords; the same code as the hub router) and `/mcp`. The status page, `/app`, `/api`, the per-space addresses
+  and the local token are not reachable from outside. While it is off, that name is refused.
+- **Signing in**: the app opens a Mnemos page; type your password and tick the spaces it may use (none are
+  ticked). The app is then listed in *Apps* as "from anywhere", with the same default space / may use / Pause /
+  Activity as local apps; it can never use a space you did not tick. **Remove access** also deletes its OAuth
+  grant (encrypted store in `data/oauth-remote`, key in `data/remote.key`), so its tokens stop working at once;
+  to use it again, connect it again from that app.
+- **Your computer must be awake** and Mnemos running. While it is on, Mnemos can keep the Mac from idle-sleeping
+  when plugged in (`caffeinate -is`, untick to allow sleep); closing the lid still sleeps.
+
+Adding the address (`https://<name>.ts.net[:port]/mcp`, shown with a Copy button):
+
+| App | Where |
+| --- | --- |
+| Claude (web, phone, desktop) | Settings → Connectors → Add custom connector → paste → Connect |
+| ChatGPT | Settings → Apps & Connectors → Advanced → Developer mode → Create → paste, OAuth |
+| Grok / others | "remote MCP server" with OAuth: paste the address |

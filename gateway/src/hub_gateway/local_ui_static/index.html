@@ -19,6 +19,8 @@
     <a href="#memoria" class="tab active" data-view="memoria" role="tab">Notes</a>
     <a href="#graph" class="tab" data-view="graph" role="tab">Graph</a>
     <a href="#skills" class="tab" data-view="skills" role="tab">Skills</a>
+    <a href="#spaces" class="tab" data-view="spaces" role="tab">Spaces</a>
+    <a href="#apps" class="tab" data-view="apps" role="tab">Apps</a>
     <a href="#import" class="tab" data-view="import" role="tab">Import</a>
     <a href="#settings" class="tab" data-view="settings" role="tab">Settings</a>
     <a href="#settings" class="badge" id="eng-badge" title="Which engine finds facts and cleans up your memory" style="align-self:center;margin-left:6px"></a>
@@ -33,6 +35,20 @@
 </section>
 <div id="app" class="hidden">
 <main id="view-memoria" class="view">
+  <section class="card hidden" id="pf-card" style="margin:14px 36px"><div class="card-h"><h2>What your AI knows about you</h2><span class="muted small" id="pf-head"></span></div>
+    <p class="small muted">The short profile every connected AI reads at the start of a chat, rebuilt each night from your notes. Tap a name to see everything Mnemos knows about it.</p>
+    <div id="pf-text" class="me-note" style="white-space:pre-wrap"></div>
+    <div id="pf-ents" class="pf-ents" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
+    <div id="pf-entity" class="hidden" style="margin-top:12px"></div>
+    <div id="pf-digest-wrap" class="hidden"><h3 class="small" style="margin-top:14px">Still true? <span class="muted" id="pf-digest-n"></span></h3>
+      <p class="small muted">Important things you have not confirmed in a while. Keep, fix or forget each one.</p><div id="pf-digest" class="ap-list"></div></div>
+    <p class="small" id="pf-msg"></p></section>
+  <section class="card hidden" id="rl-card" style="margin:14px 36px"><div class="card-h"><h2>Recently learned</h2><span class="muted small" id="rl-head"></span></div>
+    <p class="small muted">What Mnemos kept on its own from your coding chats. Undo anything that is wrong or not worth keeping.</p>
+    <div id="rl-list" class="ap-list"></div>
+    <div id="rl-inbox-wrap" class="hidden"><h3 class="small">To check <span class="muted" id="rl-inbox-n"></span></h3>
+      <p class="small muted">Possible contradictions with a note you have, or things Mnemos was not sure about.</p><div id="rl-inbox" class="ap-list"></div></div>
+    <p class="small" id="rl-msg"></p></section>
   <section class="card hidden" id="eng-offer" style="margin:14px 36px"><h2>Improve my memory</h2>
     <p class="small muted">Download a small private AI model (<b id="eo-size"></b>, once) so Mnemos finds better facts when importing, spots duplicates that use different words, and catches notes that disagree. It runs on this Mac: nothing is sent anywhere. Without it Mnemos keeps working with simple rules.</p>
     <div class="me-actions"><button class="mbtn primary" id="eo-go">Download</button><button class="mbtn" id="eo-no">Not now</button><span class="muted small" id="eo-msg"></span></div>
@@ -69,10 +85,13 @@
 <main id="view-graph" class="view hidden">
   <section class="card me-bar"><select id="g-ctx" aria-label="Context"></select>
     <input id="g-q" type="search" placeholder="Find a person, project or topic…" maxlength="80">
+    <label class="small muted">Colour by <select id="g-colour"><option value="type">kind</option><option value="space">space</option><option value="cluster">group</option></select></label>
+    <label class="small muted"><input type="checkbox" id="g-me" style="width:auto"> show me</label>
     <button id="g-fit" class="mbtn">Fit</button>
-    <span class="muted small me-hint">Names and topics found in your notes; lines join things mentioned together.</span></section>
+    <span class="muted small me-hint">People, projects and things in your notes; arrows read “subject → relation → object”.</span></section>
   <section class="card graphcard"><div class="graphwrap"><div id="cy"></div>
-    <aside id="g-node" class="nodepanel"><p class="muted">Tap a name to see the notes that mention it.</p></aside></div></section>
+    <aside id="g-side" class="nodepanel"><div id="g-legend" class="g-legend"></div><div id="g-node"><p class="muted">Tap a name to see the notes that mention it.</p></div>
+      <div id="g-top"></div></aside></div></section>
 </main>
 <main id="view-skills" class="view hidden">
   <section class="card me-bar"><select id="s-ctx" aria-label="Context"></select>
@@ -83,7 +102,41 @@
     <div class="card me-detailcard"><div id="s-detail"><p class="muted">Pick a skill on the left.</p></div></div>
   </section>
 </main>
+<main id="view-spaces" class="view hidden">
+  <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Your spaces</h2><span class="muted small">memories that never mix</span></div>
+    <p class="small muted">Each space is a separate memory (for example Personal and Work). Every AI app saves to its default space and asks you before using another one. The one-line description tells the AI what goes where, so keep it concrete.</p>
+    <div id="sp-list" class="sp-list"></div><p class="small" id="sp-msg"></p></section>
+  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Shared</h2><span class="muted small">read by every space</span></div>
+    <p class="small muted" id="sp-shared"></p></section>
+  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Let one space read another</h2><span class="muted small">read-only, off by default</span></div>
+    <p class="small muted">Turn one on when, say, your work AI should know your side project. It can only read: it never writes, edits or deletes there.</p>
+    <div id="sp-bridges"></div></section>
+</main>
+<main id="view-apps" class="view hidden">
+  <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Apps using your memory</h2><span class="muted small" id="ap-head"></span></div>
+    <p class="small muted">Every AI app you connected appears here the first time it uses Mnemos. Choose its default space (where it reads and saves unless you ask for another), which spaces it may use, or pause it. New apps use <select id="ap-default" aria-label="Default space for new apps"></select> by default.</p>
+    <div id="ap-list" class="ap-list"></div><p class="small" id="ap-msg"></p></section>
+  <section class="card" style="margin:0 36px 14px" id="cap-card"><div class="card-h"><h2>Auto-capture</h2><span class="muted small" id="cap-head"></span></div>
+    <p class="small muted">Chat apps save when they notice something. Coding apps can do better: with auto-capture on, every message you send is kept
+      on this computer (no AI reads it at that moment, code and pasted logs are dropped) and, once the chat goes quiet, Mnemos keeps the lasting facts
+      in <i>Recently learned</i>, where you can undo any of them. New chats also start knowing your profile. Pausing the app in the list above pauses this too.</p>
+    <div id="cap-list" class="ap-list"></div><p class="small" id="cap-msg"></p></section>
+  <section class="card" style="margin:0 36px 14px" id="rm-card"><div class="card-h"><h2>Reach from anywhere</h2><span class="ap-pill" id="rm-state">off</span></div>
+    <p class="small muted">Lets AI apps that run in the cloud (Claude on the web and on your phone, ChatGPT, Grok) use your memory through
+      <b>Tailscale Funnel</b>, a free secure tunnel to this computer. Each app signs in with your Mnemos password and you choose which spaces it may use.</p>
+    <p class="small rm-warn"><b>Your computer has to be on, awake and running Mnemos.</b> When it sleeps or Mnemos is closed, those apps cannot reach your memory (they will say so). Apps on this computer are not affected.</p>
+    <div id="rm-body"></div><p class="small" id="rm-msg"></p></section>
+  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Activity</h2>
+      <span><select id="ap-filter" aria-label="Filter by app"><option value="">All apps</option></select> <button class="mbtn" id="ap-refresh">Refresh</button></span></div>
+    <p class="small muted">What each app read or saved, newest first. Only a short summary is kept.</p>
+    <div id="ap-feed" class="ap-feed"></div></section>
+</main>
 <main id="view-settings" class="view hidden">
+  <section class="card" style="margin:14px 36px" id="mg-card"><div class="card-h"><h2>Memory model</h2><span class="muted small" id="mg-head"></span></div>
+    <p class="small muted">Mnemos links each note to who or what it is about (you, a person, a project, a tool) so it can build your profile, keep only the current version of a fact and explain why a note was used. Notes are never rewritten or deleted by this: try it first, and undo it any time.</p>
+    <div class="me-actions"><select id="mg-ctx" aria-label="Space"></select><button class="mbtn" id="mg-dry">Try it (no changes)</button>
+      <button class="mbtn primary" id="mg-apply">Link my notes</button><button class="mbtn" id="mg-cons">Tidy up now</button></div>
+    <div id="mg-out" class="small"></div><div id="mg-jobs" class="small muted"></div><p class="small" id="mg-msg"></p></section>
   <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Engine</h2><span class="muted small">what does the smart parts</span></div>
     <div id="st-active"></div>
     <p class="small muted">Order: an API key you enabled for that feature → Ollama (if running) → the built-in model → Apple Intelligence (import only) → simple rules. Search similarity never uses an API.</p>
@@ -133,8 +186,8 @@
     <p class="small muted hidden" id="m-ev"><span id="m-ev-n"></span> <button class="mbtn" id="m-forget">Forget source messages</button></p>
   </section>
   <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Memories that live in the cloud</h2></div>
-    <p class="small muted">Claude.ai and ChatGPT keep their memory online. One click copies a ready question and opens the site: paste it in a new chat, copy the answer, paste it below.</p>
-    <div class="me-actions"><button class="mbtn" data-cloud="https://claude.ai/new">Ask Claude</button><button class="mbtn" data-cloud="https://chatgpt.com/">Ask ChatGPT</button><span class="muted small" id="c-msg"></span></div>
+    <p class="small muted">Claude.ai, ChatGPT and Grok keep their memory online. One click copies a ready question and opens the site: paste it in a new chat, copy the answer, paste it below.</p>
+    <div class="me-actions"><button class="mbtn" data-cloud="https://claude.ai/new">Ask Claude</button><button class="mbtn" data-cloud="https://chatgpt.com/">Ask ChatGPT</button><button class="mbtn" data-cloud="https://grok.com/">Ask Grok</button><span class="muted small" id="c-msg"></span></div>
     <textarea id="c-text" placeholder="Paste the answer here" style="width:100%;min-height:90px;box-sizing:border-box"></textarea>
     <button class="mbtn primary" id="c-go">Review</button></section>
   <section class="imp-grid">
@@ -160,5 +213,10 @@
 </div>
 <script src="/ui/vendor/cytoscape.min.js"></script>
 <script src="/ui/local.js"></script>
+<script src="/ui/spaces.js"></script>
+<script src="/ui/apps.js"></script>
+<script src="/ui/remote.js"></script>
+<script src="/ui/capture.js"></script>
+<script src="/ui/model.js"></script>
 </body>
 </html>

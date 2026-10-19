@@ -31,12 +31,14 @@ import argparse
 import asyncio
 import contextlib
 import hmac
+import logging
 import os
 import secrets
 import sys
 from pathlib import Path
 
 DEFAULT_PORT = 8765
+log = logging.getLogger("mnemos.local")
 
 
 def home_dir(arg: str | None) -> Path:
@@ -127,16 +129,35 @@ def build_all(home: Path, port: int, only: str | None = None):
             return await local_evidence.search(home, _ctx, q, k)
         out[name] = build_server(st, cognee=store, datasets=dmap, broker=SecretBroker({}, None), index=index,
                                  evidence=evidence)
+        out[name].mnemos_local = {"store": store, "scope": MemoryScope(spec, dmap), "data": data}  # Graph view reads
         out[name].instructions = local_instructions(spec)  # proactive: this is the user's own memory
     return out
 
 
-def build_router(home: Path, servers: dict, via: str = "local"):
-    """The single connector over `servers` (from build_all)."""
+def _descriptions(servers: dict) -> dict[str, str]:
     from . import contexts as _c
+    return {n: _c.CONTEXTS[n].description if n in _c.CONTEXTS else n for n in servers}
+
+
+def build_router(home: Path, servers: dict, via: str = "local", port: int = DEFAULT_PORT, auth=None, identify=None):
+    """The single connector over `servers` (from build_all). It reloads them when contexts.yaml changes (Spaces
+    screen: descriptions, bridges), also inside stdio processes launched by AI apps."""
+    from . import contexts as _c
+    from .local_activity import Activity
     from .local_router import LocalRouter
-    descs = {n: _c.CONTEXTS[n].description if n in _c.CONTEXTS else n for n in servers}
-    return LocalRouter(home, servers, descs, language=_c.LANGUAGE, via=via).build()
+    act = Activity(home)
+    lr = LocalRouter(home, servers, _descriptions(servers), language=_c.LANGUAGE, via=via, on_event=act.record,
+                     auth=auth, identify=identify)
+
+    def reload() -> None:
+        _c.reload(home / "contexts.yaml")
+        fresh = build_all(home, port)
+        servers.update(fresh)
+        for gone in [k for k in servers if k not in fresh]:
+            servers.pop(gone, None)
+        lr.set_descriptions(_descriptions(servers))
+    lr.reloader = reload
+    return lr.build()
 
 
 BROWSER_HINT = b"""<!doctype html><meta charset=utf-8><title>Mnemos</title>
@@ -152,14 +173,23 @@ private token for you), or install the Mnemos extension (.mcpb) in Claude Deskto
 class TokenGate:
     """Bearer token + Host check in front of the local HTTP app."""
 
-    def __init__(self, app, token: str, port: int) -> None:
+    def __init__(self, app, token: str, port: int, remote=None) -> None:
         self.app, self.token = app, token.encode()
         self.hosts = {f"127.0.0.1:{port}".encode(), f"localhost:{port}".encode()}
+        self.remote = remote  # Reach from anywhere: its public Host goes to the OAuth-only app, nothing else
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             h = dict(scope.get("headers") or [])
             p = scope.get("path") or ""
+            if self.remote is not None and self.remote.matches(h.get(b"host")):
+                if self.remote.app is not None:
+                    await self.remote.app(scope, receive, send)
+                    return
+                await send({"type": "http.response.start", "status": 503,
+                            "headers": [(b"content-type", b"application/json")]})
+                await send({"type": "http.response.body", "body": b'{"error":"starting"}'})
+                return
             ui = p in ("/", "/app") or p.startswith(("/ui/", "/api/"))  # status page + local app: own cookie auth
             if ui and h.get(b"host") in self.hosts:
                 await self.app(scope, receive, send)
@@ -182,7 +212,7 @@ class TokenGate:
         await self.app(scope, receive, send)
 
 
-def http_app(home: Path, port: int):
+def http_app(home: Path, port: int, remote_opts: dict | None = None):
     from fastmcp.server.http import create_streamable_http_app
     from starlette.applications import Starlette
     from starlette.responses import JSONResponse
@@ -190,24 +220,44 @@ def http_app(home: Path, port: int):
 
     servers = build_all(home, port)
     subs = {c: create_streamable_http_app(server=m, streamable_http_path="/mcp") for c, m in servers.items()}
-    router = build_router(home, servers, via="http")
+    router = build_router(home, servers, via="http", port=port)
     router_app = create_streamable_http_app(server=router, streamable_http_path="/mcp")
+    from . import local_spaces as _lsp
+    from .local_remote import Remote
+
+    def _space_labels() -> list[tuple[str, str]]:
+        try:
+            labels = {s["name"]: s["label"] for s in _lsp.read(home)["spaces"]}
+        except Exception:  # noqa: BLE001
+            labels = {}
+        return [(c, labels.get(c, c)) for c in servers]
+    remote = Remote(home, port, lambda **kw: build_router(home, servers, port=port, **kw), _space_labels,
+                    **(remote_opts or {}))
 
     @contextlib.asynccontextmanager
     async def lifespan(_app):
         async with contextlib.AsyncExitStack() as stack:
             for s in [router_app, *subs.values()]:
                 await stack.enter_async_context(s.router.lifespan_context(s))
+            if remote.enabled():  # Funnel stays configured in Tailscale (--bg); answer on it again
+                try:
+                    await remote.start()
+                except Exception:  # noqa: BLE001 — never block the local app over it
+                    log.warning("Reach from anywhere did not start", exc_info=True)
+            stack.push_async_callback(remote.stop)
             task = None
             from . import local_engine as _le
             _le.get(home).autostart()  # 0.4 → 0.5 model upgrade / resume an interrupted download, in the background
             ui.miner.resume_on_start()  # full-history mining continues where it stopped
+            ui.capture.start()  # live capture: read quiet coding sessions banked by the hooks
             if os.environ.get("MNEMOS_HYGIENE", "1") != "0":
                 from .local_hygiene import nightly
                 task = asyncio.create_task(nightly(home, list(subs), ui.call))
             yield
             if task:
                 task.cancel()
+            if ui.capture.task:
+                ui.capture.task.cancel()
 
     async def home_page(_r):
         from starlette.responses import HTMLResponse
@@ -234,6 +284,90 @@ tokens by hand.</p></body>""",
 
     async def _act(b):
         return await lh.act(home, b, ui.call)
+    from . import local_spaces as lsp
+
+    async def _spaces(_b):
+        return lsp.read(home)
+
+    async def _space_update(b):
+        out = lsp.update_space(home, str(b.get("name", "")), b.get("label"), b.get("color"), b.get("description"))
+        router.router.reload_now()
+        return out
+
+    async def _bridge(b):
+        out = lsp.set_bridge(home, str(b.get("from", "")), str(b.get("to", "")), bool(b.get("on")))
+        router.router.reload_now()
+        return out
+    from .local_activity import Activity
+    activity = Activity(home)
+
+    async def _apps(_b):
+        out = router.router.apps.listing()
+        st = activity.stats()
+        for a in out["apps"]:
+            a["stats"] = st.get(a["key"], {"read": 0, "write": 0, "denied": 0})
+        return out
+
+    async def _app_update(b):
+        key = str(b.get("key", ""))
+        if "default_space" in b:
+            router.router.apps.set_default_space(str(b["default_space"]))
+            return await _apps(b)
+        fields = {k: b[k] for k in ("default", "spaces", "paused", "revoked") if k in b}
+        rec = router.router.apps.update(key, **fields)
+        if fields.get("revoked") and rec.get("oauth_client"):  # remote app: its sign-in goes too
+            await remote.revoke(str(rec["oauth_client"]))
+        return await _apps(b)
+
+    async def _remote(b):
+        return await remote.status(check=str(b.get("check") or "") == "1")
+
+    async def _remote_set(b):
+        if "keep_awake" in b and "on" not in b:
+            return await remote.set_keep_awake(bool(b["keep_awake"]))
+        if b.get("on"):
+            return await remote.enable(str(b.get("password") or ""), bool(b.get("keep_awake", True)))
+        return await remote.disable()
+    ui.hooks[("GET", "remote")] = _remote
+    ui.hooks[("POST", "remote")] = _remote_set
+
+    async def _activity(b):
+        try:
+            limit = int(b.get("limit") or 100)
+        except ValueError:
+            limit = 100
+        return {"events": activity.recent(limit, str(b.get("app") or "") or None)}
+    ui.hooks[("GET", "apps")] = _apps
+    ui.hooks[("POST", "apps/update")] = _app_update
+    ui.hooks[("GET", "activity")] = _activity
+
+    async def _capture(b):
+        try:
+            days = max(1, min(int(b.get("days") or 7), 90))
+        except ValueError:
+            days = 7
+        return {"days": days, "apps": activity.capture(days)}
+    ui.hooks[("GET", "activity/capture")] = _capture
+    from . import local_hooks, local_spool
+
+    def _user_home() -> Path:
+        return Path(os.environ.get("MNEMOS_SCAN_HOME") or Path.home())
+
+    async def _hooks(_b):
+        return {"apps": local_hooks.status(_user_home()), "spool": local_spool.counts(home)}
+
+    async def _hooks_set(b):
+        app = str(b.get("app") or "")
+        if b.get("on"):
+            local_hooks.install(app, home, _user_home())
+        else:
+            local_hooks.uninstall(app, _user_home())
+        return await _hooks({})
+    ui.hooks[("GET", "capture/hooks")] = _hooks
+    ui.hooks[("POST", "capture/hooks")] = _hooks_set
+    ui.hooks[("GET", "spaces")] = _spaces
+    ui.hooks[("POST", "spaces/update")] = _space_update
+    ui.hooks[("POST", "spaces/bridge")] = _bridge
     ui.hooks[("GET", "hygiene")] = _pending
     ui.hooks[("POST", "hygiene/act")] = _act
     from . import local_engine
@@ -248,11 +382,117 @@ tokens by hand.</p></body>""",
         await local_evidence.add_batch(home, src, batch)
     ui.miner = Miner(ui, disc, on_batch=_evidence)
     ui.miner.install()
+    from .local_model import Model as _Model
+
+    def _model(b: dict) -> tuple[str, "_Model"]:
+        ctx = str(b.get("context") or "")
+        if ctx not in subs:
+            raise ValueError("unknown space")
+        return ctx, _Model(home / "data" / ctx / "model.sqlite")
+
+    async def _own_notes(ctx: str) -> list[dict]:
+        return [i for i in await ui.graph_items(ctx) if i.get("space") in (ctx, None)]
+
+    def _contexts_owner() -> str:
+        from . import contexts as _c
+        return str(getattr(_c, "OWNER", "") or "me")
+
+    async def _migrate(b):
+        ctx, m = _model(b)
+        return m.migrate(await _own_notes(ctx), apply=bool(b.get("apply")), owner=_contexts_owner())
+
+    async def _migrate_undo(b):
+        _ctx, m = _model(b)
+        return m.undo_migration(str(b.get("batch") or ""))
+    ui.hooks[("GET", "model/migrate")] = _migrate
+    ui.hooks[("POST", "model/migrate")] = _migrate
+    ui.hooks[("POST", "model/migrate/undo")] = _migrate_undo
+    ui.model_for = lambda ctx: _model({"context": ctx})[1]
+    from . import local_consolidate as _lc
+
+    async def _consolidate(b):
+        return await ui.capture.consolidate_all(force=True)
+
+    async def _cons_undo(b):
+        _ctx, m = _model(b)
+        job = str(b.get("job") or "")
+        if not job.startswith("cons-"):
+            raise ValueError("unknown job")
+        n = m.undo_job(job)
+        await ui.capture.refresh_profile(None)
+        return {"undone": n}
+
+    async def _digest(b):
+        _ctx, m = _model(b)
+        return {"items": _lc.digest(m)}
+
+    async def _digest_act(b):
+        ctx, m = _model(b)
+        nid, act = str(b.get("note_id") or ""), str(b.get("action") or "")
+        if act == "keep":
+            m.confirm(nid)
+        elif act == "forget":
+            await ui.call(ctx, "memory_delete", {"id": nid})
+        elif act == "fix":
+            await ui.call(ctx, "memory_update", {"id": nid, "text": str(b.get("text") or "")[:20000]})
+            m.confirm(nid)
+        else:
+            raise ValueError("action: keep | fix | forget")
+        return {"items": _lc.digest(m)}
+
+    async def _profile(b):
+        _ctx, m = _model(b)
+        txt = _lc.profile_text(m)
+        return {"profile": txt or _lc.build_profile(m)[0]}
+
+    async def _entities(b):
+        _ctx, m = _model(b)
+        return {"entities": [{k: e[k] for k in ("id", "name", "kind", "summary", "importance", "n", "aliases", "pinned")}
+                             for e in m.entities() if e["n"]]}
+
+    async def _entity(b):
+        ctx, m = _model(b)
+        eid = str(b.get("id") or "")
+        e = next((x for x in m.entities() if x["id"] == eid), None)
+        if not e:
+            raise ValueError("unknown entity")
+        allf = m.facts(eid, status=None)
+        from . import local_evidence
+        try:
+            ev = await local_evidence.search(home, ctx, e["name"], 3)
+        except Exception:  # noqa: BLE001
+            ev = []
+        return {"entity": e, "facts": [f for f in allf if f["status"] == "active"],
+                "past": [f for f in allf if f["status"] in ("superseded", "expired")], "evidence": ev}
+
+    async def _not_relevant(b):
+        _ctx, m = _model(b)
+        m.not_relevant(str(b.get("note_id") or ""))
+        return {"ok": True}
+
+    async def _why(b):
+        _ctx, m = _model(b)
+        f = m.fact(str(b.get("note_id") or ""))
+        if not f:
+            raise ValueError("no details for this note yet (run the migration in Settings)")
+        return {k: f.get(k) for k in ("text", "entity", "kind", "importance", "durability", "valid_from", "valid_to",
+                                       "origin", "source_app", "quote", "recorded_at", "use_count", "last_used_at",
+                                       "status", "superseded_by", "expires_at")}
+    for k, fn in {("POST", "model/consolidate"): _consolidate, ("POST", "model/consolidate/undo"): _cons_undo,
+                  ("GET", "model/digest"): _digest, ("POST", "model/digest/act"): _digest_act,
+                  ("GET", "model/profile"): _profile, ("GET", "model/entities"): _entities,
+                  ("GET", "model/entity"): _entity, ("POST", "model/not-relevant"): _not_relevant,
+                  ("GET", "model/why"): _why}.items():
+        ui.hooks[k] = fn
+    from .local_capture import Capture
+    ui.capture = Capture(ui, local_engine.get(home), router.router.apps)
+    ui.capture.install()
     app = Starlette(routes=[Route("/", home_page), Route("/health", health), *ui.routes(),
                             Route("/mcp", endpoint=router_app, methods=["GET", "POST", "DELETE"]),
                             *[Mount(f"/{c}", app=s) for c, s in subs.items()]], lifespan=lifespan)
     app.state.ui = ui
-    return TokenGate(app, token, port)
+    app.state.remote = remote
+    return TokenGate(app, token, port, remote)
 
 
 def _exit_with_parent() -> None:
@@ -309,7 +549,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.cmd == "stdio":
         if not a.context:  # one connector, every space (Connect apps writes this)
-            build_router(home, build_all(home, a.port), via="stdio").run(transport="stdio", show_banner=False)
+            build_router(home, build_all(home, a.port), via="stdio", port=a.port).run(transport="stdio",
+                                                                                      show_banner=False)
             return 0
         servers = build_all(home, a.port, only=a.context)
         if a.context not in servers:

@@ -9,6 +9,11 @@ A small Tauri 2 app around the single-process hub (`mnemos-local`, see `docs/loc
   `claude_desktop_config.json` (backs the file up first, replaces older `mnemos-<context>` entries this app wrote,
   never touches other servers). Claude uses its default space and can pass `context` for another one (see
   `docs/local-mode.md`, "One connector"). No URL or token to copy.
+- **Connect apps** screen: one card per AI app with its status (found on this Mac / connected): Claude Desktop
+  (button), **Cursor** (one-click install link, Cursor asks to confirm), **Claude Code**, **Codex** and **VS Code**
+  (one Terminal line to copy). All run the same stdio connector (`mnemos-local stdio --home …`, every space), so no
+  token is written into other apps' configs. Cloud apps (claude.ai, phone, ChatGPT, Grok) need *Reach from
+  anywhere*. Headless: `Mnemos --app-cards` prints the cards as JSON (used by the friend test).
 
 - **Menu bar icon** (Open my memory / Show / Quit); closing the window keeps Mnemos running.
 - **Starts with your Mac** (LaunchAgent `~/Library/LaunchAgents/io.mnemos.desktop.plist`, opens in the background;

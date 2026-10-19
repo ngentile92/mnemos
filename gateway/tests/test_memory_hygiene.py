@@ -199,3 +199,29 @@ def test_ollama_asker_tolerates_bad_json():
         respx.post("http://127.0.0.1:11434/api/chat").mock(return_value=httpx.Response(200, json={
             "message": {"content": "no es json"}}))
         assert mh.ollama_asker("m")("x") == {}
+
+
+def test_ledger_tags_fill_notes_a_cognee_rebuild_left_bare(monkeypatch):
+    lists = {"personal": [{"id": "a1", "tags": ["perfil"], "source_app": "Claude"},
+                          {"id": "s1", "tags": [], "source_app": None}],
+             "work": [{"id": "s1", "tags": ["seguridad"], "source_app": "Cursor"}]}
+
+    class FakeGateway:
+        def __init__(self, url, key, timeout):
+            self.ctx = url
+
+        def call(self, tool, args):
+            assert tool == "memory_list" and args["include_shared"]
+            if self.ctx == "side":
+                raise ValueError("gateway not reachable (ConnectionRefusedError)")
+            return {"items": lists[self.ctx]}
+
+    monkeypatch.setattr(mh, "GatewayMCP", FakeGateway)
+    monkeypatch.setattr(mh, "discover_url", lambda root, env, ctx: ctx)
+    env = {f"HUB_INTERNAL_KEY_{c.upper()}": "k" for c in ("personal", "work", "side")}
+    notes = [note("a1", "personal", "x", tags=(), app=None), note("s1", "shared", "y", tags=(), app=None),
+             note("c1", "work", "z", tags=("gaia",))]
+    mh.fill_from_ledger(notes, mh.ledger_meta(env))
+    assert [(n["tags"], n["source_app"]) for n in notes] == [
+        (["perfil"], "Claude"), (["seguridad"], "Cursor"), (["gaia"], "Cursor")]
+    assert mh.analyze(notes, today=dt.date(2026, 10, 19))["untagged"] == []

@@ -11,6 +11,8 @@ One file, <home>/data/apps.json, shared by the HTTP server and every stdio proce
   owns the data. Remote apps (Reach from anywhere) are identified by their OAuth client instead.
 - `default`: the space this app reads and saves to when a call does not pass `context`. None = `default_space`.
 - `spaces`: the spaces it may use (None = all). Shared is always readable.
+- `paused`: every call is refused until resumed. `revoked`: access removed (refused until "Allow again"; remote
+  apps also lose their sign-in).
 Writes are atomic (tmp + rename) under a lock file, so two processes never corrupt it.
 """
 
@@ -105,9 +107,9 @@ class Apps:
 
     def allowed(self, rec: dict | None) -> list[str]:
         sp = (rec or {}).get("spaces")
-        if sp is None:
-            return list(self.contexts)
-        return [c for c in self.contexts if c in sp]
+        out = list(self.contexts) if sp is None else [c for c in self.contexts if c in sp]
+        limit = (rec or {}).get("_limit")  # remote apps: also only what the user ticked when it signed in
+        return out if limit is None else [c for c in out if c in limit]
 
     def default_for(self, rec: dict | None) -> str | None:
         allowed = self.allowed(rec)
@@ -124,20 +126,21 @@ class Apps:
         return {"default_space": self.default_space(d), "spaces": self.contexts, "apps": apps}
 
     # -- writes
-    def touch(self, key: str, label: str, via: str = "local") -> dict[str, Any]:
+    def touch(self, key: str, label: str, via: str = "local", **extra: Any) -> dict[str, Any]:
         """Register an app the first time it calls, refresh last_seen (at most once a minute)."""
         cur = self.get(key)
         now = _now()
-        if cur and str(cur.get("last_seen", ""))[:16] == now[:16]:
+        if cur and str(cur.get("last_seen", ""))[:16] == now[:16] and all(cur.get(k) == v for k, v in extra.items()):
             return cur
         with self._locked() as d:
             rec = d["apps"].setdefault(key, {"label": label, "default": None, "spaces": None,
                                              "first_seen": now, "via": via})
+            rec.update(extra)
             rec["last_seen"] = now
             return dict(rec)
 
     def update(self, key: str, **fields: Any) -> dict[str, Any]:
-        bad = set(fields) - {"default", "spaces", "label"}
+        bad = set(fields) - {"default", "spaces", "label", "paused", "revoked"}
         if bad:
             raise ValueError(f"unknown app settings: {sorted(bad)}")
         if "default" in fields and fields["default"] not in (None, *self.contexts):
@@ -147,6 +150,9 @@ class Apps:
             if len(sp) != len(fields["spaces"]):
                 raise ValueError("unknown space in spaces")
             fields["spaces"] = sp
+        for k in ("paused", "revoked"):
+            if k in fields:
+                fields[k] = bool(fields[k])
         with self._locked() as d:
             if key not in d["apps"]:
                 raise ValueError(f"unknown app {key!r}")

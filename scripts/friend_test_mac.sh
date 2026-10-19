@@ -121,6 +121,32 @@ assert "Mia" in out, out[:400]
 print("stdio OK: Claude would find the imported note")
 PY
 
+step "Connect apps: Cursor link + Codex / Claude Code / VS Code commands launch the same connector"
+CARDS="$(to 30 "$BIN" --app-cards)" || fail "app cards"
+to 120 /usr/bin/python3 - "$CARDS" <<'PY' || fail "Connect apps commands do not work"
+import base64, json, shlex, subprocess, sys, urllib.parse
+d = json.loads(sys.argv[1])
+ids = [a["id"] for a in d["apps"]]
+assert ids == ["claude-desktop", "cursor", "claude-code", "codex", "vscode"], ids
+q = urllib.parse.parse_qs(urllib.parse.urlparse(d["cursor_link"]).query)
+cfg = json.loads(base64.b64decode(q["config"][0]))
+assert q["name"] == ["mnemos"] and "stdio" in cfg["args"] and "--context" not in cfg["args"], cfg
+codex = next(a for a in d["apps"] if a["id"] == "codex")["command"]
+cmd = shlex.split(codex.split(" -- ", 1)[1])
+assert cmd == [cfg["command"]] + cfg["args"], (cmd, cfg)
+vs = json.loads(shlex.split(next(a for a in d["apps"] if a["id"] == "vscode")["command"])[2])
+assert vs["command"] == cfg["command"] and vs["args"] == cfg["args"]
+p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+def send(m): p.stdin.write(json.dumps(m) + "\n"); p.stdin.flush()
+send({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "codex-mcp-client", "version": "1"}}})
+assert "serverInfo" in p.stdout.readline()
+send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+send({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "hub_whoami", "arguments": {}}})
+out = p.stdout.readline(); p.kill()
+assert "Codex" in out and "personal" in out, out[:400]
+print("Connect apps OK")
+PY
+
 step "quit the app (Cmd+Q) → the hub stops too"
 to 20 osascript -e 'tell application "Mnemos" to quit' 2>/dev/null || kill "$APP_PID" 2>/dev/null || true
 for _ in $(seq 10); do curl -fs "http://127.0.0.1:$PORT/" >/dev/null || break; sleep 1; done

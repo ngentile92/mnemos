@@ -38,10 +38,12 @@ CODE_DIRS = ("code", "dev", "projects", "src", "repos", "work", "Developer", "Do
 MAX_DEPTH, MAX_FILES, MAX_FILE_BYTES, MAX_SOURCE_BYTES = 4, 2000, 2_000_000, 60_000_000
 MAX_PER_SOURCE, SCAN_BUDGET_S, PREVIEW_BUDGET_S = 400, 15.0, 300.0
 SKIP_DIRS = {"node_modules", ".git", ".venv", "venv", "__pycache__", "dist", "build", "target", ".next", "Library"}
-CODE_KINDS = {"claude_code", "claude_md", "agents_md", "cursor_rules", "cursor_chats"}
+CODE_KINDS = {"claude_code", "claude_md", "agents_md", "cursor_rules", "cursor_chats", "claude_memory", "codex_memory"}
+NOTE_KINDS = ("claude_md", "agents_md", "cursor_rules", "obsidian", "claude_memory", "codex_memory")
 LABELS = {"claude_code": "Claude Code conversations", "claude_md": "Claude instructions (CLAUDE.md)",
           "agents_md": "AGENTS.md files", "cursor_rules": "Cursor rules", "cursor_chats": "Cursor chats",
-          "obsidian": "Obsidian vault", "chatgpt_zip": "ChatGPT export", "claude_zip": "Claude.ai export"}
+          "obsidian": "Obsidian vault", "chatgpt_zip": "ChatGPT export", "claude_zip": "Claude.ai export",
+          "claude_memory": "Claude Code memory (already curated)", "codex_memory": "Codex memories (already curated)"}
 
 # ------------------------------------------------------------------ secrets
 SECRET_RE = re.compile(
@@ -144,6 +146,15 @@ def scan(home: Path | None = None, contexts: list[str] | None = None, budget: fl
                 files = sorted(d.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
                 name = re.sub(r"^-+", "", d.name).replace("-", "/")[-60:]
                 add("claude_code", f"{LABELS['claude_code']} · {name}", files, "sessions", str(d))
+    # memories the vendors already curated (high signal): Claude Code auto-memory, Codex memories
+    if proj.is_dir():
+        mem = [p for d in sorted(proj.iterdir()) if d.is_dir() for p in sorted((d / "memory").glob("*.md"))
+               if p.is_file()]
+        add("claude_memory", LABELS["claude_memory"], mem, "files", str(proj) + "/*/memory")
+    cx = home / ".codex" / "memories"
+    if cx.is_dir():
+        add("codex_memory", LABELS["codex_memory"], _walk(cx, lambda p: p.suffix.lower() in (".md", ".txt", ".json"),
+                                                         deadline, depth=3), "files", str(cx))
     roots = [home / c for c in CODE_DIRS if (home / c).is_dir()]
     md: dict[str, list[Path]] = {"claude_md": [], "agents_md": [], "cursor_rules": []}
     if (home / ".claude").is_dir():
@@ -292,16 +303,122 @@ def _md_notes(paths: list[Path], deadline: float) -> list[str]:
     return [_tidy(n) for n in li.from_markdown(files)]
 
 
+_FRONT = re.compile(r"\A---\n.*?\n---\n", re.S)
+
+
+def _memory_notes(paths: list[Path], deadline: float) -> list[str]:
+    """Vendor-curated memory files: one note per bullet/line (or section), front matter and index links dropped,
+    sensitive topics off by default (memfilter). Claude Code's MEMORY.md is only an index of topic files."""
+    from .memfilter import sensitive_reason
+    out: list[str] = []
+    for p in paths:
+        if time.monotonic() > deadline or p.name == "MEMORY.md" or secret_name(p):
+            continue
+        try:
+            text = _read(p)
+        except OSError:
+            continue
+        if p.suffix == ".json":
+            try:
+                d = json.loads(text)
+                items = d if isinstance(d, list) else d.get("memories") or d.get("items") or []
+                text = "\n".join(str(x.get("content") or x.get("text") or "") if isinstance(x, dict) else str(x)
+                                 for x in items)
+            except (ValueError, AttributeError):
+                continue
+        text = _FRONT.sub("", text)
+        lines = [ln for ln in li.from_lines(re.sub(r"^#{1,6}\s.*$", "", text, flags=re.M))
+                 if not re.fullmatch(r"\[.*\]\(.*\)", ln)]
+        out += [ln for ln in lines if not sensitive_reason(ln) and not has_secret(ln)]
+    return list(dict.fromkeys(out))
+
+
 def _tidy(note: str) -> str:
     """'# Title\nbody' -> 'Title: body' so a note reads as one sentence in the review list."""
     m = re.match(r"#{1,6}\s+([^\n]+)\n+(.+)", note, re.S)
     return f"{m.group(1).strip()}: {m.group(2).strip()}" if m else note
 
 
+def _cursor_convs(p: Path) -> list[tuple[str, str, list[str]]]:
+    """Cursor chats grouped by composer (one conversation each); falls back to one unit per database."""
+    out: dict[str, list[str]] = {}
+    try:
+        c = sqlite3.connect(f"file:{p}?mode=ro&immutable=1", uri=True, timeout=2)
+    except sqlite3.Error:
+        return []
+    try:
+        tables = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "cursorDiskKV" in tables:
+            q = ("SELECT key, json_extract(value,'$.text') FROM cursorDiskKV WHERE key LIKE 'bubbleId:%' "
+                 "AND json_valid(value) AND json_extract(value,'$.type')=1 LIMIT 20000")
+            for k, t in c.execute(q):
+                if isinstance(t, str) and t.strip():
+                    out.setdefault(str(k).split(":")[1] if k.count(":") >= 2 else "", []).append(t)
+    except sqlite3.Error:
+        pass
+    finally:
+        c.close()
+    if not out:
+        msgs = _cursor(p)
+        return [(str(p), "", msgs)] if msgs else []
+    return [(f"{p}#{k}", "", v) for k, v in out.items()]
+
+
+def _export_convs(p: Path, kind: str) -> list[tuple[str, str, list[str]]]:
+    with zipfile.ZipFile(p) as z:
+        name = next(n for n in z.namelist() if n.rsplit("/", 1)[-1] == "conversations.json")
+        with z.open(name) as f:
+            convs = json.loads(f.read(300_000_000).decode("utf-8-sig"))
+    out = []
+    for i, conv in enumerate(convs if isinstance(convs, list) else []):
+        if not isinstance(conv, dict):
+            continue
+        ts = str(conv.get("create_time") or conv.get("created_at") or "")
+        if ts.replace(".", "").isdigit():
+            ts = time.strftime("%Y-%m-%d", time.gmtime(float(ts)))
+        cid = str(conv.get("id") or conv.get("uuid") or i)
+        if kind == "chatgpt_zip":
+            msgs = [t for role, t in li._messages(conv) if role == "user"]
+        else:
+            msgs = []
+            for m in conv.get("chat_messages") or []:
+                if isinstance(m, dict) and m.get("sender") == "human":
+                    t = m.get("text") or " ".join(b.get("text", "") for b in m.get("content") or [] if isinstance(b, dict))
+                    if t:
+                        msgs.append(t)
+        if msgs:
+            out.append((f"{p}#{cid}", ts[:10], msgs))
+    return out
+
+
+def read_conversations(src: dict, deadline: float) -> list[tuple[str, str, list[str]]]:
+    """[(conversation key, date or '', user messages)] — one unit per chat, so a model sees one topic at a time."""
+    paths, kind, out = [Path(p) for p in src["paths"]], src["kind"], []
+    if kind in NOTE_KINDS:
+        return []
+    for p in paths:
+        if time.monotonic() > deadline:
+            break
+        try:
+            if kind == "claude_code":
+                msgs = _claude_code(p)
+                if msgs:
+                    out.append((str(p), time.strftime("%Y-%m-%d", time.localtime(p.stat().st_mtime)), msgs))
+            elif kind == "cursor_chats":
+                out += _cursor_convs(p)
+            else:
+                out += _export_convs(p, kind)
+        except (OSError, ValueError, KeyError, StopIteration, zipfile.BadZipFile, RuntimeError):
+            continue
+    return out
+
+
 def read_source(src: dict, deadline: float) -> tuple[list[str], list[str]]:
     """(ready notes, user messages to mine for facts)."""
     paths, kind, msgs = [Path(p) for p in src["paths"]], src["kind"], []
-    if kind in ("claude_md", "agents_md", "cursor_rules", "obsidian"):
+    if kind in ("claude_memory", "codex_memory"):
+        return _memory_notes(paths, deadline), []
+    if kind in NOTE_KINDS:
         return _md_notes(paths, deadline), []
     for p in paths:
         if time.monotonic() > deadline:
@@ -345,7 +462,8 @@ async def batch_facts(llm: Any, batch: str) -> list[str]:
         facts = (await llm.json(PROMPT + batch)).get("facts") or []
     except Exception:  # noqa: BLE001 — one bad call does not stop the import
         return []
-    return [f.strip() for f in facts if isinstance(f, str) and 10 <= len(f.strip()) <= 300]
+    from .memfilter import keep_texts  # paths, URLs, errors, code, acks, sensitive topics, time-bound → not notes
+    return keep_texts([f.strip() for f in facts if isinstance(f, str)])
 
 
 
@@ -397,15 +515,17 @@ async def preview(sources: list[dict], existing: dict[str, list[str]], progress:
         if llm and msgs and time.monotonic() < deadline:
             progress({"phase": f"Finding facts in {src['label']} ({llm.name})", "done": i, "total": len(sources)})
             facts = (await llm_facts(llm, msgs)) or facts
+        from .memfilter import keep_texts
         cands = notes + facts
-        kept = [t for t in cands if not has_secret(t)]
+        kept = [t for t in notes if not has_secret(t)] + keep_texts(facts)
         ctx = src.get("context") or ""
         pool = existing.get(ctx, []) + [it["text"] for it in items if it["context"] == ctx]
         pv = li.preview(kept[:MAX_PER_SOURCE * 3], pool)
         for it in pv["items"][:MAX_PER_SOURCE]:
             items.append({**it, "context": ctx, "source": src["kind"], "source_label": src["label"]})
         stats.append({"id": src["id"], "label": src["label"], "messages": len(msgs), "candidates": len(kept),
-                      "new": pv["new"], "secrets_dropped": len(cands) - len(kept)})
+                      "new": pv["new"], "secrets_dropped": sum(1 for t in cands if has_secret(t)),
+                      "filtered": len(cands) - len(kept)})
     sem = 0
     if embedder:
         progress({"phase": f"Checking for repeats ({embedder.name})", "done": len(sources), "total": len(sources)})
@@ -482,7 +602,12 @@ class Discover:
                 skipped += 1
                 continue
             try:
-                r = await self.ui.call(ctx, "memory_save", {"text": text, "tags": ["import-auto", f"import-{src}", batch]})
+                tags = ["import-auto", f"import-{src}", batch]
+                if re.fullmatch(r"[a-z_]{3,20}", str(n.get("kind") or "")):
+                    tags.append(f"kind-{n['kind']}")
+                if re.fullmatch(r"\d{4}-\d\d-\d\d", str(n.get("expires_at") or "")):
+                    tags.append(f"until-{n['expires_at']}")  # time-bound: hygiene can expire it
+                r = await self.ui.call(ctx, "memory_save", {"text": text, "tags": tags})
                 if r.get("status") == "duplicate":
                     skipped += 1
                 else:

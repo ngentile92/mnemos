@@ -10,6 +10,7 @@ import re
 import time
 from typing import Annotated, Any, Literal
 
+import httpx
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError, ResourceError
 from pydantic import Field
@@ -30,10 +31,16 @@ from .memory import CogneeClient, DatasetMap, MemoryError_, MemoryScope, item_su
 from .secrets import InfisicalFetcher, SecretBroker, SecretPolicyError, load_policy
 from .skills import SkillError, SkillIndex, tool_equivalents
 
+
+# Some clients (Claude Desktop) drop the server instructions, so the save contract also rides on tool results.
+SAVE_NUDGE = ("Memory: when the user shares something lasting about themselves in this chat (likes, people, work, "
+              "projects, decisions, goals), call memory_save right away with one short sentence.")
 log = logging.getLogger("hub.gateway")
 
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False}
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+UPDATE_CONFIRM_S = 1800  # after a timed-out memory_update: how long to wait for Cognee to show the new text
+UPDATE_POLL_S = 15
 MAX_LIST_SCAN = 500  # tope de notas leídas por memory_list (cada una es un GET a Cognee)
 SHARED_EDIT_HINT = ("la memoria compartida (shared) no se borra ni se corrige desde un conector: "
                     "lo hace el dueño como hub-admin con scripts/memory_admin.py")
@@ -109,6 +116,10 @@ def _returned_id(res: Any) -> str | None:
     return None
 
 
+def model_enabled() -> bool:
+    return os.environ.get("HUB_MEMORY_MODEL", "").strip().lower() in ("1", "on", "true", "yes")
+
+
 def build_server(
     settings: Settings,
     *,
@@ -129,6 +140,10 @@ def build_server(
     _syncing: dict[str, dict[str, Any]] = {}  # background corrections still being re-processed by Cognee
     _tasks: set = set()
     local_mode = settings.dev_no_auth and settings.auth_provider == "local"  # mnemos-local / Desktop
+    model = None  # layered memory model: what each note is about, kind, validity, usage
+    if local_mode or model_enabled():  # Docker hub: opt-in (HUB_MEMORY_MODEL=1), filled by `model_admin sync`
+        from .local_model import Model
+        model = Model(os.path.join(settings.data_dir, "model.sqlite"))
     index = index or LocalIndex(os.path.join(settings.data_dir, "search.sqlite"), OllamaEmbedder.from_env())
     skills = skills or SkillIndex(settings.skills_root, settings.context)
     cognee = cognee or CogneeClient(
@@ -210,7 +225,13 @@ def build_server(
             await index.sync(name, lambda ds_id=ds_id: cognee.list_data(ds_id),
                              lambda did, ds_id=ds_id: cognee.raw_text(ds_id, did))
         found = await index.search(query, [n for n, _ in pairs], top_k * 2, mode)
-        return _apply_flags(found)[:top_k]
+        flagged = _apply_flags(found)
+        if model is not None:  # 0.9: importance, use, still current, entity named in the query
+            from .local_retrieval import rerank
+            ranked = safe(rerank, model, query, flagged)
+            if ranked:
+                flagged = sorted(ranked, key=lambda r: not r.get("pinned"))
+        return flagged[:top_k]
 
     def _apply_flags(found: list[dict[str, Any]], keep_obsolete: bool = False) -> list[dict[str, Any]]:
         """Pinned notes first; facts outside their validity dates last (kept, marked); obsolete left out."""
@@ -272,6 +293,11 @@ def build_server(
             raise ToolError("la memoria (Cognee) no respondió; probá de nuevo más tarde") from exc
         audit.log("memory_search", login, "ok", mode=mode, results=len(results))
         out: dict[str, Any] = {"context": ctx.name, "mode": mode, "results": results}
+        if model is not None and mode != "graph":
+            from .local_retrieval import entity_cards
+            cards = safe(entity_cards, model, query)
+            if cards:
+                out["entities"] = cards  # summaries of the people/projects named in the query (each cites facts)
         if evidence is not None and include_sources and mode != "graph":
             try:
                 src = await evidence(query, 3)
@@ -281,6 +307,7 @@ def build_server(
                 out["from_sources"] = src
                 out["from_sources_note"] = ("the user's own past messages to AI tools (raw, may be outdated); "
                                             "saved notes in results take precedence")
+        out.setdefault("note", SAVE_NUDGE)
         return out
 
     @mcp.tool(annotations={**READ_ONLY, "title": "Responder desde la memoria"})
@@ -362,9 +389,13 @@ def build_server(
         allow_duplicate: Annotated[bool, Field(
             description="Modo local: guardar aunque ya exista una nota casi igual")] = False,
     ) -> dict[str, Any]:
-        """Guarda un hecho en la memoria de largo plazo. Por defecto va al contexto activo.
-        Usá target='shared' solo si el dato sirve en todos los contextos. Escribí [[Nombre]] para
-        enlazar personas, empresas o proyectos: las notas con el mismo [[Nombre]] quedan conectadas."""
+        """The user's long-term memory, shared by all their AI apps. Call it right away, without asking, EVERY TIME
+        the user shares something lasting about themselves: identity, work, people, projects and decisions (with the
+        reason), likes and preferences, routines, goals. "me gustan los caballos" -> save "Likes horses."; "I moved to
+        Lisbon" -> save "Lives in Lisbon.". One self-contained sentence naming who/what it is about. Not for paths,
+        URLs, errors, code, task steps or general knowledge (those stay in the chat).
+        Goes to the active context; target='shared' only if it helps in every context. [[Name]] links people,
+        companies or projects across notes."""
         login = _current_login(settings)
         try:
             name, ds_id = scope().write_id(target=target, project=project)
@@ -395,11 +426,24 @@ def build_server(
         status = res.get("status") if isinstance(res, dict) else None
         safe(ledger.record_save, dataset=name, text=text, context=ctx.name, source_app=app, login=login,
              tags=clean_tags, data_id=_returned_id(res))
+        if model is not None and _returned_id(res):
+            origin = ("imported" if any(t.startswith("import") for t in clean_tags) else
+                      "inferred" if "learned" in clean_tags else "user_said")
+            safe(model.add_fact, _returned_id(res), text, tags=clean_tags, source_app=app, origin=origin)
         audit.log("memory_save", login, "ok", dataset=name, chars=len(text), app=app)
         out = {"saved_to": name, "status": status or "accepted", "source_app": app,
                "note": "la extracción al grafo corre en segundo plano; puede tardar en aparecer en búsquedas"}
         if local_mode:
             out["note"] = "guardado"
+            if _returned_id(res):
+                out["id"] = _returned_id(res)
+            from .memfilter import classify
+            chk = classify(text)
+            if not chk["keep"] and chk["reason"] not in ("length", "secret"):
+                out["filter"] = chk["reason"]
+                out["note"] = ("guardado, pero parece " + ("un tema sensible" if chk["sensitive"] else
+                               "un detalle de la tarea (" + str(chk["reason"]) + ")") + ": la memoria es para hechos "
+                               "durables sobre el usuario; si no lo pidió, borralo con memory_delete")
             if similar_notes:
                 out["similar_notes"] = similar_notes
                 out["note"] = ("guardado. Hay notas parecidas: si alguna dice lo contrario o quedó vieja, "
@@ -441,6 +485,14 @@ def build_server(
                 out.append({"id": h["id"], "kind": kind, "similarity": round(j, 2), "text": h["text"][:300]})
         return sorted(out, key=lambda n: -n["similarity"])[:3]
 
+    def _summary(item: dict[str, Any], name: str) -> dict[str, Any]:
+        """item_summary with the ledger's tags when Cognee has none: a tag change rebuilds the note in Cognee,
+        which drops its external_metadata (tags included)."""
+        s = item_summary(item, name)
+        if not s["tags"]:
+            s["tags"] = (safe(ledger.provenance, str(item.get("id")), name) or {}).get("tags") or []
+        return s
+
     async def _locate(sc: MemoryScope, data_id: str) -> tuple[str, str, dict[str, Any]]:
         """Busca la nota en los datasets PROPIOS del contexto. Nunca toca datasets ajenos."""
         if not _UUID_RE.match(data_id or ""):
@@ -458,6 +510,65 @@ def build_server(
                                    "se corrige desde el conector de su contexto")
         raise MemoryError_(f"no hay ninguna nota con ese id en el contexto {ctx.name}")
 
+    async def _list_items(needle: str, project: str | None, include_shared: bool) -> list[dict[str, Any]]:
+        """Notes with provenance (pinned, obsolete, validity) — shared by memory_list and memory_profile."""
+        sc = scope()
+        items: list[dict[str, Any]] = []
+        scanned = 0
+        for name, ds_id in sc.listable(include_shared=include_shared, project=project):
+            for d in await cognee.list_data(ds_id):
+                scanned += 1
+                if scanned > MAX_LIST_SCAN:
+                    break
+                text = await cognee.raw_text(ds_id, str(d.get("id"))) or ""
+                if needle and needle not in text.lower():
+                    continue
+                it = item_summary(d, name)
+                it["editable"] = name in ctx.own_dataset_names
+                prov = safe(ledger.provenance, str(d.get("id")), name, text)
+                if prov:
+                    it["provenance"] = prov
+                    it["source_app"] = it["source_app"] or prov["source_app"]
+                    it["tags"] = it["tags"] or prov.get("tags") or []
+                    it["pinned"] = bool(prov.get("pinned"))
+                    it["obsolete"] = bool(prov.get("obsolete"))
+                    from .ledger import validity_state
+                    v = validity_state(prov.get("valid_from"), prov.get("valid_until"))
+                    if v:
+                        it["validity"] = v
+                sy = _syncing.get(str(d.get("id")))
+                if sy:
+                    text = sy["text"]
+                    it["sync"] = sy["state"]
+                it["chars"] = len(text)
+                it["text"] = text[:1500]
+                items.append(it)
+        return items
+
+    @mcp.tool(annotations={**READ_ONLY, "title": "Perfil del usuario"})
+    async def memory_profile() -> dict[str, Any]:
+        """Who the user is (identity, preferences, people, goals, projects), most important first, from their
+        long-term memory. Call it FIRST in every new conversation, before answering, then memory_search for the
+        topic. Whenever the user later shares something lasting about themselves, save it with memory_save."""
+        login = _current_login(settings)
+        try:
+            from .local_profile import build
+            if model is not None:  # 0.9: the consolidated profile when there is one
+                from .local_consolidate import build_profile, profile_text
+                txt = profile_text(model) or build_profile(model)[0]
+                if txt:
+                    audit.log("memory_profile", login, "ok", source="model")
+                    return {"context": ctx.name, "profile": txt, "note": SAVE_NUDGE}
+            items = await _list_items("", None, True)
+        except MemoryError_ as exc:
+            raise ToolError(str(exc)) from exc
+        except Exception as exc:
+            audit.log("memory_profile", login, "error", error=type(exc).__name__)
+            raise ToolError("la memoria no respondió; probá de nuevo más tarde") from exc
+        items.sort(key=lambda i: str(i.get("created_at") or ""), reverse=True)
+        audit.log("memory_profile", login, "ok", notes=len(items))
+        return {"context": ctx.name, "profile": build(items), "notes": len(items), "note": SAVE_NUDGE}
+
     @mcp.tool(annotations={**READ_ONLY, "title": "Listar notas de memoria"})
     async def memory_list(
         contains: Annotated[str | None, Field(description="Filtrar por texto (sin distinguir mayúsculas)", max_length=200)] = None,
@@ -471,36 +582,7 @@ def build_server(
         login = _current_login(settings)
         needle = (contains or "").strip().lower()
         try:
-            sc = scope()
-            items: list[dict[str, Any]] = []
-            scanned = 0
-            for name, ds_id in sc.listable(include_shared=include_shared, project=project):
-                for d in await cognee.list_data(ds_id):
-                    scanned += 1
-                    if scanned > MAX_LIST_SCAN:
-                        break
-                    text = await cognee.raw_text(ds_id, str(d.get("id"))) or ""
-                    if needle and needle not in text.lower():
-                        continue
-                    it = item_summary(d, name)
-                    it["editable"] = name in ctx.own_dataset_names
-                    prov = safe(ledger.provenance, str(d.get("id")), name, text)
-                    if prov:
-                        it["provenance"] = prov
-                        it["source_app"] = it["source_app"] or prov["source_app"]
-                        it["pinned"] = bool(prov.get("pinned"))
-                        it["obsolete"] = bool(prov.get("obsolete"))
-                        from .ledger import validity_state
-                        v = validity_state(prov.get("valid_from"), prov.get("valid_until"))
-                        if v:
-                            it["validity"] = v
-                    sy = _syncing.get(str(d.get("id")))
-                    if sy:
-                        text = sy["text"]
-                        it["sync"] = sy["state"]
-                    it["chars"] = len(text)
-                    it["text"] = text[:1500]
-                    items.append(it)
+            items = await _list_items(needle, project, include_shared)
         except MemoryError_ as exc:
             audit.log("memory_list", login, "rejected", reason=str(exc))
             raise ToolError(str(exc)) from exc
@@ -523,13 +605,15 @@ def build_server(
         app = _client_app()
         try:
             name, ds_id, item = await _locate(scope(), id)
-            old = item_summary(item, name)
+            old = _summary(item, name)
             text = await cognee.raw_text(ds_id, id)
             if text is not None:
                 safe(ledger.snapshot, data_id=id, dataset=name, context=ctx.name, text=text, tags=old["tags"],
                      action="delete", by=app, created_at=old["created_at"], source_app=old["source_app"])
             await cognee.delete_data(ds_id, id)
             safe(index.remove, id)
+            if model is not None:
+                safe(model.forget_note, id)
         except MemoryError_ as exc:
             audit.log("memory_delete", login, "rejected", data_id=id, reason=str(exc))
             raise ToolError(str(exc)) from exc
@@ -555,7 +639,7 @@ def build_server(
         app = _client_app()
         try:
             name, ds_id, item = await _locate(scope(), id)
-            old = item_summary(item, name)
+            old = _summary(item, name)
             clean_tags = [t.strip()[:40] for t in (tags if tags is not None else old["tags"]) if str(t).strip()]
             old_text = await cognee.raw_text(ds_id, id)
             if old_text is None:
@@ -568,6 +652,8 @@ def build_server(
                 if _syncing.get(id, {}).get("state") == "processing":
                     raise MemoryError_("la nota todavía se está procesando; esperá unos segundos")
                 safe(ledger.record_change, id, text=text, by=app, tags=clean_tags)
+                if model is not None:
+                    safe(model.set_fact, id, "edit", text=text[:2000])
                 safe(index.put, id, name, text, old["created_at"])
                 _syncing[id] = {"state": "processing", "text": text}
 
@@ -587,7 +673,33 @@ def build_server(
                 return {"updated": id, "dataset": name, "status": "processing",
                         "version": len(h.get("previous_versions", [])) + 1,
                         "note": "guardado; Cognee lo re-procesa en segundo plano (memory_list: sync)"}
-            res = await cognee.update(ds_id, id, text, node_set=new_ns if ns_changed else None)
+            try:
+                res = await cognee.update(ds_id, id, text, node_set=new_ns if ns_changed else None)
+            except httpx.TimeoutException:
+                # Cognee is busy (e.g. still cognifying earlier notes) but may apply the PATCH later: record it
+                # like the background path and confirm it by reading the note back, instead of an error.
+                safe(ledger.record_change, id, text=text, by=app, tags=clean_tags)
+                safe(index.put, id, name, text, old["created_at"])
+                _syncing[id] = {"state": "processing", "text": text}
+
+                async def _confirm(ds_id=ds_id) -> None:
+                    deadline = time.monotonic() + UPDATE_CONFIRM_S
+                    while time.monotonic() < deadline:
+                        await asyncio.sleep(UPDATE_POLL_S)
+                        try:
+                            if await cognee.raw_text(ds_id, id) == text:
+                                _syncing.pop(id, None)
+                                return
+                        except Exception:  # noqa: BLE001
+                            pass
+                    _syncing[id] = {"state": "error", "text": text, "error": "timeout"}
+                task = asyncio.create_task(_confirm())
+                _tasks.add(task)
+                task.add_done_callback(_tasks.discard)
+                audit.log("memory_update", login, "ok", data_id=id, dataset=name, chars=len(text), app=app,
+                          status="processing", reason="timeout")
+                return {"updated": id, "dataset": name, "status": "processing",
+                        "note": "Cognee está ocupado: la corrección quedó en cola (memory_list: sync)"}
         except MemoryError_ as exc:
             audit.log("memory_update", login, "rejected", data_id=id, reason=str(exc))
             raise ToolError(str(exc)) from exc
@@ -616,7 +728,7 @@ def build_server(
         try:
             sc = scope()
             name, ds_id, item = await _locate(sc, id)
-            old = item_summary(item, name)
+            old = _summary(item, name)
             text = await cognee.raw_text(ds_id, id)
             if not text:
                 raise MemoryError_("no pude leer el texto de la nota; probá de nuevo")
@@ -661,7 +773,7 @@ def build_server(
         if not h:  # older note, never edited through Mnemos: fall back to Cognee's metadata
             try:
                 name, _ds, item = await _locate(scope(), id)
-                old = item_summary(item, name)
+                old = _summary(item, name)
                 h = {"id": id, "dataset": name, "deleted": False, "previous_versions": [],
                      "provenance": {"source_app": old["source_app"], "saved_at": old["created_at"],
                                     "source": "cognee metadata (no Mnemos history yet)"}}
@@ -703,7 +815,7 @@ def build_server(
                 action = "restored"
             else:
                 name, _ds, item = await _locate(sc, id)
-                cur = item_summary(item, name)
+                cur = _summary(item, name)
                 cur_text = await cognee.raw_text(ds_id, id)
                 if cur_text is None:
                     raise MemoryError_("no pude leer el texto actual de la nota; probá de nuevo")
@@ -734,7 +846,7 @@ def build_server(
             name, ds_id, item = await _locate(scope(), id)
             if not safe(ledger.set_flags, id, by=app, **kw):
                 text = await cognee.raw_text(ds_id, id) or ""
-                old = item_summary(item, name)
+                old = _summary(item, name)
                 safe(ledger.record_save, dataset=name, text=text, context=ctx.name, source_app=old["source_app"],
                      login=None, tags=old["tags"], data_id=id)
                 safe(ledger.set_flags, id, by=app, **kw)
@@ -868,6 +980,18 @@ def build_server(
         if declared:  # skills written for another server (e.g. gbrain): which hub tool to use for each
             out["tool_equivalents"] = tool_equivalents(declared)
         return out
+
+    @mcp.prompt(name="use-my-memory", title="Use my memory",
+                description="Start the chat knowing who I am (Mnemos profile) and saving what I share")
+    async def use_my_memory() -> str:
+        try:
+            prof = (await memory_profile()).get("profile") or ""
+        except Exception:  # noqa: BLE001 - the prompt still carries the rules
+            prof = ""
+        return ("You have my long-term memory (Mnemos). Here is what it knows about me:\n\n" + (prof or "(empty so far)") +
+                "\n\nDuring this chat: search it (memory_search) when my past, preferences or projects matter, and "
+                "whenever I share something lasting about myself, save it right away with memory_save "
+                "(one short sentence), without asking.")
 
     @mcp.resource("skill://index", mime_type="application/json", name="skills-index")
     async def skill_index_resource() -> dict[str, Any]:

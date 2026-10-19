@@ -176,6 +176,27 @@ DATASET_OWNER = {SHARED: "hub-admin"} | {
 }
 
 
+def reload(path: str | Path | None = None) -> None:
+    """Re-read contexts.yaml after the local app edited it (descriptions, bridges). Updates the module's dicts and
+    lists IN PLACE, so every `from .contexts import CONTEXTS, BRIDGES` sees the new values. Raises ValueError (and
+    changes nothing) if the file is invalid."""
+    global OWNER, SERVER_NAME_PREFIX, LANGUAGE
+    cfg = load_config(path)
+    owner, ctxs = parse_contexts(cfg)
+    prefix, lang = parse_instance(cfg)
+    br = parse_bridges(cfg, ctxs)
+    names = [SHARED] + [d for c in ctxs.values() for d in c.own_dataset_names]
+    if len(set(names)) != len(names):
+        raise ValueError("contexts.yaml: hay datasets repetidos entre contextos")
+    CONTEXTS.clear()
+    CONTEXTS.update(ctxs)
+    BRIDGES[:] = br
+    ALL_DATASET_NAMES[:] = names
+    DATASET_OWNER.clear()
+    DATASET_OWNER.update({SHARED: "hub-admin"} | {d: f"ctx-{c.name}" for c in ctxs.values() for d in c.own_dataset_names})
+    OWNER, SERVER_NAME_PREFIX, LANGUAGE = owner, prefix, lang
+
+
 def get_context(name: str) -> ContextSpec:
     try:
         return CONTEXTS[name]

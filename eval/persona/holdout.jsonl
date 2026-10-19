@@ -1,0 +1,20 @@
+{"text": "Lucía trabaja en el equipo de datos de Norte Logística desde 2023.", "label": "durable"}
+{"text": "Prefiere que le expliquen las cosas paso a paso.", "label": "durable"}
+{"text": "Su hermana Carla vive en Madrid.", "label": "durable"}
+{"text": "Para Huerta eligió Supabase porque tiene auth incluida.", "label": "durable"}
+{"text": "Le gusta el café de especialidad y tiene una Aeropress.", "label": "durable"}
+{"text": "Quiere lanzar Huerta para la cooperativa en marzo.", "label": "durable"}
+{"text": "Usa Linear para organizar las tareas del equipo.", "label": "durable"}
+{"text": "Juega al vóley los martes con amigos del trabajo.", "label": "durable"}
+{"text": "El job de Airflow dag_entregas falló a las 3am.", "label": "trivia"}
+{"text": "Corrió pytest -k test_routes y pasaron 12 tests.", "label": "trivia"}
+{"text": "El archivo docker-compose.yml tiene un servicio de postgres.", "label": "trivia"}
+{"text": "La query tarda 12 segundos en BigQuery.", "label": "trivia"}
+{"text": "Pidió que el asistente agregue logs al script.", "label": "trivia"}
+{"text": "El error era un NullPointerException en el parser.", "label": "trivia"}
+{"text": "Abrió el PR 231 para el cambio del mapa.", "label": "trivia"}
+{"text": "Gracias, anduvo perfecto.", "label": "trivia"}
+{"text": "El asistente recomendó usar Kafka.", "label": "trivia"}
+{"text": "PostgreSQL es una base de datos relacional.", "label": "wrong"}
+{"text": "Está en tratamiento por depresión.", "label": "sensitive"}
+{"text": "Mañana tiene una reunión con el cliente a las 9.", "label": "transient"}

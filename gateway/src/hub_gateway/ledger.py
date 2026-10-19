@@ -259,6 +259,7 @@ def _public(row: sqlite3.Row) -> dict[str, Any]:
         "saved_at": row["created_at"],
         "updated_at": row["updated_at"] if row["updated_at"] != row["created_at"] else None,
         "updated_by": row["updated_by"],
+        **({"tags": json.loads(row["tags"])} if "tags" in row.keys() and row["tags"] not in (None, "", "[]") else {}),
         **({"promoted_from": json.loads(row["origin"])} if "origin" in row.keys() and row["origin"] else {}),
         **({"pinned": True} if "pinned" in row.keys() and row["pinned"] else {}),
         **({"valid_from": row["valid_from"]} if "valid_from" in row.keys() and row["valid_from"] else {}),

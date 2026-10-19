@@ -48,7 +48,9 @@ import httpx
 
 ROOT = Path(os.environ.get("MNEMOS_DIR") or os.environ.get("AIHUB_DIR") or Path(__file__).resolve().parent.parent)
 sys.path.insert(0, str(ROOT / "gateway" / "src"))
+sys.path.insert(0, str(ROOT / "dashboard"))
 from hub_gateway.contexts import CONTEXTS, DATASET_OWNER  # noqa: E402
+from memory_client import GatewayMCP, discover_url, suffix  # noqa: E402
 BASE = "http://127.0.0.1:8010"
 OLLAMA = "http://127.0.0.1:11434"
 OUT_DIR = Path.home() / "mnemos-hygiene"
@@ -400,6 +402,34 @@ def fetch_notes(c: httpx.Client, datasets: dict[str, str]) -> list[dict[str, Any
     return notes
 
 
+def ledger_meta(env: dict[str, str]) -> dict[str, dict[str, Any]]:
+    """id -> tags and source_app as each gateway's memory_list shows them, ledger included: a tag change rebuilds
+    the note in Cognee, which drops its external_metadata. A context whose gateway does not answer is skipped."""
+    out: dict[str, dict[str, Any]] = {}
+    for ctx in CONTEXTS:
+        key = env.get(f"HUB_INTERNAL_KEY_{suffix(ctx)}")
+        if not key:
+            continue
+        try:
+            res = GatewayMCP(discover_url(ROOT, env, ctx), key, timeout=300).call(
+                "memory_list", {"include_shared": True, "limit": 500})
+        except Exception as exc:  # noqa: BLE001
+            print(f"higiene: el gateway de {ctx} no respondió ({exc}); sus tags salen solo de Cognee", file=sys.stderr)
+            continue
+        for it in res.get("items", []):
+            m = out.setdefault(str(it.get("id")), {"tags": [], "source_app": None})
+            m["tags"] = m["tags"] or it.get("tags") or []
+            m["source_app"] = m["source_app"] or it.get("source_app")
+    return out
+
+
+def fill_from_ledger(notes: list[dict[str, Any]], meta: dict[str, dict[str, Any]]) -> None:
+    for n in notes:
+        m = meta.get(n["id"]) or {}
+        n["tags"] = n["tags"] or m.get("tags") or []
+        n["source_app"] = n["source_app"] or m.get("source_app")
+
+
 def classify_pairs(notes: list[dict], pairs: list[dict], model: str, url: str = OLLAMA,
                    limit: int = 25) -> dict[str, dict]:
     idx = {n["id"]: n for n in notes}
@@ -576,6 +606,7 @@ def main() -> None:
     env = read_env(ROOT / ".env")
     datasets = json.loads((ROOT / "config" / "cognee-datasets.json").read_text())["datasets"]
     notes = fetch_notes(login(base, "hub-admin", env), datasets)
+    fill_from_ledger(notes, ledger_meta(env))
     res = analyze(notes, near=args.near, related=args.related, today=dt.date.today(), stale_days=args.stale_days)
     applied = apply_exact(base, env, datasets, res["exact_duplicates"]) if args.apply and res["exact_duplicates"] else []
     llm = classify_pairs(notes, res["near_duplicates"] + res["related"], args.llm, args.ollama_url) if args.llm else None

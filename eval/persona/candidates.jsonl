@@ -1,0 +1,54 @@
+{"text": "Lucía works as a data engineer at Norte Logística.", "label": "durable", "kind": "identity"}
+{"text": "Lucía lives in Rosario, Argentina.", "label": "durable", "kind": "identity"}
+{"text": "Prefers answers in Spanish, short and with code examples.", "label": "durable", "kind": "preference"}
+{"text": "Her manager is Tomás Iriarte.", "label": "durable", "kind": "relationship"}
+{"text": "Lucía is building Huerta, a side project to track a community garden.", "label": "durable", "kind": "project_state"}
+{"text": "Huerta uses SvelteKit and Supabase.", "label": "durable", "kind": "project_state"}
+{"text": "She decided to move Huerta from Firebase to Supabase because of pricing.", "label": "durable", "kind": "decision"}
+{"text": "Lucía uses dbt and BigQuery at work.", "label": "durable", "kind": "skill_fact"}
+{"text": "Her partner is called Martín.", "label": "durable", "kind": "relationship"}
+{"text": "She has a dog named Pampa.", "label": "durable", "kind": "identity"}
+{"text": "Lucía runs 10K races and trains three times a week.", "label": "durable", "kind": "preference"}
+{"text": "Prefers tabs over spaces and dislikes Prettier defaults.", "label": "durable", "kind": "preference"}
+{"text": "Goal: get the GCP Professional Data Engineer certification this year.", "label": "durable", "kind": "goal"}
+{"text": "Works with Valeria Sosa on the routing optimisation project.", "label": "durable", "kind": "relationship"}
+{"text": "Norte Logística's routing project aims to cut delivery times by 15%.", "label": "durable", "kind": "project_state"}
+{"text": "She is vegetarian.", "label": "durable", "kind": "preference"}
+{"text": "Lucía wants commit messages in English.", "label": "durable", "kind": "preference"}
+{"text": "She is learning Rust in her free time.", "label": "durable", "kind": "goal"}
+{"text": "Lucía switched her market data provider from Kaiko to Tiingo for the Huerta price widget.", "label": "durable", "kind": "decision"}
+{"text": "She works remotely on Fridays.", "label": "durable", "kind": "preference"}
+{"text": "Lucía organises a monthly meetup called Datos Rosario.", "label": "durable", "kind": "project_state"}
+{"text": "Uses a MacBook Air M2 and Neovim.", "label": "durable", "kind": "skill_fact"}
+{"text": "The endpoint is /api/v2/plots/{id}/harvests.", "label": "trivia", "kind": "event"}
+{"text": "The dev server runs on localhost:5173.", "label": "trivia", "kind": "event"}
+{"text": "The file src/routes/+page.svelte has a bug in the load function.", "label": "trivia", "kind": "event"}
+{"text": "She got TypeError: Cannot read properties of undefined (reading 'map').", "label": "trivia", "kind": "event"}
+{"text": "The migration 0004_add_harvests.sql failed on staging.", "label": "trivia", "kind": "event"}
+{"text": "She ran `npm run build` and it took 40 seconds.", "label": "trivia", "kind": "event"}
+{"text": "The dbt model stg_orders has a column called order_ts.", "label": "trivia", "kind": "event"}
+{"text": "The BigQuery table is norte-prod.analytics.deliveries_v3.", "label": "trivia", "kind": "event"}
+{"text": "Port 5432 was already in use.", "label": "trivia", "kind": "event"}
+{"text": "She asked to rename the variable plotId to parcelId.", "label": "trivia", "kind": "event"}
+{"text": "The function getHarvests returns a Promise<Harvest[]>.", "label": "trivia", "kind": "event"}
+{"text": "Lucía wants the assistant to fix the failing test now.", "label": "trivia", "kind": "event"}
+{"text": "She pasted the config from https://supabase.com/docs/guides/auth.", "label": "trivia", "kind": "event"}
+{"text": "The commit a3f9c21 broke the CI pipeline.", "label": "trivia", "kind": "event"}
+{"text": "Traceback (most recent call last): File \"etl.py\", line 42", "label": "trivia", "kind": "event"}
+{"text": "The Docker image is 1.2 GB.", "label": "trivia", "kind": "event"}
+{"text": "She said thanks, that works.", "label": "trivia", "kind": "event"}
+{"text": "Ok perfect, go ahead.", "label": "trivia", "kind": "event"}
+{"text": "The package.json has svelte 5.1.0 as a dependency.", "label": "trivia", "kind": "event"}
+{"text": "The branch feature/harvest-chart needs a rebase.", "label": "trivia", "kind": "event"}
+{"text": "Her Supabase key is sk-test-abcdefghijklmnopqrstu.", "label": "secret", "kind": "event"}
+{"text": "Password: Pampa2024!", "label": "secret", "kind": "event"}
+{"text": "Lucía has a dentist appointment tomorrow at 10.", "label": "transient", "kind": "transient"}
+{"text": "She is travelling to Córdoba next week.", "label": "transient", "kind": "transient"}
+{"text": "Lucía is taking sertraline for anxiety.", "label": "sensitive", "kind": "identity"}
+{"text": "She votes for the Partido Verde.", "label": "sensitive", "kind": "preference"}
+{"text": "Lucía is Catholic but not practising.", "label": "sensitive", "kind": "identity"}
+{"text": "Her DNI number is 33.456.789.", "label": "sensitive", "kind": "identity"}
+{"text": "Python is a programming language.", "label": "wrong", "kind": "skill_fact"}
+{"text": "The assistant suggested using Redis for caching.", "label": "wrong", "kind": "event"}
+{"text": "SvelteKit is a framework for building web apps.", "label": "wrong", "kind": "skill_fact"}
+{"text": "The user is asking about how to deploy.", "label": "wrong", "kind": "event"}

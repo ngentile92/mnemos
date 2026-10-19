@@ -97,7 +97,7 @@ async def test_tool_surface_has_no_shell(make_server):
     server, _ = make_server("personal")
     async with Client(server) as c:
         tools = {t.name: t for t in await c.list_tools()}
-    assert set(tools) == {"hub_whoami", "memory_search", "memory_save", "memory_list", "memory_update", "memory_pin", "memory_mark_obsolete", "memory_set_validity", "memory_dispute",
+    assert set(tools) == {"hub_whoami", "memory_search", "memory_save", "memory_list", "memory_update", "memory_pin", "memory_mark_obsolete", "memory_set_validity", "memory_dispute", "memory_profile",
                           "memory_delete", "memory_history", "memory_undo", "memory_answer", "memory_entity", "memory_promote", "skills_list", "skills_get", "secrets_list", "secret_http_request"}
     for name in tools:
         assert not any(w in name for w in ("forget", "shell", "exec", "prune"))
@@ -558,3 +558,52 @@ async def test_bridge_is_one_way(make_server, work_bridged_to_personal):
     async with Client(server) as c:
         listed = data(await c.call_tool("memory_list", {}))
     assert {i["dataset"] for i in listed["items"]} == {"work"}
+
+
+async def test_claude_desktop_reliability(make_server):
+    """Claude Desktop drops server instructions: the save contract must reach the model through tools and results."""
+    server, _ = make_server("personal")
+    async with Client(server) as c:
+        tools = {t.name: t for t in await c.list_tools()}
+        prompts = {p.name for p in await c.list_prompts()}
+        r = data(await c.call_tool("memory_search", {"query": "anything at all"}))
+    assert "right away" in tools["memory_save"].description and "Likes horses" in tools["memory_save"].description
+    assert "FIRST in every new conversation" in tools["memory_profile"].description
+    assert "use-my-memory" in prompts
+    assert "memory_save" in r.get("note", "")
+
+
+async def test_hub_model_sync_dry_run_apply_undo_and_ranking(make_server, monkeypatch, tmp_path):
+    """Docker hub port: model_admin links Cognee notes into the sidecar model (dry run, apply, exact undo); with
+    HUB_MEMORY_MODEL=1 the gateway reads the model (memory_profile)."""
+    import argparse
+
+    from hub_gateway import model_admin
+    from hub_gateway.config import Settings
+    monkeypatch.setenv("HUB_MEMORY_MODEL", "1")
+    server, rec = make_server("personal")
+    rec.texts[NOTE_IDS["personal"]] = "Prefers short answers and works on [[Orion]]."
+    dd = Settings.from_env().data_dir
+    ns = argparse.Namespace
+    dry = await model_admin.run(ns(cmd="sync", apply=False), server, dd)
+    assert dry["dry_run"] and dry["notes"] == 1 and any(e["name"] == "Orion" for e in dry["entities"])
+    assert not model_admin.Model(model_admin.model_path(dd)).facts()  # dry run wrote nothing
+    done = await model_admin.run(ns(cmd="sync", apply=True), server, dd)
+    assert done["migrated"] == 1 and done["batch"].startswith("mig-")
+    again = await model_admin.run(ns(cmd="sync", apply=True), server, dd)
+    assert again["migrated"] == 0  # idempotent: only new notes
+    cons = await model_admin.run(ns(cmd="consolidate", ollama=None, model=None), server, dd)
+    assert cons["job"].startswith("cons-")
+    async with Client(server) as c:
+        prof = data(await c.call_tool("memory_profile", {}))
+    assert "short answers" in prof["profile"]
+    undo = await model_admin.run(ns(cmd="undo-sync", batch=done["batch"]), server, dd)
+    assert undo["facts"] == 1 and not model_admin.Model(model_admin.model_path(dd)).facts(status=None)
+
+
+def test_hub_model_off_by_default(monkeypatch):
+    from hub_gateway.app import model_enabled
+    monkeypatch.delenv("HUB_MEMORY_MODEL", raising=False)
+    assert not model_enabled()
+    monkeypatch.setenv("HUB_MEMORY_MODEL", "1")
+    assert model_enabled()

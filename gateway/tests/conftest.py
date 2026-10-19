@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 
 # Los tests usan siempre los contextos del ejemplo (no el config/contexts.yaml local de tu instancia).
+# Most tests exercise the notes store (still used by homes that have not migrated); files tests opt in.
+os.environ.setdefault("MNEMOS_STORE", "notes")
 os.environ.setdefault("HUB_CONTEXTS_FILE", str(Path(__file__).resolve().parents[2] / "config" / "contexts.example.yaml"))
 
 DATASETS = {

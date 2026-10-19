@@ -12,6 +12,25 @@
 ## v0.10.2
 
 - Entity typing on the memory model, second pass: a new person needs a person cue next to the name; names that open sentences in several notes count; git commit trailers (Co-authored-by) are ignored; acronyms and technical terms (OAuth, RLS) are topics; the context name is a background org, never the subject.
+**New in 0.11: simple memory — your memory as Markdown files you can read.**
+- **Memory as files.** Each space is a folder with a short `profile.md` (read at the start of every chat) and a few
+  topic files (`people.md`, `projects.md`, `goals.md`, `how-i-work.md`, …). Every change is a version in a built-in
+  git history, signed by the app that made it (Claude, Cursor, … or "you" when you edit a file by hand), so anything
+  can be restored. New installs start on files; existing installs keep working as before until you switch.
+- **Six tools instead of twenty.** With simple memory on, AI apps see `memory_start`, `memory_read`, `memory_search`,
+  `memory_remember`, `memory_edit` and `memory_forget` (plus spaces and skills). `memory_remember` refuses secrets and
+  task details unless you asked; `memory_edit` keeps a changed fact under "No longer true" instead of losing it.
+- **Switch when you want, switch back if you don't like it.** Memory → *Switch to simple memory*: **Preview** shows
+  exactly which files you would get (nothing changes), **Switch** keeps every note id, and Settings → *Simple memory*
+  switches back, copying anything new back first. Same from a terminal: `mnemos-local migrate preview|apply|undo`.
+- **Memory screen as files.** Browse each space's files, edit them in place (with a check so two edits never
+  overwrite each other), see each file's history and restore any version.
+- **Labs.** The Graph, people/project pages, the "still true?" check and the nightly tidy-up of the memory model are
+  now **Labs**: kept and maintained, off by default. Turn them on in Settings → Labs (or `MNEMOS_LABS=1`).
+- Also in this release (thanks @Francisco-Rua): `memory_update` survives a busy Cognee, tags survive a Cognee rebuild,
+  hygiene sees tags and source apps, a tailnet-only exposure mode for the hub (`MNEMOS_EXPOSURE=tailnet`), Linux hosts
+  without a venv, Ollama-in-Docker docs, and a more readable Explore graph.
+
 **New in 0.10: the memory model on the full Docker hub.**
 - The hub can now use the same memory model as the local app: entities, typed facts, the nightly tidy-up, the
   profile and better ranking. It is stored in a separate file per context, next to the ledger, and never rewrites

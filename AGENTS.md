@@ -16,7 +16,10 @@ secrets live in Infisical; public access only through Tailscale Funnel + GitHub 
 
 ## Installing for a human (macOS or Linux)
 
-Follow `README.md` → *Quickstart*; the long version is `docs/SETUP.md`. To replicate the author's full setup
+On a Mac, for anyone who just wants the memory: the desktop app ([`docs/INSTALL-mac.md`](docs/INSTALL-mac.md)),
+no Docker or accounts. The steps below are for the self-hosted Docker hub.
+
+Follow `docs/HUB.md` → *Quickstart*; the long version is `docs/SETUP.md`. To replicate the author's full setup
 (router, built-in login + passkeys, Ollama, alerts, offsite backups) follow `docs/FULL-SETUP.md`. In order:
 
 1. Check requirements: Docker + Compose v2 (8 GB RAM for Docker), Python 3.11+, git, a Tailscale account
@@ -36,7 +39,7 @@ Follow `README.md` → *Quickstart*; the long version is `docs/SETUP.md`. To rep
 8. Connect each assistant to `https://hub-<context>.<tailnet>.ts.net/mcp` (`docs/CLIENTS.md`).
 9. Optional: backups (`scripts/install_backup_agent.sh`), watchdog (`scripts/install_watchdog_agent.sh`).
 
-To try without any account: README → *Try it locally* (`compose.dev.yaml`, fake LLM, no OAuth; ports 18000-18103,
+To try without any account: `docs/HUB.md` → *Try it locally* (`compose.dev.yaml`, fake LLM, no OAuth; ports 18000-18103,
 project `mnemos-dev`, so it can run next to a real instance). `docker compose -f compose.dev.yaml down -v` only
 removes the dev volumes.
 Later updates: `scripts/update.sh [ref]` (rolls back automatically if the smoke test fails).

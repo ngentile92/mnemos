@@ -40,12 +40,9 @@ step "first-run wizard (same code as the Create button)"
 echo "friend-pass-123" | to 120 "$BIN" --setup personal,work Ana || fail "setup"
 [ -f "$MNEMOS_HOME/contexts.yaml" ] || fail "no contexts.yaml"
 [ -f "$HOME/Library/LaunchAgents/io.mnemos.desktop.plist" ] || fail "start-at-login not set"
-if [ "${MNEMOS_NO_KEYCHAIN:-}" != 1 ]; then
-  [ ! -f "$MNEMOS_HOME/token" ] || fail "token still on disk (should be in the Keychain)"
-  # only Mnemos itself may read the item (the `security` CLI would get an access prompt); the hub starting
-  # below and --open-memory both prove the app reads it back
-  echo "token moved to the Keychain"
-fi
+[ -f "$MNEMOS_HOME/token" ] || fail "no token file"
+[ "$(stat -f %Lp "$MNEMOS_HOME/token")" = 600 ] || fail "token file is not 0600"
+echo "token in a 0600 file (no Keychain prompts)"
 
 step "open the app (hub starts by itself)"
 for _ in $(seq 15); do curl -fs "http://127.0.0.1:$PORT/" >/dev/null || break; sleep 1; done

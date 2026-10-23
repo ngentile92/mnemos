@@ -122,11 +122,11 @@ def test_write_file_checks_version(tmp_path):
 def test_topics_and_resolve(tmp_path):
     s = store(tmp_path)
     run(s.remember("Name is Alex.", DS, metadata={"tags": ["kind-identity"]}))
-    run(s.remember("Cloudburst launches in November.", DS, topic="Cloudburst"))
+    run(s.remember("Atlas launches in November.", DS, topic="Atlas"))
     t = {x["topic"]: x for x in s.topics(DS)}
-    assert set(t) == {"profile", "cloudburst"} and t["cloudburst"]["title"] == "Cloudburst"
-    assert s.resolve(DS, "cloudburst") == "personal/topics/cloudburst.md"
-    assert route(s.repo, "personal", "News about [[Cloudburst]]") == "personal/topics/cloudburst.md"
+    assert set(t) == {"profile", "atlas"} and t["atlas"]["title"] == "Atlas"
+    assert s.resolve(DS, "atlas") == "personal/topics/atlas.md"
+    assert route(s.repo, "personal", "News about [[Atlas]]") == "personal/topics/atlas.md"
     with pytest.raises(MemoryError_):
         s.resolve(DS, "nothing-here")
 

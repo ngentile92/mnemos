@@ -812,7 +812,7 @@ class FileNoteStore:
         return out
 
     def resolve(self, dataset_id: str, topic: str) -> str:
-        """A topic name (profile, people, 'Cloudburst', or a file path) -> the file path in this dataset."""
+        """A topic name (profile, people, 'Atlas', or a file path) -> the file path in this dataset."""
         name = self._name(dataset_id)
         t = str(topic or "").strip()
         if t.startswith(name + "/") and t.endswith(".md"):

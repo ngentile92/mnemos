@@ -1,5 +1,5 @@
 "use strict";
-// Graph tab (0.12.2): a living map of your memory. Canvas + d3-force (bundled in /ui/vendor, no CDN).
+// Graph tab (0.12.3): a living map of your memory; while the local model reads notes, new things pop in live. Canvas + d3-force (bundled in /ui/vendor, no CDN).
 // Spaces are galaxies (each with its halo); notes shared between spaces are bridges. Continuous physics with
 // centre gravity, collision, idle breathing; unconnected things orbit their galaxy. Fly-in, "how it grew"
 // time-lapse, path between two things, PNG / video export, presentation mode.
@@ -22,6 +22,13 @@
   let reveal = null;             // time-lapse: {start, dur, order} → nodes appear by first-seen date
   let galaxies = [], running = false, cv = null, ctx = null, dpr = 1, W = 0, H = 0, stars = [];
   let drag = null, pres = false, rec = null;
+  let sparks = [], msgI = 0, msgT = null, seenFound = new Set();   // live build: particles + rotating messages
+  const ES = (navigator.language || "").toLowerCase().startsWith("es");
+  const MSGS = ES
+    ? ["Conectando {a} con {b}…", "Atando cabos: {a} → {b}", "¡Ajá! {a} {r} {b}", "Siguiendo el hilo de {a}…", "{a} y {b} se conocen", "Ubicando {b} en tu galaxia…"]
+    : ["Connecting {a} with {b}…", "Joining the dots: {a} → {b}", "Aha! {a} {r} {b}", "Following the thread of {a}…", "{a} and {b} know each other", "Placing {b} in your galaxy…"];
+  const IDLE = ES ? ["Leyendo tus notas…", "Buscando quién conoce a quién…", "Encendiendo estrellas…"]
+    : ["Reading your notes…", "Finding who knows whom…", "Lighting up stars…"];
 
   const spaceInfo = (n) => ((window.MNEMOS_SPACES || {}).spaces || []).find((s) => s.name === n);
   const spaceColour = (name, i) => (spaceInfo(name) || {}).color || (name === "shared" ? "#e5e7eb" : SPACE_C[i % SPACE_C.length]);
@@ -42,6 +49,8 @@
     let ns = g.nodes.filter((n) => !(hideShared && (n.spaces || []).length && n.spaces.every((s) => s === "shared")));
     const keep = new Set(ns.map((n) => n.id));
     const old = new Map(nodes.map((n) => [n.id, n]));
+    const oldL = new Set(links.map((l) => l.source.id + "\u0001" + l.target.id));
+    const live = old.size > 0, now = performance.now();
     const spaces = [...new Set(ns.flatMap((n) => n.spaces || []))].filter((s) => s !== "shared").sort();
     const R = Math.max(260, 120 * Math.sqrt(ns.length));
     galaxies = spaces.map((name, i) => {
@@ -56,13 +65,15 @@
       const bridge = own.length > 1 || ((n.spaces || []).includes("shared") && own.length !== 1);
       const home = own.length === 1 ? own[0] : null;
       const o = old.get(n.id), c = gal.get(home) || { x: 0, y: 0 };
+      const bornAt = o ? o.bornAt : live ? now + Math.random() * 1500 : 0;   // new while building → pops in
       return { ...n, home, bridge, imp: (n.count || 1) / max, r: 5 + 17 * Math.sqrt((n.count || 1) / max),
                phase: i * 1.7, x: o ? o.x : c.x + (Math.random() - 0.5) * 20, y: o ? o.y : c.y + (Math.random() - 0.5) * 20,
-               vx: o ? o.vx : 0, vy: o ? o.vy : 0 };
+               vx: o ? o.vx : 0, vy: o ? o.vy : 0, bornAt, sparked: o ? o.sparked : !live };
     });
     byId = new Map(nodes.map((n) => [n.id, n]));
     links = g.edges.filter((e) => keep.has(e.source) && keep.has(e.target) && !["is a", "is_a"].includes(e.label))
-      .map((e) => ({ ...e, source: byId.get(e.source), target: byId.get(e.target) }));
+      .map((e) => ({ ...e, source: byId.get(e.source), target: byId.get(e.target),
+                     bornAt: live && !oldL.has(e.source + "\u0001" + e.target) ? now + Math.random() * 1500 : 0 }));
     adj = new Map(nodes.map((n) => [n.id, new Set()]));
     for (const l of links) { adj.get(l.source.id).add(l.target.id); adj.get(l.target.id).add(l.source.id); }
     const ranked = [...nodes].filter((n) => n.kind !== "me").sort((a, b) => b.count - a.count);
@@ -90,7 +101,8 @@
       .alphaTarget(reduce ? 0 : 0.012)        // never fully still: the graph breathes
       .on("tick", () => {});
     sim.stop();                                // we tick it from our own frame loop
-    for (let i = 0; i < 160; i++) sim.tick(); // settle before the first frame
+    if (!live) for (let i = 0; i < 160; i++) sim.tick(); // settle before the first frame
+    else sim.alpha(0.35);                     // a live refresh: let the newcomers find their place in view
     for (const gx of galaxies) fitGalaxy(gx);
   }
   // unconnected things orbit just outside their galaxy instead of sitting in a grid
@@ -192,6 +204,20 @@
       gr.addColorStop(0, hexA(a.colour, al)); gr.addColorStop(1, hexA(b.colour, al));
       c.strokeStyle = gr; c.lineWidth = (pe ? 3 : fe ? 2 : 0.6 + 0.5 * Math.min(4, l.weight || 1)) / Math.sqrt(cam.k);
       const mx = (a.x + b.x) / 2 + (b.y - a.y) * 0.08, my = (a.y + b.y) / 2 - (b.x - a.x) * 0.08;
+      const age = l.bornAt ? (performance.now() - l.bornAt) / 900 : 9;
+      if (age < 0) continue;
+      if (age < 1) {                               // a new relation draws itself, with a comet at its tip
+        const u = 1 - Math.pow(1 - age, 3), q = 1 - u;
+        c.strokeStyle = hexA(b.colour, 0.95); c.lineWidth = 2.4 / Math.sqrt(cam.k);
+        c.beginPath(); c.moveTo(a.x, a.y);
+        for (let i = 1; i <= 16; i++) { const v = (u * i) / 16, w = 1 - v; c.lineTo(w * w * a.x + 2 * w * v * mx + v * v * b.x, w * w * a.y + 2 * w * v * my + v * v * b.y); }
+        c.stroke();
+        const sx = q * q * a.x + 2 * q * u * mx + u * u * b.x, sy = q * q * a.y + 2 * q * u * my + u * u * b.y;
+        c.fillStyle = "#fff"; c.shadowColor = b.colour; c.shadowBlur = 22;
+        c.beginPath(); c.arc(sx, sy, 3.4 / Math.sqrt(cam.k), 0, 7); c.fill(); c.shadowBlur = 0;
+        continue;
+      }
+      if (age < 2.5) { c.strokeStyle = hexA(b.colour, 0.28 + 0.5 * (2.5 - age) / 1.5); c.lineWidth = (1 + (2.5 - age)) / Math.sqrt(cam.k); }
       c.beginPath(); c.moveTo(a.x, a.y); c.quadraticCurveTo(mx, my, b.x, b.y); c.stroke();
       if ((pe || fe) && !reduce) {                 // a spark travelling subject → object
         const u = (t * 0.45 + (a.phase % 1)) % 1, q = 1 - u;
@@ -209,12 +235,23 @@
     const order = [...nodes].sort((a, b) => a.imp - b.imp);
     for (const n of order) {
       if (!visible(n)) continue;
-      const born = reveal ? Math.min(1, ((performance.now() - reveal.start) / reveal.dur - n._shown) * 12) : 1;
+      let born = reveal ? Math.min(1, ((performance.now() - reveal.start) / reveal.dur - n._shown) * 12) : 1;
+      if (n.bornAt && !reveal) {                   // live: a new thing pops in (elastic) with a ring and sparks
+        const a = (performance.now() - n.bornAt) / 700;
+        if (a < 0) continue;
+        if (!n.sparked) { n.sparked = true; burst(n); }
+        if (a < 1) born = Math.max(0.05, 1 + Math.pow(2, -10 * a) * Math.sin((a - 0.075) * 2 * Math.PI / 0.3));
+        if (a < 2.2) {
+          const rr = n.r + 6 + a * 34;
+          c.strokeStyle = hexA(n.colour, Math.max(0, 0.8 * (1 - a / 2.2))); c.lineWidth = 2 / Math.sqrt(cam.k);
+          c.beginPath(); c.arc(n.x, n.y, rr, 0, 7); c.stroke();
+        }
+      }
       const dim = (onPath && !onPath.has(n.id)) || (focus && n !== focus && !(near && near.has(n.id)) && !onPath);
       const q = $("g-q") && $("g-q").value.trim().toLowerCase();
       const miss = q && !String(n.label).toLowerCase().includes(q);
       const r = n.r * (reduce ? 1 : 1 + 0.06 * Math.sin(t * 1.4 + n.phase)) * (0.4 + 0.6 * born);
-      c.globalAlpha = (dim || miss ? 0.18 : 1) * born;
+      c.globalAlpha = (dim || miss ? 0.18 : 1) * Math.min(1, born);
       c.shadowColor = n.colour; c.shadowBlur = (n === focus ? 34 : 14 + 18 * n.imp);
       const fill = c.createRadialGradient(n.x - r * 0.35, n.y - r * 0.35, r * 0.1, n.x, n.y, r);
       fill.addColorStop(0, "#ffffff"); fill.addColorStop(0.25, n.colour); fill.addColorStop(1, hexA(n.colour, 0.55));
@@ -240,6 +277,7 @@
       }
       c.globalAlpha = 1;
     }
+    drawSparks(c);
     c.restore();
     if (reveal) {                                    // time-lapse caption
       const p = Math.min(1, (performance.now() - reveal.start) / reveal.dur);
@@ -254,6 +292,53 @@
       c.font = "700 15px Inter, system-ui, sans-serif"; c.textAlign = "right"; c.fillStyle = "rgba(238,241,255,.75)";
       c.fillText("Mnemos · your memory, on your computer", W - 24, H - 24);
     }
+  }
+  function burst(n) {
+    if (reduce) return;
+    for (let i = 0; i < 18; i++) {
+      const a = Math.random() * 7, v = 1.2 + Math.random() * 3.2;
+      sparks.push({ x: n.x, y: n.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, c: i % 3 ? n.colour : "#ffffff", s: 1 + Math.random() * 2 });
+    }
+    if (sparks.length > 600) sparks = sparks.slice(-600);
+  }
+  function drawSparks(c) {
+    if (!sparks.length) return;
+    for (const p of sparks) {
+      p.x += p.vx; p.y += p.vy; p.vx *= 0.94; p.vy *= 0.94; p.life -= 0.022;
+      if (p.life <= 0) continue;
+      c.globalAlpha = p.life; c.fillStyle = p.c; c.shadowColor = p.c; c.shadowBlur = 10;
+      c.beginPath(); c.arc(p.x, p.y, p.s * p.life / Math.sqrt(cam.k) + 0.4, 0, 7); c.fill();
+    }
+    c.globalAlpha = 1; c.shadowBlur = 0;
+    sparks = sparks.filter((p) => p.life > 0);
+  }
+  // ------------------------------------------------------------------ live build: progress card on the stage
+  const fmtEta = (s) => s == null ? "" : s < 60 ? (ES ? "menos de 1 min" : "under a minute") : s < 3600 ? `~${Math.round(s / 60)} min` : `~${(s / 3600).toFixed(1)} h`;
+  function liveMsg() {
+    const f = (G && G.found) || [];
+    if (!f.length) return IDLE[msgI % IDLE.length];
+    const x = f[f.length - 1 - (msgI % Math.min(f.length, 8))];
+    return MSGS[msgI % MSGS.length].replace("{a}", x.s).replace("{b}", x.o).replace("{r}", x.r);
+  }
+  function progressCard() {
+    let el = $("g-live");
+    const stage = $("g-stage");
+    if (!G || !G.building) { if (el) { el.classList.add("out"); setTimeout(() => el && el.remove(), 600); } clearInterval(msgT); msgT = null; return; }
+    if (!el) { el = document.createElement("div"); el.id = "g-live"; el.className = "g-live"; stage.appendChild(el); }
+    const p = G.progress || {}, pct = p.total ? Math.round((100 * p.done) / p.total) : 0;
+    const eng = G.engine ? esc(G.engine) : (ES ? "el modelo local" : "the local model");
+    const fresh = (G.found || []).filter((x) => !seenFound.has(x.seq)).length;
+    (G.found || []).forEach((x) => seenFound.add(x.seq));
+    el.innerHTML = `<div class="g-live-top"><span class="g-orb"></span><b>${ES ? "Descubriendo conexiones" : "Discovering connections"}</b>` +
+      `<span class="muted small">${eng}</span>${fresh ? `<span class="g-new">+${fresh}</span>` : ""}</div>` +
+      `<div class="g-bar"><i style="width:${Math.max(3, pct)}%"></i></div>` +
+      `<div class="g-live-row small"><span>${p.total ? `${p.done}/${p.total} ${ES ? "notas" : "notes"} · ${pct}%` : ""}</span>` +
+      `<span>${p.eta != null ? `${fmtEta(p.eta)} ${ES ? "restante" : "left"}` : (ES ? "calculando…" : "estimating…")}</span></div>` +
+      `<div class="g-msg" id="g-msg">${esc(liveMsg())}</div>`;
+    if (!msgT) msgT = setInterval(() => {
+      const m = $("g-msg"); if (!m) return;
+      msgI++; m.classList.add("swap"); setTimeout(() => { m.textContent = liveMsg(); m.classList.remove("swap"); }, 250);
+    }, 2600);
   }
   function hexA(hex, a) {
     const h = hex.replace("#", ""), v = parseInt(h.length === 3 ? h.replace(/./g, "$&$&") : h, 16);
@@ -357,7 +442,8 @@
   }
   function summary() {
     const how = G.source === "model" ? "found by the model" : G.source === "entities" ? "from your memory model" : "names and topics";
-    const bld = G.building ? ` <span class="small muted"><span class="spin"></span>${G.engine ? esc(G.engine) + " is " : ""}reading notes for relations${G.progress && G.progress.total ? ` (${G.progress.done}/${G.progress.total})` : ""}…</span>` : "";
+    const bld = "";
+    progressCard();
     const per = G.notes_by_space ? Object.entries(G.notes_by_space).map(([s, k]) => `${esc(spaceLabel(s))} ${k}`).join(" · ") : "";
     $("g-node").innerHTML = (nodes.length ? `<p class="muted">${nodes.length} ${how} from ${G.notes} note${G.notes === 1 ? "" : "s"}${per ? ` (${per})` : ""}. Tap one; shift-click a second to see the path.</p>`
       : '<p class="muted">No names or topics yet: add a few notes first.</p>') + bld;
@@ -408,7 +494,8 @@
   }
 
   // ------------------------------------------------------------------ public
-  async function load() {
+  async function load(quiet) {
+    quiet = quiet === true;
     if (!cv) {
       cv = $("g-canvas"); ctx = cv.getContext("2d"); bind();
       $("g-top").addEventListener("click", (ev) => { const a = ev.target.closest("a[data-id]"); if (a && byId.get(a.dataset.id)) select(byId.get(a.dataset.id)); });
@@ -427,21 +514,24 @@
       $("g-colour").onchange = () => { nodes.forEach((n) => (n.colour = colourOf(n))); legend(); };
       $("g-hideshared").onchange = () => { if (G) { build(G); legend(); summary(); fit(false); } };
       $("g-q").oninput = () => {};
-      $("g-ctx").onchange = () => load();
+      $("g-ctx").onchange = () => { seenFound = new Set(); nodes = []; links = []; load(); };
       $("g-me").onchange = () => load();
     }
-    $("g-node").innerHTML = '<p class="muted"><span class="spin"></span>reading your notes…</p>';
+    if (!quiet) $("g-node").innerHTML = '<p class="muted"><span class="spin"></span>reading your notes…</p>';
     let g;
     try { g = await api("/api/graph?" + new URLSearchParams({ context: $("g-ctx").value, me: $("g-me").checked ? "1" : "0" })); }
-    catch (e) { $("g-node").innerHTML = `<p class="muted">${esc(e.message)}</p>`; return; }
+    catch (e) { if (!quiet) $("g-node").innerHTML = `<p class="muted">${esc(e.message)}</p>`; return; }
     const first = !nodes.length;
-    sel = null; path = null; reveal = null;
-    resize(); build(g); legend(); summary();
+    if (!quiet) { sel = null; path = null; reveal = null; resize(); }
+    const keepSel = sel && sel.id, keepPath = path;
+    build(g); legend();
+    if (quiet && keepSel && byId.get(keepSel)) { sel = byId.get(keepSel); path = keepPath; } else if (quiet) { sel = null; path = null; }
+    if (!quiet || !sel) summary(); else progressCard();
     if (!running) { running = true; requestAnimationFrame(frame); }
-    fit(first);
+    if (!quiet) fit(first);
     clearTimeout(load._poll);
-    if (g.building && !$("view-graph").classList.contains("hidden")) load._poll = setTimeout(load, 8000);
+    if (g.building && !$("view-graph").classList.contains("hidden")) load._poll = setTimeout(() => load(true), 4000);
   }
   window.addEventListener("mnemos:view", (ev) => { if (ev.detail !== "graph") { running = false; } else if (cv && !running && nodes.length) { running = true; resize(); requestAnimationFrame(frame); } });
-  window.MnemosGraph = { load, timelapse, png, fit, _state: () => ({ nodes: nodes.length, links: links.length, galaxies: galaxies.map((g) => g.name) }) };
+  window.MnemosGraph = { load: () => load(), timelapse, png, fit, _live: (g) => { build(g); legend(); summary(); }, _state: () => ({ nodes: nodes.length, links: links.length, galaxies: galaxies.map((g) => g.name) }) };
 })();

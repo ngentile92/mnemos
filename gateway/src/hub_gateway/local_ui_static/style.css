@@ -102,6 +102,21 @@ footer{color:var(--muted);text-align:center;font-size:12px;padding:10px 20px 26p
 .gctl input[type=search]{background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:6px 10px;width:200px}
 .graphwrap{display:grid;grid-template-columns:1fr 300px;gap:14px}
 .g-stage{height:640px;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#05060f;box-shadow:0 0 0 1px rgba(139,108,255,.08),0 30px 80px -30px rgba(139,108,255,.35)}
+.g-stage{position:relative}
+.g-live{position:absolute;left:18px;bottom:18px;width:min(380px,calc(100% - 36px));padding:12px 14px;border-radius:14px;background:rgba(14,16,38,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(139,108,255,.35);box-shadow:0 10px 40px -10px rgba(139,108,255,.55);color:#eef1ff;animation:gl-in .5s cubic-bezier(.2,1.4,.4,1);transition:opacity .5s,transform .5s;pointer-events:none}
+.g-live.out{opacity:0;transform:translateY(12px)}
+.g-live-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.g-orb{width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#8b6cff 45%,#2fd8ff);box-shadow:0 0 12px #8b6cff;animation:gl-pulse 1.4s ease-in-out infinite}
+.g-new{margin-left:auto;font-weight:700;font-size:12px;color:#3ef0a4;animation:gl-in .4s}
+.g-bar{height:6px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden}
+.g-bar i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#8b6cff,#2fd8ff,#ff6fb5,#8b6cff);background-size:300% 100%;animation:gl-flow 2.4s linear infinite;transition:width .8s ease}
+.g-live-row{display:flex;justify-content:space-between;margin-top:6px;color:rgba(238,241,255,.7)}
+.g-msg{margin-top:8px;font-size:13px;font-style:italic;color:#d9dcff;transition:opacity .25s,transform .25s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-msg.swap{opacity:0;transform:translateY(-4px)}
+@keyframes gl-in{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes gl-pulse{50%{transform:scale(1.35);box-shadow:0 0 22px #2fd8ff}}
+@keyframes gl-flow{to{background-position:300% 0}}
+@media (prefers-reduced-motion:reduce){.g-live,.g-orb,.g-bar i{animation:none}}
 .g-stage canvas{display:block;cursor:grab;touch-action:none}
 .g-actions{display:inline-flex;gap:6px;margin-left:auto}
 .howto{margin-top:12px}.howto summary{cursor:pointer;color:var(--muted)}.howto li{margin:4px 0}

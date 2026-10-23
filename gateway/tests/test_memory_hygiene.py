@@ -220,8 +220,8 @@ def test_ledger_tags_fill_notes_a_cognee_rebuild_left_bare(monkeypatch):
     monkeypatch.setattr(mh, "discover_url", lambda root, env, ctx: ctx)
     env = {f"HUB_INTERNAL_KEY_{c.upper()}": "k" for c in ("personal", "work", "side")}
     notes = [note("a1", "personal", "x", tags=(), app=None), note("s1", "shared", "y", tags=(), app=None),
-             note("c1", "work", "z", tags=("gaia",))]
+             note("c1", "work", "z", tags=("atlas",))]
     mh.fill_from_ledger(notes, mh.ledger_meta(env))
     assert [(n["tags"], n["source_app"]) for n in notes] == [
-        (["perfil"], "Claude"), (["seguridad"], "Cursor"), (["gaia"], "Cursor")]
+        (["perfil"], "Claude"), (["seguridad"], "Cursor"), (["atlas"], "Cursor")]
     assert mh.analyze(notes, today=dt.date(2026, 10, 19))["untagged"] == []

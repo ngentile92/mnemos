@@ -4,7 +4,7 @@ Status: **accepted** (2026-10-10), being implemented in steps (see the end).
 
 ## Goal and constraint
 
-Today each context has its own connector (`hub-cloudburst`, `hub-personal`, `hub-side`): one URL, one GitHub OAuth app,
+Today each context has its own connector (`hub-work`, `hub-personal`, `hub-side`): one URL, one GitHub OAuth app,
 one gateway process, one Tailscale sidecar. It is safe, but each app needs three connectors and someone has to turn
 on the right one in each chat.
 
@@ -74,7 +74,7 @@ Scopes (advertised in `scopes_supported` and in the 401 challenge):
 
 Flow:
 
-1. The client asks for `user ctx:cloudburst ctx:personal ctx:side switch` (all of `scopes_supported`).
+1. The client asks for `user ctx:work ctx:personal ctx:side switch` (all of `scopes_supported`).
 2. The consent page (GitHub login first, or the built-in login of `auth-local.md`) shows **checkboxes per context**,
    all **unchecked** by default, the app's name and redirect host, and a separate checkbox "allow switching in chat".
    Optional preset per client name ("ChatGPT → personal") stored in the router.

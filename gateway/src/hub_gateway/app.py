@@ -44,6 +44,26 @@ LEGACY_MEMORY_TOOLS = {"memory_save", "memory_list", "memory_delete", "memory_up
                        "memory_dispute", "memory_answer", "memory_profile", "memory_entity"}
 log = logging.getLogger("hub.gateway")
 
+
+def rate_client_id(context: Any) -> str:
+    """Rate-limit key: the OAuth client + login of the access token, plus the MCP session when there is one."""
+    key = "anon"
+    try:
+        from fastmcp.server.dependencies import get_access_token
+        tok = get_access_token()
+        if tok is not None:
+            login = (getattr(tok, "claims", None) or {}).get("login") or (getattr(tok, "claims", None) or {}).get("sub")
+            key = f"{getattr(tok, 'client_id', '') or ''}:{login or ''}"
+    except Exception:  # noqa: BLE001 — no token in this context
+        pass
+    sid = None
+    try:
+        fc = getattr(context, "fastmcp_context", None)
+        sid = getattr(fc, "session_id", None) if fc is not None else None
+    except Exception:  # noqa: BLE001 — no session yet (initialize)
+        sid = None
+    return f"{key}|{sid or '-'}"
+
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False}
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 UPDATE_CONFIRM_S = 1800  # after a timed-out memory_update: how long to wait for Cognee to show the new text
@@ -203,7 +223,9 @@ def build_server(
         auth = build_auth(settings)
         middleware = [
             AuthMiddleware(auth=make_owner_check(settings.allowed_logins)),
-            RateLimitingMiddleware(max_requests_per_second=5, burst_capacity=20),
+            # one bucket per signed-in client (and MCP session), not one for the whole hub: an agent that fires
+            # several tool calls at once must not starve, or be starved by, another app (#135)
+            RateLimitingMiddleware(max_requests_per_second=5, burst_capacity=30, get_client_id=rate_client_id),
         ]
     else:
         log.warning("HUB_DEV_NO_AUTH=1: auth DESACTIVADA (solo desarrollo local)")

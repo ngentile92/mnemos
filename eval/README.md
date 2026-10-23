@@ -43,3 +43,15 @@ Measured with `scripts/entail_eval.py` on Qwen2.5 1.5B (smaller than the app's Q
 
 Because the model also rejects some real facts, a "no" never deletes: the fact is marked `unsure` (live capture sends
 it to the inbox instead of saving it; the import review lists it last).
+
+## Capture style (0.13)
+`eval/persona/capture_style.jsonl`: 40 fictional facts as a small extractor writes them from coding-app chats (English
+and Spanish, many in the third person: "The person is working on a project"), labelled good / not worth keeping.
+`python scripts/capture_eval.py` compares the 0.12 gate ("before") with gate + `memfilter.polish` ("after": no
+third-person subject, vague items dropped, facts not in the person's language sent to review). This set was used to
+write the rules, so it is a dev number, not a held-out one.
+
+| | saved | precision | recall | third person | wrong language |
+|---|---|---|---|---|---|
+| before (0.12) | 34 | 0.68 | 1.00 | 50% | 9% |
+| after (0.13) | 22 (+2 to review) | 0.95 | 0.91 | 0% | 0% |

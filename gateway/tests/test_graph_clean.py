@@ -41,3 +41,13 @@ def test_build_records_recent_and_eta(tmp_path):
     assert [x[1:] for x in g.recent] == [("Orion", "talks to", "Nimbus")]
     assert g.progress["done"] == 1 and g.progress["started"]
     assert g.drop_junk() == 1
+
+
+def test_paths_phrases_and_decorations():
+    for w in ["/Users/someone/Desktop/x/y", "~/code/app", "https://x.io/a", "@someone99",
+              "agregar links a la evidencia dentro de Nimbus"]:
+        assert lg.junk(w), w
+    names = {"nimbus": 4, "nimbus api": 1, "nimbus repository": 1, "mcp de nimbus": 1, "base de datos de nimbus": 1,
+             "arquitectura para nimbus": 1, "nimbus platform": 1}
+    m = lg.tidy(names)
+    assert set(m) == set(names) - {"nimbus"} and set(m.values()) == {"nimbus"}

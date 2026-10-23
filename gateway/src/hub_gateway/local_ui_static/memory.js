@@ -217,6 +217,8 @@
 
   // ------------------------------------------------ memory health (proposals from the checks; the user decides)
   let inbox = [], hyFilter = "", lastBatch = null, hyPoll = null;
+  // after a health change: refresh the notes list and tell the files view (files mode) to reload too
+  const changed = () => { load(); window.dispatchEvent(new Event("mnemos:memory-changed")); };
   const GROUPS = [
     ["junk", "Not about you", "Code, tables, logs and task steps that slipped in."],
     ["rewrite", "Rewrite", "Written about you in the third person."],
@@ -258,7 +260,7 @@
     try {
       const r = await post("/api/hygiene/act", { type: typ, action: "accept" });
       toast(`Done: ${r.done}${r.failed ? `, ${r.failed} not done` : ""} ✓ — “Undo last cleanup” puts them back`);
-      hyFilter = ""; await loadInbox(); load();
+      hyFilter = ""; await loadInbox(); changed();
     } catch (e) { toast("Not done: " + e.message); loadInbox(); }
   });
   $("me-hy-run").onclick = async () => {
@@ -266,7 +268,7 @@
   };
   $("me-hy-undo").onclick = async () => {
     if (!lastBatch || !confirm(`Undo the last cleanup (${lastBatch.count} changes)?`)) return;
-    try { const r = await post("/api/hygiene/undo", { batch: lastBatch.id }); toast(`Undone ✓ (${r.reverted} changes)`); await loadInbox(); load(); }
+    try { const r = await post("/api/hygiene/undo", { batch: lastBatch.id }); toast(`Undone ✓ (${r.reverted} changes)`); await loadInbox(); changed(); }
     catch (e) { toast("Undo failed: " + e.message); }
   };
   $("me-inbox").addEventListener("click", async (ev) => {
@@ -279,7 +281,7 @@
       card.classList.add("me-gone");
       setTimeout(() => loadInbox(), 250);
       toast(action === "dismiss" ? "Kept as is" : "Done ✓ — “Undo last cleanup” puts it back");
-      if (action !== "dismiss") load();
+      if (action !== "dismiss") changed();
     } catch (e) { card.querySelectorAll("button").forEach((x) => { x.disabled = false; }); toast("Not done: " + e.message); loadInbox(); }
   });
 

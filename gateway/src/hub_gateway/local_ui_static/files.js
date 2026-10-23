@@ -87,6 +87,7 @@
     try { const j = await api("/api/memory-migrate", { action: "undo" }); $("sm-msg").textContent = j.error || "Back on the previous store ✓ Reload Mnemos."; window.MNEMOS.store = "notes"; settings(); }
     catch (e) { $("sm-msg").textContent = e.message; }
   };
+  window.addEventListener("mnemos:memory-changed", () => { if (!$("files-view").classList.contains("hidden") && $("fv-editor").classList.contains("hidden")) loadTopics(); });
   $("me-ctx") && $("me-ctx").addEventListener("change", () => { if (!$("files-view").classList.contains("hidden")) loadTopics(); });
   window.addEventListener("mnemos:view", (e) => { if (e.detail === "memoria") status(); if (e.detail === "settings") settings(); });
 })();

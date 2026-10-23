@@ -121,6 +121,12 @@ def entities(text: str) -> set[str]:
     return out
 
 
+def _fold(name: str) -> str:
+    import unicodedata
+    n = unicodedata.normalize("NFKD", name.lstrip("?")).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"\s+", " ", n).strip()
+
+
 def build_graph(items: list[dict], max_nodes: int = 60, max_edges: int = 160) -> dict:
     per_note: dict[str, set[str]] = {}
     for it in items:
@@ -129,9 +135,18 @@ def build_graph(items: list[dict], max_nodes: int = 60, max_edges: int = 160) ->
         ents = entities(str(it.get("text", "")))
         ents.update("#" + str(t).lower() for t in (it.get("tags") or []) if t)
         per_note[it["id"]] = ents
+    spell: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    for nid, ents in list(per_note.items()):  # one name per concept: case/accents-insensitive, most common spelling
+        for e in ents:
+            spell[_fold(e)][e.lstrip("?")] += 1
+    canon = {k: c.most_common(1)[0][0] for k, c in spell.items()}
+    per_note = {nid: {("?" if e.startswith("?") else "") + canon[_fold(e)] for e in ents} for nid, ents in per_note.items()}
     counts: collections.Counter = collections.Counter()
     for ents in per_note.values():
         counts.update({e.lstrip("?") for e in ents})
+    if len(per_note) >= 20:
+        for e in [e for e, c in counts.items() if e.startswith("#") and c > 0.5 * len(per_note)]:
+            del counts[e]
     tentative = {e.lstrip("?") for ents in per_note.values() for e in ents if e.startswith("?")}
     firm = {e for ents in per_note.values() for e in ents if not e.startswith("?")}
     keep = [e for e, c in counts.most_common() if (e in firm or c >= 2) and (c >= 2 or len(per_note) < 40)]
@@ -246,6 +261,30 @@ class UI:
         return items[: self.GRAPH_NOTES]
 
     async def graph(self, ctx: str, items: list[dict] | None = None, show_me: bool = False) -> dict:
+        """The Graph tab's data, counted from the store (not from derived rows): `notes` are the live notes this
+        view reads, `notes_by_space` where they live, and each node gets `first` (its oldest note) for the
+        time-lapse. Derived rows of deleted notes are pruned first so a cleanup never leaves ghosts."""
+        spaces = list(self.servers) if ctx == "*" else [ctx]
+        if any(s not in self.servers for s in spaces):
+            raise ValueError(f"unknown context {ctx!r}")
+        live: dict[str, dict] = {}
+        for sp in spaces:
+            for it in (items if items is not None and ctx != "*" else await self.graph_items(sp)):
+                live.setdefault(it["id"], {**it, "space": it.get("space") or sp})
+        from . import local_graph as _lg
+        for sp in spaces:
+            await asyncio.to_thread(_lg.get(self.home, sp).prune, set(live))
+        out = await self._graph(ctx, list(live.values()) if ctx != "*" else None, show_me)
+        when = {i: str(it.get("created_at") or "") for i, it in live.items()}
+        for n in out.get("nodes", []):
+            ds = [when[x] for x in n.get("notes") or [] if when.get(x)]
+            n["first"] = min(ds) if ds else None
+        by: dict[str, int] = {}
+        for it in live.values():
+            by[str(it.get("space") or "")] = by.get(str(it.get("space") or ""), 0) + 1
+        return {**out, "notes": len(live), "notes_by_space": {k: v for k, v in sorted(by.items()) if k}}
+
+    async def _graph(self, ctx: str, items: list[dict] | None = None, show_me: bool = False) -> dict:
         """Model triples when there are some (built in the background by a local model), else names and tags.
         ctx "*" = every space at once, each node knowing the spaces it appears in."""
         from . import contexts as _c
@@ -294,6 +333,8 @@ class UI:
             out = local_graph.view(its, triples, types=types, merge=merge, me=me, show_me=show_me)
         else:
             out = {**build_graph(its), "source": "names"}
+            for n in out["nodes"]:  # kinds learned earlier (model or demo) colour the names graph too
+                n["ltype"] = types.get(local_graph.norm(n["label"]))
             if not show_me:
                 out["nodes"] = [n for n in out["nodes"] if local_graph.norm(n["label"]) not in me]
             space_of = {i["id"]: i.get("space") for i in its}
@@ -301,7 +342,7 @@ class UI:
             out["edges"] = [e for e in out["edges"] if e["source"] in ids and e["target"] in ids]
             cl = local_graph.clusters([n["id"] for n in out["nodes"]], [(e["source"], e["target"], e["weight"]) for e in out["edges"]])
             for n in out["nodes"]:
-                n.update(type="topic" if n["kind"] == "tag" else "other", cluster=cl.get(n["id"], -1),
+                n.update(type=n.pop("ltype", None) or ("topic" if n["kind"] == "tag" else "other"), cluster=cl.get(n["id"], -1),
                          spaces=sorted({space_of.get(x) for x in n["notes"]} - {None}))
         return {**out, "spaces": spaces, "building": building, "progress": progress if building else None,
                 "engine": llm.name if llm else None}
@@ -510,3 +551,36 @@ class UI:
 
         return [Route("/app", page), Route("/ui/{path:path}", static), Route("/api/login", login, methods=["POST"]),
                 Route("/api/{rest:path}", api, methods=["GET", "POST"])]
+
+
+async def rebuild_derived(home: Path, servers: dict) -> dict:
+    """After a big cleanup (or any time): back up each space's graph.sqlite and model.sqlite, then drop their rows
+    for notes that no longer exist. Derived data only; notes are never touched. Undo: copy the .bak-* files back."""
+    import shutil
+    import time as _t
+    from . import local_graph
+    from .local_model import Model
+    ui = UI(servers, home, "")
+    stamp = _t.strftime("%Y%m%d-%H%M%S")
+    report: dict[str, Any] = {}
+    for ctx in servers:
+        live = {it["id"] for it in await ui.graph_items(ctx)}
+        loc = getattr(servers[ctx], "mnemos_local", None) or {}
+        for sc_name, ds_id in (loc["scope"].listable(include_shared=True) if loc else []):
+            live |= {str(d["id"]) for d in await loc["store"].list_data(ds_id)}  # every note, obsolete too
+        data = Path(home) / "data" / ctx
+        backups = []
+        for f in ("graph.sqlite", "model.sqlite"):
+            if (data / f).exists():
+                shutil.copy2(data / f, data / f"{f}.bak-{stamp}")
+                backups.append(str(data / f"{f}.bak-{stamp}"))
+        pruned = local_graph.get(home, ctx).prune(live) if (data / "graph.sqlite").exists() else 0
+        facts = 0
+        if (data / "model.sqlite").exists():
+            m = Model(data / "model.sqlite")
+            for f in m.facts(status=None):
+                if f["note_id"] not in live:
+                    m.forget_note(f["note_id"])
+                    facts += 1
+        report[ctx] = {"live_notes": len(live), "graph_notes_pruned": pruned, "model_facts_dropped": facts, "backups": backups}
+    return report

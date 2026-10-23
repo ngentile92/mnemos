@@ -58,6 +58,16 @@ class Graph:
                 c.execute("DELETE FROM types WHERE note=?", (gone,))
         return [it for i, it in live.items() if have.get(i) != _h(str(it.get("text", "")))][:MAX_NOTES]
 
+    def prune(self, live_ids: set[str]) -> int:
+        """Drop rows of notes that are gone (deleted or cleaned up). Cheap; runs on every graph view, LLM or not."""
+        with self._lock, self._c() as c:
+            gone = [i for (i,) in c.execute("SELECT DISTINCT note FROM triples UNION SELECT id FROM notes") if i not in live_ids]
+            for g in gone:
+                c.execute("DELETE FROM notes WHERE id=?", (g,))
+                c.execute("DELETE FROM triples WHERE note=?", (g,))
+                c.execute("DELETE FROM types WHERE note=?", (g,))
+        return len(gone)
+
     def store(self, notes: list[dict], triples: list[tuple[str, str, str, str]],
               types: list[tuple[str, str, str]] | None = None) -> None:
         with self._lock, self._c() as c:

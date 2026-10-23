@@ -50,7 +50,76 @@ def lexical_conflict(a: str, b: str) -> str | None:
         return "Same topic, different numbers or dates."
     if bool(_NEG.search(a)) != bool(_NEG.search(b)):
         return "Same topic, but one of them negates it."
+    if polarity(a) * polarity(b) < 0:
+        return "Same topic, but one likes it and the other does not."
     return None
+
+
+# --- contradictions without a model, across English and Spanish -------------------------------------------------
+# Polarity of a preference/habit note and its topic words, mapped to one language with a small generic lexicon, so
+# "Prefers dark mode" and "No me gusta el modo oscuro" are seen as the same topic with opposite signs.
+_POS = re.compile(r"\b(prefers?|preferred|likes?|loves?|enjoys?|always|uses|wants|prefiero|prefiere|me gusta|le gusta|"
+                  r"me encanta|le encanta|disfruta|siempre|usa|uso|quiere|quiero)\b", re.I)
+_NEGP = re.compile(r"\b(no|not|never|don'?t|doesn'?t|dislikes?|hates?|avoids?|stopped|nunca|odia|odio|evita|evito|"
+                   r"dejó de|dejé de|ya no|ni)\b", re.I)
+LEXICON = {  # Spanish → English for words that often appear in preferences; extend freely, generic only
+    "oscuro": "dark", "oscura": "dark", "claro": "light", "clara": "light", "modo": "mode", "tema": "theme",
+    "café": "coffee", "cafe": "coffee", "té": "tea", "azúcar": "sugar", "leche": "milk", "carne": "meat",
+    "pescado": "fish", "vino": "wine", "cerveza": "beer", "alcohol": "alcohol", "picante": "spicy", "dulce": "sweet",
+    "mañana": "morning", "mañanas": "morning", "noche": "night", "noches": "night", "temprano": "early",
+    "tarde": "late", "reuniones": "meetings", "reunión": "meeting", "llamadas": "calls", "correo": "email",
+    "correos": "email", "emojis": "emoji", "respuestas": "answers", "cortas": "short", "largas": "long",
+    "corto": "short", "largo": "long", "inglés": "english", "español": "spanish", "pestañas": "tabs",
+    "espacios": "spaces", "tipado": "typing", "pruebas": "tests", "tests": "tests", "perros": "dogs", "perro": "dog",
+    "gatos": "cats", "gato": "cat", "viajar": "travel", "volar": "flying", "auto": "car", "bici": "bike",
+    "bicicleta": "bike", "correr": "running", "gimnasio": "gym", "fumar": "smoking", "dieta": "diet",
+    "vegetariano": "vegetarian", "vegano": "vegan", "trabajo": "work", "remoto": "remote", "oficina": "office",
+}
+_TOPIC_STOP = set("the a an of to in on for with and or my his her their is are be it that this at by from as than "
+                  "el la los las un una de del en con para por y o mi su sus es son que lo se al le me more most less "
+                  "much muy mucho más menos usuario user person persona".split())
+
+
+def _canon(w: str) -> str:
+    w = LEXICON.get(w, w)
+    for suf in ("ing", "es", "s"):
+        if len(w) - len(suf) >= 3 and w.endswith(suf):
+            return w[: -len(suf)]
+    return w
+
+
+def polarity(text: str) -> int:
+    """+1 a positive preference/habit, -1 a negative one, 0 neither."""
+    t = text or ""
+    if _NEGP.search(t):
+        return -1
+    return 1 if _POS.search(t) else 0
+
+
+def topic(text: str) -> set[str]:
+    words = re.findall(r"[a-záéíóúüñ']+", (text or "").lower())
+    drop = {m.lower() for m in _POS.findall(text or "") + _NEGP.findall(text or "")}
+    drop |= {x for m in drop for x in m.split()}
+    return {_canon(w) for w in words if len(w) > 2 and w not in _TOPIC_STOP and w not in drop}
+
+
+def polarity_conflict(a: str, b: str) -> str | None:
+    """Opposite polarity on (mostly) the same topic, in either language."""
+    if polarity(a) * polarity(b) >= 0:
+        return None
+    ta, tb = topic(a), topic(b)
+    if not ta or not tb:
+        return None
+    common = ta & tb
+    if common and len(common) >= 0.5 * min(len(ta), len(tb)):
+        return "Same topic (" + ", ".join(sorted(common)[:3]) + "), but one says yes and the other no."
+    return None
+
+
+def topic_query(text: str) -> str:
+    """Extra search words so a note in one language finds notes about the same topic in the other."""
+    return " ".join(sorted({LEXICON[w] for w in re.findall(r"[a-záéíóúüñ]+", (text or "").lower()) if w in LEXICON}
+                           | {k for k, v in LEXICON.items() if v in (text or "").lower().split()}))
 
 
 def merged(newer: str, older: str) -> str:
@@ -132,7 +201,7 @@ def analyze_notes(ctx: str, notes: list[dict], today: dt.date,
                                 "explain": "Keep one note with the text of both; the older copy is forgotten (undoable).",
                                 "notes": [_note(a), _note(b)], "proposed_text": merged(a["text"], b["text"]),
                                 "actions": [{"id": "accept", "label": "Merge", "kind": "primary"}]})
-                elif j >= RELATED or cos >= SEM_RELATED:
+                elif j >= RELATED or cos >= SEM_RELATED or polarity_conflict(a["text"], b["text"]):
                     related.append((b, a))  # (older, newer)
     cutoff = (today - dt.timedelta(days=STALE_DAYS)).isoformat()
     old = [n for n in live if _when(n) and _when(n) < cutoff and not n.get("pinned") and n["id"] not in used]
@@ -198,7 +267,9 @@ async def run(home: Path, contexts: list[str], call: Call, today: dt.date | None
                 except Exception:  # noqa: BLE001 — engine down: fall back to the lexical rule
                     llm, mode = False, "lexical"
             if not (llm and judge):
-                why = lexical_conflict(older["text"], newer["text"])
+                why = polarity_conflict(older["text"], newer["text"]) or (
+                    lexical_conflict(older["text"], newer["text"]) if jaccard(older["text"], newer["text"]) >= RELATED
+                    else None)
             if why:
                 found.append({"key": _key("contra", older["id"], newer["id"]), "type": "contradiction", "context": ctx,
                               "title": "These notes disagree", "explain": why, "notes": [_note(older), _note(newer)],

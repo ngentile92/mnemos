@@ -137,3 +137,22 @@ def test_hub_exits_when_parent_dies(tmp_path):
     parent.kill(); parent.wait()
     out, _ = child.communicate(timeout=15)
     assert "still alive" not in out and child.returncode == 0
+
+
+async def test_update_refreshes_model_copy_and_profile(home):
+    """memory_update must change the model copy (search/profile read it), not only the note."""
+    from hub_gateway.local_consolidate import consolidate, profile_text
+    from hub_gateway.local_model import Model
+    s = local.build_all(home, 8765)
+    async with Client(s["personal"]) as p:
+        await p.call_tool("memory_save", {"text": "Prefiere el té verde por la mañana"})
+        nid = next(i["id"] for i in data(await p.call_tool("memory_list", {}))["items"] if "té verde" in i["text"])
+        mpath = next(x for x in home.rglob("model.sqlite") if Model(x).fact(nid))
+        m = Model(mpath)
+        await consolidate(m)
+        assert "té verde" in profile_text(m)
+        await p.call_tool("memory_update", {"id": nid, "text": "Prefiere el café solo por la mañana"})
+        assert m.fact(nid)["text"].startswith("Prefiere el café")
+        assert "té verde" not in profile_text(m)  # stale profile dropped
+        prof = data(await p.call_tool("memory_profile", {}))["profile"]
+        assert "café solo" in prof and "té verde" not in prof

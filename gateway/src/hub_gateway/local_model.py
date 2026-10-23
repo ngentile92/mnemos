@@ -399,6 +399,14 @@ class Model:
             c.execute("DELETE FROM links WHERE a=? OR b=?", (note_id, note_id))
             if r:
                 c.execute("UPDATE entities SET dirty=1 WHERE id=?", (r["entity_id"],))
+            self._stale_profile(c, note_id)
+
+    @staticmethod
+    def _stale_profile(c: Any, note_id: str) -> None:
+        """The stored L0 profile quotes this note: drop its text so the next memory_profile rebuilds it."""
+        r = c.execute("SELECT fact_ids FROM profile WHERE id=1").fetchone()
+        if r and note_id in (r["fact_ids"] or ""):
+            c.execute("UPDATE profile SET text=NULL WHERE id=1")
 
     def set_fact(self, note_id: str, job: str, **fields: Any) -> None:
         """Change model fields of a fact (never the note), logged in `changes` so a job can be undone."""
@@ -412,6 +420,8 @@ class Model:
                 c.execute("INSERT INTO changes(ts, job, note_id, field, old, new) VALUES (?,?,?,?,?,?)",
                           (now(), job, note_id, k, json.dumps(r[k]), json.dumps(v)))
             c.execute(f"UPDATE facts SET {', '.join(f'{k}=?' for k in fields)} WHERE note_id=?", (*fields.values(), note_id))
+            if "text" in fields:
+                self._stale_profile(c, note_id)
 
     def undo_job(self, job: str) -> int:
         with self.db() as c:

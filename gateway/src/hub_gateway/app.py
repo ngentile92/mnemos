@@ -705,6 +705,8 @@ def build_server(
                 # Cognee is busy (e.g. still cognifying earlier notes) but may apply the PATCH later: record it
                 # like the background path and confirm it by reading the note back, instead of an error.
                 safe(ledger.record_change, id, text=text, by=app, tags=clean_tags)
+                if model is not None:
+                    safe(model.set_fact, id, "edit", text=text[:2000])
                 safe(index.put, id, name, text, old["created_at"])
                 _syncing[id] = {"state": "processing", "text": text}
 
@@ -733,6 +735,8 @@ def build_server(
             audit.log("memory_update", login, "error", data_id=id, error=type(exc).__name__)
             raise ToolError("no pude corregir la nota (Cognee no respondió); revisá con memory_list") from exc
         safe(ledger.record_change, id, text=text, by=app, tags=clean_tags)
+        if model is not None:  # the profile and search read the model copy: keep it in step with the note
+            safe(model.set_fact, id, "edit", text=text[:2000])
         safe(index.put, id, name, text, old["created_at"])
         status = res.get("status") if isinstance(res, dict) else None
         audit.log("memory_update", login, "ok", data_id=id, dataset=name, chars=len(text), app=app, status=status)

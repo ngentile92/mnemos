@@ -204,6 +204,8 @@ _VAGUE = re.compile(
     r"(?:asked|asks|asking) (?:for|about)\b|(?:needs|wants|wanted) help\b|is interested in (?:something|things)\b|"
     r"trabaj(?:ando|a) en (?:algo|un proyecto|cosas)\b(?! (?:llamado|que se llama))|(?:pidió|pide|pregunt[óa]) (?:ayuda|por|sobre)\b|necesita ayuda\b|"
     r"\b(?:something|algo|stuff|cosas)\s*\.?$)", re.I)
+_CONNECTORS = (r"(?:y|e|o|u|ni|and|or|nor|&|de|del|of|from|con|with|para|for|en|in|at|a|to|vs|versus|"
+               r"junto|together)")
 _NAMEISH = re.compile(r"\b(?:[A-ZÁÉÍÓÚÑ][\wáéíóúñ-]{2,}|\d[\d.,]*)\b")
 
 
@@ -212,9 +214,10 @@ def tidy(text: str, owner: str | None = None) -> str:
     t = text.strip()
     if owner and owner.strip() and owner.strip().lower() not in ("me", "the owner"):
         # only "<first name> [surname] <verb> …": never "Ana López y Juan son colegas" (a list, not a subject)
-        t = re.sub(r"^\s*" + re.escape(owner.strip().split()[0]) + r"(?:\s+[A-ZÁÉÍÓÚÑ][\wáéíóúñ-]+)?\s+"
-                   r"(?=(?:is|was|has|prefers|likes|works|lives|uses|wants|es|está|tiene|prefiere|trabaja|vive|usa|"
-                   r"quiere)\b)", "", t, flags=re.I)
+        # The subject is followed by a verb; any verb works ("utiliza", "maneja", "codes"), so instead of a verb
+        # list we accept any lowercase word that is not a connector (y / and / de / with …) or a second name.
+        t = re.sub(r"^\s*(?i:" + re.escape(owner.strip().split()[0]) + r")(?:\s+[A-ZÁÉÍÓÚÑ][\wáéíóúñ-]+)?\s+"
+                   r"(?=(?!" + _CONNECTORS + r"\b)[a-záéíóúñü][\wáéíóúñü-]*\b)", "", t)
     t2 = _SUBJ.sub("", t)
     if t2 != t:
         t2 = _EN_AUX.sub("", t2)

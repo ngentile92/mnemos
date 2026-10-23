@@ -29,3 +29,15 @@ def test_capture_eval_improves_precision():
     out = json.loads(subprocess.run([sys.executable, str(root / "scripts" / "capture_eval.py")], capture_output=True,
                                     text=True, check=True).stdout)
     assert out["after"]["precision"] >= 0.9 > out["before"]["precision"] and out["after"]["third_person"] == 0
+
+
+def test_tidy_owner_name_with_any_verb():
+    # any verb after the name counts, not only a fixed list
+    assert mf.tidy("Sam utiliza Linux en el trabajo", "Sam Rivera") == "Utiliza Linux en el trabajo"
+    assert mf.tidy("Sam Rivera maneja dos equipos", "Sam") == "Maneja dos equipos"
+    assert mf.tidy("sam codes in Rust on weekends", "Sam") == "Codes in Rust on weekends"
+    # connectors and second names are not verbs: keep the text as it is
+    assert mf.tidy("Sam y Lea son vecinos", "Sam") == "Sam y Lea son vecinos"
+    assert mf.tidy("Sam and Lea share a flat", "Sam") == "Sam and Lea share a flat"
+    assert mf.tidy("Sam de Rosario", "Sam") == "Sam de Rosario"
+    assert mf.tidy("Samuel utiliza Linux", "Sam") == "Samuel utiliza Linux"

@@ -28,6 +28,10 @@ Graph, cleaner and alive.
 - While the local model reads your notes, the graph comes alive: new things pop in with sparks, new links draw themselves, and a progress card shows notes done, % and time left, with playful messages built from what it just found.
 - Cleaner map for humans: generic words, languages, code identifiers and dates are hidden; decorated names ("X project", "X.info", "X-E") and name variants with the same surname are merged into one node.
 - `mnemos-local graph-rebuild` (with backup) also drops those noise links from the graph file.
+Cleaner graph, round two.
+
+- Also hides file paths, links, @handles and whole sentences that the model mistook for things.
+- Folds "X API", "X repository", "X platform", "MCP de X", "base de datos de X" into X.
 **New in 0.12: built-in memory for coding agents (opt-in).**
 - Mnemos → Apps → *Built-in memory for coding agents*: write your profile where each coding agent already looks, so
   every session starts knowing you even before it calls Mnemos. **Claude Code**: `~/.claude/rules/mnemos.md`.

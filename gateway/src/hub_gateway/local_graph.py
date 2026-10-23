@@ -10,6 +10,8 @@ import asyncio
 import collections
 import hashlib
 import logging
+import re
+import time
 import sqlite3
 import threading
 from pathlib import Path
@@ -36,7 +38,9 @@ class Graph:
         self.path = path
         self._lock = threading.Lock()
         self.task: asyncio.Task | None = None
-        self.progress: dict[str, int] = {}
+        self.progress: dict[str, Any] = {}
+        self.recent: collections.deque = collections.deque(maxlen=40)  # (seq, subject, relation, object) just found
+        self.seq = 0
         path.parent.mkdir(parents=True, exist_ok=True)
         with self._c() as c:
             c.executescript("""CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, h TEXT);
@@ -68,6 +72,13 @@ class Graph:
                 c.execute("DELETE FROM types WHERE note=?", (g,))
         return len(gone)
 
+    def drop_junk(self) -> int:
+        """Delete links to generic words / languages / identifiers (they are hidden anyway; this keeps the file lean)."""
+        with self._lock, self._c() as c:
+            bad = [(n, a, r, b) for n, a, r, b in c.execute("SELECT note, s, r, o FROM triples") if junk(a) or junk(b)]
+            c.executemany("DELETE FROM triples WHERE note=? AND s=? AND r=? AND o=?", bad)
+        return len(bad)
+
     def store(self, notes: list[dict], triples: list[tuple[str, str, str, str]],
               types: list[tuple[str, str, str]] | None = None) -> None:
         with self._lock, self._c() as c:
@@ -95,7 +106,7 @@ class Graph:
 
     async def build(self, items: list[dict], llm: Any) -> None:
         todo = self.todo(items)
-        self.progress = {"done": 0, "total": len(todo)}
+        self.progress = {"done": 0, "total": len(todo), "started": time.time()}
         for i in range(0, len(todo), PER_CALL):
             part = todo[i:i + PER_CALL]
             chunk = "\n".join(f"{j}. {str(n.get('text', ''))[:400]}" for j, n in enumerate(part))
@@ -125,6 +136,10 @@ class Graph:
                     if t in TYPES:
                         trows.append((note, name, t))
             self.store(part, rows, trows)
+            for _note, a, r, b in rows:
+                if not (junk(a) or junk(b)):
+                    self.seq += 1
+                    self.recent.append((self.seq, a, r, b))
             self.progress["done"] = min(len(todo), i + PER_CALL)
 
     def start(self, items: list[dict], llm: Any) -> bool:
@@ -149,6 +164,81 @@ def get(home: Path, ctx: str) -> Graph:
 
 def norm(name: str) -> str:
     return " ".join(name.casefold().replace("’", "'").split()).removeprefix("the ")
+
+
+# Words a model happily turns into "entities" that mean nothing on a map for humans (English + Spanish).
+GENERIC = set("""
+app apps application aplicación aplicacion aplicaciones project projects proyecto proyectos user users usuario usuarios
+system sistema data datos information información informacion note notes nota notas thing things cosa cosas tool tools
+herramienta herramientas file files archivo archivos document documento documentos task tasks tarea tareas idea ideas
+meeting reunión reunion code código codigo feature features función funcion function web website sitio página pagina page
+platform plataforma service servicio product producto client cliente preferences preferencias settings configuración
+configuracion config version versión today hoy time tiempo work trabajo personal memory memoria model modelo chat email
+mail api database server servidor team equipo company empresa language idioma lenguaje english inglés ingles spanish
+español espanol castellano portuguese portugués french francés german alemán italian italiano something algo everything
+todo nothing nada people gente persona person problem problema solution solución question pregunta answer respuesta
+list lista item items goal goals objetivo objetivos plan plans step steps paso pasos change cambio cambios update
+""".split()) | {"base de datos", "global preferences", "user preferences", "the app", "la app", "la aplicación"}
+_LANG = re.compile(r"^(idioma|lengua|language|lenguaje)\s+\S+$|^\S+\s+(language|idioma)$")
+_IDENT = re.compile(r"^[a-z0-9]+(_[a-z0-9]+)+$")          # GLOBAL_PREFERENCES, user_id: code identifiers
+_DATE = re.compile(r"^[\d\s/.:,-]+$")
+
+
+def junk(name: str) -> bool:
+    """A generic word, a language, a code identifier, a number or a date: not a node anyone wants to see."""
+    k = norm(name)
+    for art in ("el ", "la ", "los ", "las ", "un ", "una ", "a ", "an "):
+        k = k.removeprefix(art)
+    return (len(k) < 2 or k in GENERIC or bool(_LANG.match(k) or _IDENT.match(k) or _DATE.match(k)))
+
+
+_PRE = ("proyecto ", "project ", "el proyecto ", "the project ")
+_SUF = (" project", " proyecto", " app", " inc", " inc.", " ltd", " llc", " team", " hq", " sa", " s.a.")
+_TLD = re.compile(r"\.(com|info|io|ai|app|net|org|dev|co|es|ar)$")
+
+
+def base(k: str) -> str:
+    """The name without the decorations people add around it: "Nimbus project", "Nimbus.info",
+    "Nimbus-E" and "proyecto Nimbus" are all Nimbus."""
+    k0 = k
+    for _ in range(2):
+        for p in _PRE:
+            k = k.removeprefix(p)
+        for sfx in _SUF:
+            if k.endswith(sfx) and len(k) > len(sfx) + 2:
+                k = k[: -len(sfx)]
+        k = _TLD.sub("", k)
+        k = re.sub(r"-[a-z0-9]$", "", k)
+        k = k.strip(" -_.")
+    return k if len(k) >= 3 else k0
+
+
+def tidy(names: dict[str, int]) -> dict[str, str]:
+    """{key: canonical key} merges by rule (no model needed): decorated names onto their base name, and people whose
+    first name is a short form of the other's with the same surname ("Ana Lopez" = "Anabel Lopez").
+    The canonical one is the plain base name when it is used, else the most mentioned."""
+    groups: dict[str, list[str]] = collections.defaultdict(list)
+    for k in names:
+        groups[base(k)].append(k)
+    out: dict[str, str] = {}
+    for b, ks in groups.items():
+        top = b if b in names else max(ks, key=lambda x: (names[x], -len(x)))
+        for k in ks:
+            if k != top:
+                out[k] = top
+    people = [k for k in names if k not in out and len(k.split()) >= 2]
+    by_last: dict[str, list[str]] = collections.defaultdict(list)
+    for k in people:
+        by_last[k.split()[-1]].append(k)
+    for ks in by_last.values():
+        ks.sort(key=lambda x: (-names[x], len(x)))
+        for i, a in enumerate(ks):
+            for b in ks[i + 1:]:
+                fa, fb = a.split()[0], b.split()[0]
+                if b not in out and min(len(fa), len(fb)) >= 3 and (fa.startswith(fb) or fb.startswith(fa)) \
+                        and len(a.split()) == len(b.split()):
+                    out[b] = out.get(a, a)
+    return out
 
 
 def _loose(name: str) -> str:
@@ -267,11 +357,16 @@ def view(items: list[dict], triples: list[tuple[str, str, str, str]], max_nodes:
     live = {it["id"]: it for it in items if not it.get("obsolete")}
     canon: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
 
-    def key(name: str) -> str:
+    def key(name: str) -> str | None:
         k = norm(name)
         if k in me:
             return "me"
+        if junk(name):
+            return None
         k = merge.get(k, k)
+        k = merge.get(k, k)
+        if k in me:
+            return "me"
         canon[k][name] += 1
         return k
     notes_of: dict[str, set[str]] = collections.defaultdict(set)
@@ -281,6 +376,8 @@ def view(items: list[dict], triples: list[tuple[str, str, str, str]], max_nodes:
         if note not in live:
             continue
         a, b = key(s), key(o)
+        if a is None or b is None:
+            continue
         if not show_me and "me" in (a, b):
             for k in (a, b):
                 if k != "me":
@@ -300,7 +397,10 @@ def view(items: list[dict], triples: list[tuple[str, str, str, str]], max_nodes:
     used = {n for k in keep for n in sorted(notes_of[k])[:12]}
 
     def label(k: str) -> str:
-        return "Me" if k == "me" else canon[k].most_common(1)[0][0]
+        if k == "me":
+            return "Me"
+        plain = [n for n, _c in canon[k].most_common() if norm(n) == k]
+        return plain[0] if plain else canon[k].most_common(1)[0][0]
 
     def spaces(k: str) -> list[str]:
         return sorted({str(live[n].get("space") or "") for n in notes_of[k]} - {""})

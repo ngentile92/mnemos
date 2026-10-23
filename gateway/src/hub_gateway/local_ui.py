@@ -309,6 +309,7 @@ class UI:
         triples: list = []
         types: dict[str, str] = {}
         building, progress = False, {"done": 0, "total": 0}
+        started, found = None, []
         for sp in spaces:
             its = items if items is not None and ctx != "*" else await self.graph_items(sp)
             for it in its:
@@ -318,6 +319,9 @@ class UI:
                 building = True
                 for k in progress:
                     progress[k] += (g.progress or {}).get(k, 0)
+                st = (g.progress or {}).get("started")
+                started = min(started, st) if started and st else (st or started)
+                found += [{"seq": f"{sp}:{q}", "s": a, "r": r, "o": b} for q, a, r, b in list(g.recent)[-12:]]
             triples += await asyncio.to_thread(g.triples)
             types.update(await asyncio.to_thread(g.types))
         its = list(all_items.values())
@@ -327,14 +331,23 @@ class UI:
             for _n, s_, _r, o in triples:
                 for x in (s_, o):
                     k = local_graph.norm(x)
-                    if k not in me:
+                    if k not in me and not local_graph.junk(x):
                         names[k] = names.get(k, 0) + 1
-            merge = await local_graph.aliases(names, types, self._embedder())
+            merge = local_graph.tidy(names)
+            rest: dict[str, int] = {}
+            for k, v in names.items():
+                rest[merge.get(k, k)] = rest.get(merge.get(k, k), 0) + v
+            for k, v in (await local_graph.aliases(rest, types, self._embedder())).items():
+                merge[k] = v
+                for a, b in list(merge.items()):
+                    if b == k:
+                        merge[a] = v
             out = local_graph.view(its, triples, types=types, merge=merge, me=me, show_me=show_me)
         else:
             out = {**build_graph(its), "source": "names"}
             for n in out["nodes"]:  # kinds learned earlier (model or demo) colour the names graph too
                 n["ltype"] = types.get(local_graph.norm(n["label"]))
+            out["nodes"] = [n for n in out["nodes"] if not local_graph.junk(n["label"]) or local_graph.norm(n["label"]) in me]
             if not show_me:
                 out["nodes"] = [n for n in out["nodes"] if local_graph.norm(n["label"]) not in me]
             space_of = {i["id"]: i.get("space") for i in its}
@@ -344,7 +357,12 @@ class UI:
             for n in out["nodes"]:
                 n.update(type=n.pop("ltype", None) or ("topic" if n["kind"] == "tag" else "other"), cluster=cl.get(n["id"], -1),
                          spaces=sorted({space_of.get(x) for x in n["notes"]} - {None}))
+        if building and started and progress["total"]:
+            el = time.time() - started
+            progress["eta"] = round(el * (progress["total"] - progress["done"]) / progress["done"]) if progress["done"] else None
+            progress["elapsed"] = round(el)
         return {**out, "spaces": spaces, "building": building, "progress": progress if building else None,
+                "found": found[-16:] if building else [],
                 "engine": llm.name if llm else None}
 
     def _embedder(self):
@@ -575,6 +593,7 @@ async def rebuild_derived(home: Path, servers: dict) -> dict:
                 shutil.copy2(data / f, data / f"{f}.bak-{stamp}")
                 backups.append(str(data / f"{f}.bak-{stamp}"))
         pruned = local_graph.get(home, ctx).prune(live) if (data / "graph.sqlite").exists() else 0
+        noise = local_graph.get(home, ctx).drop_junk() if (data / "graph.sqlite").exists() else 0
         facts = 0
         if (data / "model.sqlite").exists():
             m = Model(data / "model.sqlite")
@@ -582,5 +601,5 @@ async def rebuild_derived(home: Path, servers: dict) -> dict:
                 if f["note_id"] not in live:
                     m.forget_note(f["note_id"])
                     facts += 1
-        report[ctx] = {"live_notes": len(live), "graph_notes_pruned": pruned, "model_facts_dropped": facts, "backups": backups}
+        report[ctx] = {"live_notes": len(live), "graph_notes_pruned": pruned, "noise_links_dropped": noise, "model_facts_dropped": facts, "backups": backups}
     return report

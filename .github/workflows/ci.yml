@@ -13,6 +13,8 @@ jobs:
           python-version: "3.12"
       - run: pip install -e "gateway[dev]"
       - run: pytest -q gateway/tests
+      - name: versions match (app, .mcpb, npm, Python, release notes)
+        run: python scripts/check_versions.py
       - name: example skills are valid
         run: python examples/skills/scripts/validate.py examples/skills
   lint-shell-compose:

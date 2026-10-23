@@ -74,5 +74,8 @@ jobs:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           ls -l dist
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Mnemos $TAG" --notes-file docs/release-notes.md
+          git fetch -q --depth 1 origin "refs/tags/$TAG:refs/tags/$TAG" && git checkout -q "$TAG"
+          python3 scripts/check_versions.py --tag "$TAG"
+          python3 scripts/release_notes.py "$TAG" > "$RUNNER_TEMP/body.md"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Mnemos $TAG" --notes-file "$RUNNER_TEMP/body.md"
           gh release upload "$TAG" dist/Mnemos-macos.dmg dist/Mnemos-macos.app.zip dist/mnemos.mcpb --clobber

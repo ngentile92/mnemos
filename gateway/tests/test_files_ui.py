@@ -43,7 +43,7 @@ def test_files_endpoints(home):
         assert not w.get("error"), w
         stale = c.post("/api/files", json={"context": "personal", "op": "write", "file": rel, "text": "x",
                                            "version": f["version"]}, headers=W).json()
-        assert "cambió" in stale["error"]  # version check: someone else saved first
+        assert "changed" in stale["error"]  # version check: someone else saved first
         hist = c.get("/api/files", params={"context": "personal", "op": "history", "file": rel}).json()["history"]
         assert hist[0]["author"] == "you" and len(hist) >= 2
         c.post("/api/files", json={"context": "personal", "op": "restore", "file": rel, "sha": hist[1]["sha"]}, headers=W)

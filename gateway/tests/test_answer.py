@@ -36,7 +36,7 @@ async def test_memory_answer_tool(make_server, monkeypatch):
 
     server, rec = make_server("personal")
     async with Client(server) as c:
-        with pytest.raises(ToolError, match="no está configurado"):
+        with pytest.raises(ToolError, match="is not set up"):
             await c.call_tool("memory_answer", {"question": "qué sé de orion"})
     from hub_gateway import app as app_mod
 

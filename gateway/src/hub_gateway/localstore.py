@@ -49,9 +49,9 @@ class LocalNoteStore:
 
     def _db(self, ds: str) -> sqlite3.Connection:
         if self.allowed is not None and ds not in self.allowed:
-            raise MemoryError_("dataset fuera del alcance de este contexto (HTTP 403)")
+            raise MemoryError_("dataset outside this context's scope (HTTP 403)")
         if not re.fullmatch(r"[0-9a-f-]{36}", ds):
-            raise MemoryError_("dataset id inválido")
+            raise MemoryError_("invalid dataset id")
         c = sqlite3.connect(self.root / f"{ds}.sqlite")
         c.row_factory = sqlite3.Row
         c.execute(SCHEMA)
@@ -60,9 +60,9 @@ class LocalNoteStore:
     async def remember(self, text: str, dataset_id: str, node_set: list[str] | None = None,
                        run_in_background: bool = True, metadata: dict[str, Any] | None = None) -> Any:
         if not text.strip():
-            raise MemoryError_("texto vacío")
+            raise MemoryError_("empty text")
         if len(text) > MAX_TEXT_CHARS:
-            raise MemoryError_(f"texto demasiado largo (máx {MAX_TEXT_CHARS} caracteres)")
+            raise MemoryError_(f"text too long (max {MAX_TEXT_CHARS} characters)")
         meta = {k: v for k, v in (metadata or {}).items() if v not in (None, "", [])}
         with self._lock, self._db(dataset_id) as c:
             same = c.execute("SELECT id FROM data WHERE text=?", (text,)).fetchone()  # Cognee dedups the same way
@@ -90,27 +90,27 @@ class LocalNoteStore:
 
     async def update(self, dataset_id: str, data_id: str, text: str, node_set: list[str] | None = None) -> Any:
         if not text.strip():
-            raise MemoryError_("texto vacío")
+            raise MemoryError_("empty text")
         if len(text) > MAX_TEXT_CHARS:
-            raise MemoryError_(f"texto demasiado largo (máx {MAX_TEXT_CHARS} caracteres)")
+            raise MemoryError_(f"text too long (max {MAX_TEXT_CHARS} characters)")
         with self._lock, self._db(dataset_id) as c:
             sets, args = "text=?, updated_at=?", [text, _now()]
             if node_set is not None:
                 sets += ", node_set=?"
                 args.append(json.dumps(node_set))
             if c.execute(f"UPDATE data SET {sets} WHERE id=?", (*args, data_id)).rowcount == 0:
-                raise MemoryError_("nota no encontrada (HTTP 404)")
+                raise MemoryError_("note not found (HTTP 404)")
         return {"status": "completed", "data_id": data_id}
 
     async def delete_data(self, dataset_id: str, data_id: str) -> None:
         with self._lock, self._db(dataset_id) as c:
             if c.execute("DELETE FROM data WHERE id=?", (data_id,)).rowcount == 0:
-                raise MemoryError_("nota no encontrada (HTTP 404)")
+                raise MemoryError_("note not found (HTTP 404)")
 
     async def recall(self, query: str, dataset_ids: list[str], top_k: int = 10, search_type: str | None = None) -> Any:
         """No graph here: keyword overlap over the allowed datasets (memory_search normally uses the local index)."""
         if not dataset_ids:
-            raise MemoryError_("sin datasets: el gateway nunca consulta sin alcance explícito")
+            raise MemoryError_("no datasets: the gateway never queries without an explicit scope")
         words = {w for w in re.findall(r"\w{3,}", query.lower())}
         scored = []
         for ds in dataset_ids:

@@ -50,3 +50,19 @@ def test_name_only_description_falls_back_to_defaults():
     sp = [{"name": "personal", "description": "personal"}, {"name": "work", "description": "work"}]
     assert not lr.describe(sp)[1]["custom"]
     assert lr.by_rules("Mañana tengo la reunión de sprint con el cliente y el equipo de backend", sp, "personal")["space"] == "work"
+
+
+def test_rules_without_model_strong_cues_decide():
+    sp = [{"name": "personal", "description": "personal"}, {"name": "work", "description": "work"}]
+    r = lr.by_rules("Trabajo en Acme", sp, "personal")
+    assert r["space"] == "work" and not r["review"]
+    assert lr.by_rules("I work at Acme as a data engineer", sp, "personal")["space"] == "work"
+    r = lr.by_rules("Mi esposa se llama Ana", sp, "work")
+    assert r["space"] == "personal" and not r["review"]
+    assert lr.by_rules("Likes blue", sp, "personal")["review"]
+
+
+def test_rules_space_names_in_other_words():
+    sp = [{"name": "vida", "label": "Vida"}, {"name": "trabajo", "label": "Trabajo"}]
+    assert lr.by_rules("Mi jefe me pidió el informe del cliente", sp, "vida")["space"] == "trabajo"
+    assert lr.describe(sp)[1]["description"].startswith("Job and career")

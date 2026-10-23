@@ -44,3 +44,9 @@ def test_explicit_wins_and_model_low_confidence_goes_to_default():
     assert rs[0]["space"] == "work" and rs[0]["by"] == "model"
     assert rs[1]["space"] == "personal" and rs[1]["review"] and rs[1]["suggested"] == "work"
     assert run(lr.route("a", SP, "personal", llm=L(), explicit="personal"))["by"] == "explicit"
+
+
+def test_name_only_description_falls_back_to_defaults():
+    sp = [{"name": "personal", "description": "personal"}, {"name": "work", "description": "work"}]
+    assert not lr.describe(sp)[1]["custom"]
+    assert lr.by_rules("Mañana tengo la reunión de sprint con el cliente y el equipo de backend", sp, "personal")["space"] == "work"

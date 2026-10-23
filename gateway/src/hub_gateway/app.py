@@ -123,6 +123,11 @@ def _returned_id(res: Any) -> str | None:
     return None
 
 
+def hub_memory_dir(settings: Settings) -> str:
+    """Where the hub keeps the Markdown memory (one git repo shared by every context container)."""
+    return os.environ.get("HUB_MEMORY_DIR") or os.path.join(os.path.dirname(settings.data_dir.rstrip("/")) or "/", "memory")
+
+
 def model_enabled() -> bool:
     return os.environ.get("HUB_MEMORY_MODEL", "").strip().lower() in ("1", "on", "true", "yes")
 
@@ -147,6 +152,11 @@ def build_server(
     _syncing: dict[str, dict[str, Any]] = {}  # background corrections still being re-processed by Cognee
     _tasks: set = set()
     local_mode = settings.dev_no_auth and settings.auth_provider == "local"  # mnemos-local / Desktop
+    if cognee is None and os.environ.get("HUB_MEMORY_STORE", "").strip().lower() == "files":  # 0.13 prep: hub on files
+        from .memfiles import FileNoteStore
+        datasets = datasets or DatasetMap.load(settings.datasets_file)
+        cognee = FileNoteStore(hub_memory_dir(settings), MemoryScope(ctx, datasets).allowed_ids(),
+                               {v: k for k, v in datasets.ids.items()})
     files_mode = bool(getattr(cognee, "is_files", False))  # simple memory (0.11): Markdown files per space
     model = None  # layered memory model: what each note is about, kind, validity, usage
     if local_mode or model_enabled():  # Docker hub: opt-in (HUB_MEMORY_MODEL=1), filled by `model_admin sync`

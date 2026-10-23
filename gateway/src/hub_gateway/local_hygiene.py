@@ -144,7 +144,8 @@ def analyze_notes(ctx: str, notes: list[dict], today: dt.date,
 
 
 async def run(home: Path, contexts: list[str], call: Call, today: dt.date | None = None,
-              judge: Any = "auto", embedder: Any = "auto") -> dict:
+              judge: Any = "auto", embedder: Any = "auto", owner: str | None = None,
+              spaces: list[dict] | None = None, health: bool = True, why: str = "schedule") -> dict:
     """judge/embedder "auto" = whatever local_engine has for hygiene (None = lexical / no embeddings)."""
     today = today or dt.date.today()
     items: list[dict] = []
@@ -160,6 +161,18 @@ async def run(home: Path, contexts: list[str], call: Call, today: dt.date | None
             embedder = await asyncio.to_thread(eng.embedder)
     elif judge:
         mode = "llm"
+    health_llm = None
+    if health:
+        from . import local_engine
+        try:
+            health_llm = await asyncio.to_thread(local_engine.get(home).llm, "hygiene")
+        except Exception:  # noqa: BLE001 — rules only
+            health_llm = None
+        if owner is None:
+            owner = _owner(home)
+        if spaces is None:
+            from .local_route import spaces_of
+            spaces = spaces_of(home, {c: None for c in contexts})
     for ctx in contexts:
         notes = (await call(ctx, "memory_list", {"limit": 500})).get("items") or []
         vecs = None
@@ -170,6 +183,13 @@ async def run(home: Path, contexts: list[str], call: Call, today: dt.date | None
             except Exception as exc:  # noqa: BLE001 — words only
                 log.warning("hygiene embeddings unavailable: %s", type(exc).__name__)
         found, related = analyze_notes(ctx, notes, today, vecs)
+        if health:
+            from . import local_health as hl
+            checked, rest = hl.check_notes(ctx, notes, owner)
+            busy = {x["notes"][0]["id"] for x in checked if x["type"] == "junk"}
+            found = checked + [i for i in found if not busy & {x["id"] for x in i["notes"]}]
+            found += await hl.check_moves(ctx, rest, spaces or [], health_llm)
+            found += await hl.check_wrong(ctx, rest, owner or "", health_llm)
         for older, newer in related[:40]:
             why = None
             if llm and judge:
@@ -185,7 +205,8 @@ async def run(home: Path, contexts: list[str], call: Call, today: dt.date | None
                               "actions": [{"id": "keep_newer", "label": "Newer is right", "kind": "primary"},
                                           {"id": "keep_older", "label": "Older is right", "kind": ""}]})
         items += found
-    rep = {"date": today.isoformat(), "mode": mode, "items": items}
+    rep = {"date": today.isoformat(), "mode": mode, "items": items, "why": why,
+           "at": dt.datetime.now().isoformat(timespec="seconds")}
     _write(home / "data" / "hygiene.json", rep)
     return rep
 
@@ -209,31 +230,136 @@ def pending(home: Path) -> dict:
     rep, st = _read(home / "data" / "hygiene.json"), _read(home / "data" / "hygiene-state.json")
     items = rep.get("items") or []
     todo = [i for i in items if i["key"] not in st]
-    return {"items": todo, "date": rep.get("date"), "total": len(items)}
+    from . import local_health as hl
+    counts: dict[str, int] = {}
+    for i in todo:
+        counts[i["type"]] = counts.get(i["type"], 0) + 1
+    last = next((b for b in reversed(hl.batches(home)) if not b.get("undone")), None)
+    return {"items": todo, "running": running(), "date": rep.get("date"), "at": rep.get("at"), "why": rep.get("why"), "mode": rep.get("mode"),
+            "total": len(items), "counts": counts,
+            "last_batch": {k: last[k] for k in ("id", "at", "count", "action")} if last else None}
 
 
-async def act(home: Path, body: dict, call: Call) -> dict:
-    key, action = str(body.get("key", "")), str(body.get("action", ""))
-    item = next((i for i in _read(home / "data" / "hygiene.json").get("items") or [] if i["key"] == key), None)
-    if not item:
-        raise ValueError("unknown cleanup item")
+def _owner(home: Path) -> str:
+    try:
+        import yaml
+        return str((yaml.safe_load((Path(home) / "contexts.yaml").read_text(encoding="utf-8")) or {}).get("owner") or "")
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+async def _apply(item: dict, action: str, call: Call, move: Any) -> list[dict]:
+    """Apply one item → the undo steps for it."""
     ctx, n = item["context"], item["notes"]
-    if action == "dismiss":
-        pass
-    elif item["type"] == "merge" and action == "accept":
+    t, ops = item["type"], []
+    if t == "merge" and action == "accept":
         await call(ctx, "memory_update", {"id": n[0]["id"], "text": item["proposed_text"]})
+        ops.append({"op": "undo", "ctx": ctx, "id": n[0]["id"]})
         await call(ctx, "memory_delete", {"id": n[1]["id"]})
-    elif item["type"] == "stale" and action == "accept":
-        await call(ctx, "memory_mark_obsolete", {"id": n[0]["id"], "obsolete": True, "reason": "cleanup: out of date"})
-    elif item["type"] == "contradiction" and action in ("keep_newer", "keep_older"):
+        ops.append({"op": "undo", "ctx": ctx, "id": n[1]["id"]})
+    elif t == "rewrite" and action == "accept":
+        await call(ctx, "memory_update", {"id": n[0]["id"], "text": item["proposed_text"]})
+        ops.append({"op": "undo", "ctx": ctx, "id": n[0]["id"]})
+    elif t in ("junk", "wrong") and action == "accept":
+        await call(ctx, "memory_delete", {"id": n[0]["id"]})
+        ops.append({"op": "undo", "ctx": ctx, "id": n[0]["id"]})
+    elif (t == "stale" and action == "accept") or (t == "wrong" and action == "obsolete"):
+        await call(ctx, "memory_mark_obsolete", {"id": n[0]["id"], "obsolete": True, "reason": f"cleanup: {t}"})
+        ops.append({"op": "unobsolete", "ctx": ctx, "id": n[0]["id"]})
+    elif t == "contradiction" and action in ("keep_newer", "keep_older"):
         loser = n[0] if action == "keep_newer" else n[1]
         await call(ctx, "memory_mark_obsolete", {"id": loser["id"], "obsolete": True, "reason": "cleanup: contradicted"})
+        ops.append({"op": "unobsolete", "ctx": ctx, "id": loser["id"]})
+    elif t == "move" and action == "accept":
+        if move is None:
+            raise ValueError("moving needs the app")
+        r = await move({"context": ctx, "to": item["to"], "id": n[0]["id"], "text": n[0]["text"], "confirm": True})
+        new_id = str(((r or {}).get("saved") or {}).get("id") or "")
+        ops.append({"op": "undo", "ctx": ctx, "id": n[0]["id"]})
+        if new_id:
+            ops.append({"op": "delete", "ctx": item["to"], "id": new_id})
     else:
         raise ValueError(f"unknown action {action!r}")
+    return ops
+
+
+async def act(home: Path, body: dict, call: Call, move: Any = None) -> dict:
+    """One item ({key, action}) or many ({keys: [...]} or {type: "junk"}, action "accept"). Applying anything takes
+    a backup first and is recorded as one batch, so undo_batch can revert all of it."""
+    from . import local_health as hl
+    action = str(body.get("action", ""))
+    items = _read(home / "data" / "hygiene.json").get("items") or []
     st = _read(home / "data" / "hygiene-state.json")
-    st[key] = action
+    if body.get("keys") or body.get("type"):
+        keys = {str(k) for k in body.get("keys") or []}
+        typ = str(body.get("type") or "")
+        todo = [i for i in items if i["key"] not in st and ((keys and i["key"] in keys) or (typ and i["type"] == typ))]
+        if action != "dismiss" and any(action not in {a["id"] for a in i["actions"]} for i in todo):
+            raise ValueError("that action does not apply to every selected item")
+    else:
+        key = str(body.get("key", ""))
+        todo = [i for i in items if i["key"] == key]
+        if not todo:
+            raise ValueError("unknown cleanup item")
+    if not todo:
+        return {"ok": True, "done": 0, "failed": 0}
+    out: dict[str, Any] = {"ok": True, "done": 0, "failed": 0, "errors": []}
+    if action != "dismiss":
+        out["backup"] = await asyncio.to_thread(hl.backup, home)
+        out["batch"] = hl.new_batch_id()
+    ops: list[dict] = []
+    for it in todo:
+        try:
+            if action != "dismiss":
+                ops += await _apply(it, action, call, move)
+            st[it["key"]] = action
+            out["done"] += 1
+        except ValueError:
+            if len(todo) == 1:
+                raise
+            out["failed"] += 1
+        except Exception as exc:  # noqa: BLE001 — one bad note never stops a bulk accept
+            out["failed"] += 1
+            out["errors"].append(f"{it['type']}: {type(exc).__name__}")
     _write(home / "data" / "hygiene-state.json", st)
-    return {"ok": True}
+    if ops:
+        hl.record(home, {"id": out["batch"], "at": dt.datetime.now().isoformat(timespec="seconds"),
+                         "count": out["done"], "action": action, "backup": out["backup"], "ops": ops,
+                         "keys": [i["key"] for i in todo]})
+    if len(todo) == 1 and out["failed"]:
+        raise RuntimeError(out["errors"][0] if out["errors"] else "not done")
+    return out
+
+
+async def undo_batch(home: Path, batch_id: str, call: Call) -> dict:
+    """Revert every change of one apply, newest first; the items show up for review again."""
+    from . import local_health as hl
+    b = next((x for x in hl.batches(home) if x.get("id") == batch_id), None)
+    if not b or b.get("undone"):
+        raise ValueError("unknown or already undone batch")
+    done = failed = 0
+    for op in reversed(b["ops"]):
+        try:
+            if op["op"] == "undo":
+                await call(op["ctx"], "memory_undo", {"id": op["id"]})
+            elif op["op"] == "unobsolete":
+                await call(op["ctx"], "memory_mark_obsolete", {"id": op["id"], "obsolete": False})
+            elif op["op"] == "delete":
+                await call(op["ctx"], "memory_delete", {"id": op["id"]})
+            done += 1
+        except Exception:  # noqa: BLE001
+            failed += 1
+    st = _read(home / "data" / "hygiene-state.json")
+    for k in b.get("keys") or []:
+        st.pop(k, None)
+    _write(home / "data" / "hygiene-state.json", st)
+    all_ = hl.batches(home)
+    for x in all_:
+        if x.get("id") == batch_id:
+            x["undone"] = True
+    p = home / "data" / "health-batches.json"
+    p.write_text(json.dumps(all_, ensure_ascii=False))
+    return {"ok": True, "reverted": done, "failed": failed, "backup": b.get("backup")}
 
 
 async def nightly(home: Path, contexts: list[str], call: Call, hour: int = 3) -> None:
@@ -248,3 +374,26 @@ async def nightly(home: Path, contexts: list[str], call: Call, hour: int = 3) ->
         except Exception as exc:  # noqa: BLE001 — never take the hub down
             log.warning("local hygiene failed: %s", type(exc).__name__)
         await asyncio.sleep(3600)
+
+
+_job: dict[str, Any] = {"task": None}
+
+
+def kick(home: Path, contexts: list[str], call: Call, why: str = "manual") -> bool:
+    """Start a check now in the background (after an import, or "Check now"); False if one is already running."""
+    t = _job.get("task")
+    if t is not None and not t.done():
+        return False
+
+    async def _go() -> None:
+        try:
+            await run(home, contexts, call, why=why)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("memory health check failed: %s", type(exc).__name__)
+    _job["task"] = asyncio.create_task(_go())
+    return True
+
+
+def running() -> bool:
+    t = _job.get("task")
+    return bool(t is not None and not t.done())

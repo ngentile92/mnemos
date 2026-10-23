@@ -60,23 +60,24 @@ async def test_quiet_session_is_learned_and_undoable(hub):
     r = await cap.run_once(now=time.time() + lc.IDLE_S + 1)
     assert r["sessions"] == 1 and r["learned"] == 2 and r["inbox"] == 2
     st = await cap.h_status({})
-    assert {x["text"] for x in st["recent"]} == {FACTS[0]["text"], FACTS[1]["text"]}
-    inbox = {x["text"]: x for x in st["inbox"]}
-    assert inbox["Ana has 2 cats."]["reason"] == "conflict" and inbox["Ana has 2 cats."]["conflict_with"]
-    assert inbox[FACTS[2]["text"]]["reason"] == "unsure"
+    from hub_gateway.memfilter import tidy  # saved in the capture style: without the owner's name
+    assert {tidy(x["text"], "Ana") for x in st["recent"]} == {tidy(FACTS[0]["text"], "Ana"), tidy(FACTS[1]["text"], "Ana")}
+    inbox = {tidy(x["text"], "Ana"): x for x in st["inbox"]}
+    assert inbox["Has 2 cats."]["reason"] == "conflict" and inbox["Has 2 cats."]["conflict_with"]
+    assert inbox[tidy(FACTS[2]["text"], "Ana")]["reason"] == "unsure"
     notes = await hub._existing("personal")
-    assert FACTS[0]["text"] in notes
+    assert "Leads the Atlas billing project at Acme." in notes  # saved in the capture style (no owner name)
     assert (hub.home / "profile" / "personal.md").read_text().count("Atlas") == 1
     # nothing new → no more model calls
     calls = cap.engine._l.calls
     await cap.run_once(now=time.time() + lc.IDLE_S + 1)
     assert cap.engine._l.calls == calls
     # undo removes the note
-    first = next(x for x in st["recent"] if x["text"] == FACTS[0]["text"])
+    first = next(x for x in st["recent"] if tidy(x["text"], "Ana") == tidy(FACTS[0]["text"], "Ana"))
     await cap.h_undo({"id": first["id"]})
-    assert FACTS[0]["text"] not in await hub._existing("personal")
-    await cap.h_accept({"id": inbox[FACTS[2]["text"]]["id"]})
-    assert FACTS[2]["text"] in await hub._existing("personal")
+    assert tidy(FACTS[0]["text"], "Ana") not in await hub._existing("personal")
+    await cap.h_accept({"id": inbox[tidy(FACTS[2]["text"], "Ana")]["id"]})
+    assert tidy(FACTS[2]["text"], "Ana") in [tidy(x, "Ana") for x in await hub._existing("personal")]
 
 
 async def test_paused_app_space_is_skipped(hub):

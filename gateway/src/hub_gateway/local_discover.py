@@ -650,6 +650,11 @@ class Discover:
                     saved += 1
             except Exception as e:  # noqa: BLE001
                 errors.append(str(e)[:120])
+        if saved and callable(getattr(self.ui, "after_import", None)):
+            try:
+                self.ui.after_import()  # memory health check on what just came in (proposals only)
+            except Exception:  # noqa: BLE001
+                pass
         return {"saved": saved, "skipped": skipped, "failed": len(errors), "errors": errors[:5], "batch": batch}
 
     async def undo(self, body: dict) -> dict:

@@ -209,6 +209,28 @@ _CONNECTORS = (r"(?:y|e|o|u|ni|and|or|nor|&|de|del|of|from|con|with|para|for|en|
 _NAMEISH = re.compile(r"\b(?:[A-ZÁÉÍÓÚÑ][\wáéíóúñ-]{2,}|\d[\d.,]*)\b")
 
 
+_TABLE_ROW = re.compile(r"^\s*\|.*\|.*\|\s*$")
+_CODE_LINE = re.compile(r"[;{}]\s*$|^\s*(?:def|class|function|import|from|const|let|var|return|if|for|SELECT|INSERT|"
+                        r"UPDATE|CREATE)\b|^\s*[\w.\[\]\"']+\s*[:=]\s*[\[{(\"'\d]|=>|\)\s*\{")
+_LOG_LINE = re.compile(r"^\s*(?:\d{4}-\d\d-\d\d[T ]\d\d:\d\d|\[?(?:INFO|WARN|WARNING|ERROR|DEBUG)\]?\b|Traceback|"
+                       r"\s+at\s+\S+\(|File \")")
+
+
+def pasted_block(text: str) -> str | None:
+    """A pasted block, not a sentence: "code", "table" or "log" (several lines of it, or a fenced block)."""
+    t = text or ""
+    if "```" in t:
+        return "code"
+    lines = [x for x in t.splitlines() if x.strip()]
+    if sum(bool(_TABLE_ROW.match(x)) for x in lines) >= 2:
+        return "table"
+    if len(lines) >= 3 and sum(bool(_LOG_LINE.match(x)) for x in lines) >= 2:
+        return "log"
+    if len(lines) >= 2 and sum(bool(_CODE_LINE.search(x)) for x in lines) >= max(2, len(lines) // 2):
+        return "code"
+    return None
+
+
 def tidy(text: str, owner: str | None = None) -> str:
     """First-person-neutral note text: drop a leading "The person / El usuario / <owner name>" subject."""
     t = text.strip()

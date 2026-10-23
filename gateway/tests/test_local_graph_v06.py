@@ -69,7 +69,7 @@ async def test_graph_reads_every_note_ranked_and_all_spaces(home, monkeypatch):
     for i in range(520):  # more than memory_list's 500
         await st.remember(f"Imported fact number {i} about Kafka", ds, metadata={"tags": ["import-claude"]})
     async with Client(servers[first]) as c:
-        saved = (await c.call_tool("memory_save", {"text": "Ana trabaja con [[Lucía]] en el proyecto Atlas"})).structured_content
+        saved = (await c.call_tool("memory_save", {"text": "[[Lucía]] y Ana trabajan en el proyecto Atlas"})).structured_content
         await c.call_tool("memory_pin", {"id": saved["id"]})  # by id: a list over 500+ notes may not include it
     async with Client(servers[other]) as c:
         await c.call_tool("memory_save", {"text": "El proyecto Atlas se entrega en marzo, dijo Ana a Lucía"})

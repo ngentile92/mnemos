@@ -16,6 +16,13 @@
 
 - **No more Keychain password prompts.** The local token now lives in `~/Mnemos/token` (0600). Before, the app was ad-hoc signed and its signature changed with every build, so macOS forgot "Always Allow" and asked 2–4 times per start and on "Open my memory".
 - **The Graph is back.** The Graph tab is visible again by default (Labs stays optional for the extra model features) and works with both note stores.
+## Mnemos 0.12.2 — the Graph, reimagined
+
+- **A living map of your memory.** Each space (Personal, Work…) is its own galaxy; people, places and projects you mention in both sit between them as bridges. Continuous physics, glow, gradient links, size by importance, labels that don't pile up.
+- **Explore interactions by Francisco Rua**, ported from the hub dashboard (#132, #133/#141): drag pulls neighbours, hide shared, open the notes behind a dot, relations read subject → object, one name per concept, "How to read this". Thank you, Francisco!
+- **How it grew**: a time-lapse of your memory, oldest notes first. **Shift-click** two dots to see how they connect.
+- **Present**, **PNG** and **Record** (video) for talks and posts. `MNEMOS_DEMO=1` opens a fictional demo memory (Ana, ~150 notes) so screenshots never show your own data.
+- **Correct counts after a cleanup**: the graph counts notes from your memory itself and drops leftovers of deleted notes; `mnemos-local graph-rebuild` does it in one go (with a backup).
 **New in 0.12: built-in memory for coding agents (opt-in).**
 - Mnemos → Apps → *Built-in memory for coding agents*: write your profile where each coding agent already looks, so
   every session starts knowing you even before it calls Mnemos. **Claude Code**: `~/.claude/rules/mnemos.md`.

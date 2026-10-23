@@ -4,34 +4,19 @@
 - `Mnemos-macos.app.zip` — same app, zipped.
 - `mnemos.mcpb` — Claude Desktop extension (optional; the app's "Connect to Claude Desktop" button is enough).
 
-## v0.10.1
+Newest first. Each `## vX.Y.Z` section is the body of that GitHub Release (`scripts/release_notes.py`).
 
-- Entity typing on the memory model: well-known tools (GitHub, ClickUp, Claude, Tailscale, …) are typed `tool` and never become the subject of a fact just for being named in it; extend the list with `MNEMOS_KNOWN_TOOLS`.
-- Acronyms (PR, API), document words (Instructions), languages and dates are no longer taken as names; sentence-initial capitals are ignored.
-- Fewer `unknown` kinds: instructions, habits, skills and project state are recognised.
-## v0.10.2
+## v0.14.0
 
-- Entity typing on the memory model, second pass: a new person needs a person cue next to the name; names that open sentences in several notes count; git commit trailers (Co-authored-by) are ignored; acronyms and technical terms (OAuth, RLS) are topics; the context name is a background org, never the subject.
-## Mnemos 0.12.1
+**New in 0.14: memory that keeps itself tidy — you decide every change.**
 
-- **No more Keychain password prompts.** The local token now lives in `~/Mnemos/token` (0600). Before, the app was ad-hoc signed and its signature changed with every build, so macOS forgot "Always Allow" and asked 2–4 times per start and on "Open my memory".
-- **The Graph is back.** The Graph tab is visible again by default (Labs stays optional for the extra model features) and works with both note stores.
-## Mnemos 0.12.2 — the Graph, reimagined
+- **Memory health** (Memory tab): after every import, once a day, or on "Check now", Mnemos groups suggestions: not about you (pasted code, tables, logs), rewrite (third person), duplicates, contradictions, other space, probably wrong, out of date. Accept one or a whole group; contradictions you pick by hand. A backup is saved before anything is applied and "Undo last cleanup" puts it all back. Nothing changes without your click.
+- **Cleaner saves**: pasted code, tables and logs are refused (the AI is asked for a one-sentence fact instead), third-person notes are saved first-person-neutral, and near-duplicates are skipped.
+- **Works in files mode too**: the Memory health card stays visible when your memory is Markdown files, and the files list refreshes after a cleanup or undo.
+- Fixes: editing a note now refreshes the profile; the third-person rule recognises any verb.
 
-- **A living map of your memory.** Each space (Personal, Work…) is its own galaxy; people, places and projects you mention in both sit between them as bridges. Continuous physics, glow, gradient links, size by importance, labels that don't pile up.
-- **Explore interactions by Francisco Rua**, ported from the hub dashboard (#132, #133/#141): drag pulls neighbours, hide shared, open the notes behind a dot, relations read subject → object, one name per concept, "How to read this". Thank you, Francisco!
-- **How it grew**: a time-lapse of your memory, oldest notes first. **Shift-click** two dots to see how they connect.
-- **Present**, **PNG** and **Record** (video) for talks and posts. `MNEMOS_DEMO=1` opens a fictional demo memory (Ana, ~150 notes) so screenshots never show your own data.
-- **Correct counts after a cleanup**: the graph counts notes from your memory itself and drops leftovers of deleted notes; `mnemos-local graph-rebuild` does it in one go (with a backup).
-Graph, cleaner and alive.
+## v0.13.0
 
-- While the local model reads your notes, the graph comes alive: new things pop in with sparks, new links draw themselves, and a progress card shows notes done, % and time left, with playful messages built from what it just found.
-- Cleaner map for humans: generic words, languages, code identifiers and dates are hidden; decorated names ("X project", "X.info", "X-E") and name variants with the same surname are merged into one node.
-- `mnemos-local graph-rebuild` (with backup) also drops those noise links from the graph file.
-Cleaner graph, round two.
-
-- Also hides file paths, links, @handles and whole sentences that the model mistook for things.
-- Folds "X API", "X repository", "X platform", "MCP de X", "base de datos de X" into X.
 Your notes go to the right space, and you can see what each AI app remembers.
 
 - Sorted by content: each new note (auto-capture from Claude Code, Cursor and Codex, Import, or an AI that names no space) goes to the space whose description fits it. The local model decides, with simple rules as a fallback. When unsure, the note stays in the default space marked "review". Recently learned shows where each note went and why, with a one-click Move.
@@ -39,12 +24,36 @@ Your notes go to the right space, and you can see what each AI app remembers.
 - Better auto-capture: notes are written in your language, without "The person…/El usuario…", vague items are dropped and near-duplicates skipped (capture eval: precision 0.68 → 1.0 on the dev set).
 - App memories: a new tab showing each app's own memory files (Claude Code, Codex, Cursor, chat exports) exactly as stored, read-only, with path, date and "Import into Mnemos" per section.
 - Spaces with a one-word description now get a sensible default description for sorting.
-**New in 0.14: memory that keeps itself tidy — you decide every change.**
 
-- **Memory health** (Memory tab): after every import, once a day, or on "Check now", Mnemos groups suggestions: not about you (pasted code, tables, logs), rewrite (third person), duplicates, contradictions, other space, probably wrong, out of date. Accept one or a whole group; contradictions you pick by hand. A backup is saved before anything is applied and "Undo last cleanup" puts it all back. Nothing changes without your click.
-- **Cleaner saves**: pasted code, tables and logs are refused (the AI is asked for a one-sentence fact instead), third-person notes are saved first-person-neutral, and near-duplicates are skipped.
-- **Works in files mode too**: the Memory health card stays visible when your memory is Markdown files, and the files list refreshes after a cleanup or undo.
-- Fixes: editing a note now refreshes the profile; the third-person rule recognises any verb.
+## v0.12.4
+
+Cleaner graph, round two.
+
+- Also hides file paths, links, @handles and whole sentences that the model mistook for things.
+- Folds "X API", "X repository", "X platform", "MCP de X", "base de datos de X" into X.
+
+## v0.12.3
+
+Graph, cleaner and alive.
+
+- While the local model reads your notes, the graph comes alive: new things pop in with sparks, new links draw themselves, and a progress card shows notes done, % and time left, with playful messages built from what it just found.
+- Cleaner map for humans: generic words, languages, code identifiers and dates are hidden; decorated names ("X project", "X.info", "X-E") and name variants with the same surname are merged into one node.
+- `mnemos-local graph-rebuild` (with backup) also drops those noise links from the graph file.
+
+## v0.12.2
+
+- **A living map of your memory.** Each space (Personal, Work…) is its own galaxy; people, places and projects you mention in both sit between them as bridges. Continuous physics, glow, gradient links, size by importance, labels that don't pile up.
+- **Explore interactions by Francisco Rua**, ported from the hub dashboard (#132, #133/#141): drag pulls neighbours, hide shared, open the notes behind a dot, relations read subject → object, one name per concept, "How to read this". Thank you, Francisco!
+- **How it grew**: a time-lapse of your memory, oldest notes first. **Shift-click** two dots to see how they connect.
+- **Present**, **PNG** and **Record** (video) for talks and posts. `MNEMOS_DEMO=1` opens a fictional demo memory (Ana, ~150 notes) so screenshots never show your own data.
+- **Correct counts after a cleanup**: the graph counts notes from your memory itself and drops leftovers of deleted notes; `mnemos-local graph-rebuild` does it in one go (with a backup).
+
+## v0.12.1
+
+- **No more Keychain password prompts.** The local token now lives in `~/Mnemos/token` (0600). Before, the app was ad-hoc signed and its signature changed with every build, so macOS forgot "Always Allow" and asked 2–4 times per start and on "Open my memory".
+- **The Graph is back.** The Graph tab is visible again by default (Labs stays optional for the extra model features) and works with both note stores.
+
+## v0.12.0
 
 **New in 0.12: built-in memory for coding agents (opt-in).**
 - Mnemos → Apps → *Built-in memory for coding agents*: write your profile where each coding agent already looks, so
@@ -54,6 +63,8 @@ Your notes go to the right space, and you can see what each AI app remembers.
 - Off by default, per agent, only for the spaces you pick. Mnemos keeps a backup of any file before it first changes it,
   rewrites its part only when your profile changes, never reads edits back from those files, and removes exactly what
   it wrote when you turn it off.
+
+## v0.11.0
 
 **New in 0.11: simple memory — your memory as Markdown files you can read.**
 - **Memory as files.** Each space is a folder with a short `profile.md` (read at the start of every chat) and a few
@@ -74,6 +85,18 @@ Your notes go to the right space, and you can see what each AI app remembers.
   hygiene sees tags and source apps, a tailnet-only exposure mode for the hub (`MNEMOS_EXPOSURE=tailnet`), Linux hosts
   without a venv, Ollama-in-Docker docs, and a more readable Explore graph.
 
+## v0.10.2
+
+- Entity typing on the memory model, second pass: a new person needs a person cue next to the name; names that open sentences in several notes count; git commit trailers (Co-authored-by) are ignored; acronyms and technical terms (OAuth, RLS) are topics; the context name is a background org, never the subject.
+
+## v0.10.1
+
+- Entity typing on the memory model: well-known tools (GitHub, ClickUp, Claude, Tailscale, …) are typed `tool` and never become the subject of a fact just for being named in it; extend the list with `MNEMOS_KNOWN_TOOLS`.
+- Acronyms (PR, API), document words (Instructions), languages and dates are no longer taken as names; sentence-initial capitals are ignored.
+- Fewer `unknown` kinds: instructions, habits, skills and project state are recognised.
+
+## v0.10.0
+
 **New in 0.10: the memory model on the full Docker hub.**
 - The hub can now use the same memory model as the local app: entities, typed facts, the nightly tidy-up, the
   profile and better ranking. It is stored in a separate file per context, next to the ledger, and never rewrites
@@ -81,6 +104,8 @@ Your notes go to the right space, and you can see what each AI app remembers.
 - `python -m hub_gateway.model_admin` (run inside a gateway container) links existing notes with a dry run first and
   an exact undo. It also runs the tidy-up (each run can be undone) and prints the profile, entities and the weekly
   "still true?" list. See `docs/memory-model-hub.md`.
+
+## Earlier versions (0.3 – 0.9.1)
 
 **New in 0.9.1: Claude Desktop saves on its own, and fewer invented facts.**
 - **Claude Desktop.** Claude Desktop ignores the rules an MCP server sends, so the save rules now live in the tool

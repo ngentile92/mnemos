@@ -5,7 +5,7 @@ Order, first that decides wins:
   2. a folder mapping: the note came from a coding session whose working folder is mapped to a space
      (<home>/routing.json, edited in Spaces → Folders; longest matching prefix wins)
   3. the active engine (local model) reading the note against each space's description
-  4. a rules fallback (words of the description + generic hints for common space names)
+  4. a rules fallback (words of the description + generic hints and cue phrases for common space names, stemmed)
 Low confidence → the app's default space, flagged for review. Every decision carries a short reason so the UI can
 show "why here" next to a one-click move. Nothing here is specific to one person: spaces, descriptions and folders
 are the user's own; the hints below are generic words in English and Spanish.
@@ -61,8 +61,9 @@ def describe(spaces: list[dict]) -> list[dict]:
         own = str(sp.get("description") or "").strip()
         # a description that only repeats the name ("work") says nothing: use the generic one for that name
         custom = len(own.split()) >= 3 and own.lower() not in (name.lower(), label.lower())
-        d = own if custom else (DEFAULT_DESC.get(name) or DEFAULT_DESC.get(label.lower()) or own
-                                or GENERIC_DESC.format(label=label))
+        alias = ALIASES.get(name.lower()) or ALIASES.get(label.lower()) or ""
+        d = own if custom else (DEFAULT_DESC.get(name) or DEFAULT_DESC.get(label.lower()) or DEFAULT_DESC.get(alias)
+                                or own or GENERIC_DESC.format(label=label))
         out.append({"name": name, "label": label, "description": d, "custom": custom})
     return out
 
@@ -120,22 +121,76 @@ def by_folder(home: Path, cwd: str | None, spaces: list[str]) -> dict | None:
 
 
 # ------------------------------------------------------------------ rules
+# Space names people commonly use in other words/languages → the generic hint set above.
+ALIASES = {"trabajo": "work", "laburo": "work", "job": "work", "office": "work", "oficina": "work", "career": "work",
+           "empresa": "work", "company": "work", "vida": "personal", "life": "personal", "home": "personal",
+           "casa": "personal", "private": "personal", "privado": "personal", "familia": "family",
+           "side-projects": "side", "projects": "side", "proyectos": "side", "hobby": "side",
+           "estudio": "study", "learning": "study", "school": "study", "facultad": "study"}
+# Strong generic cues (EN + ES): a phrase that alone says what a note is about. Worth 2 plain hint words.
+CUES = {
+    "work": r"\b(i work|work(?:ing|s)? (?:at|for|on|in)|my (?:job|boss|manager|team|client|clients|company|employer|"
+            r"colleague|colleagues|coworkers?)|at work|trabaj(?:o|é|aba|ando|amos) (?:en|para|con|como)|mi (?:trabajo|"
+            r"jefe|jefa|equipo|cliente|empresa|laburo)|mis (?:clientes|compañeros de trabajo)|en el trabajo|labur(?:o|é) en)\b",
+    "personal": r"\b(my (?:wife|husband|partner|girlfriend|boyfriend|kids?|son|daughter|mom|mother|dad|father|family|"
+                r"dog|cat|friends?)|mi (?:esposa|esposo|mujer|marido|pareja|novia|novio|hijo|hija|mamá|madre|papá|padre|"
+                r"familia|perro|perra|gato|gata|amigo|amiga)|mis (?:hijos|padres|amigos|amigas|viejos)|in my free time|"
+                r"en mi tiempo libre|on weekends|los fines de semana)\b",
+    "family": r"\b(my (?:wife|husband|partner|kids?|son|daughter|parents)|mi (?:esposa|esposo|pareja|hijo|hija)|mis hijos)\b",
+    "study": r"\b(i(?:'m| am) (?:studying|learning)|estoy (?:estudiando|aprendiendo)|my (?:course|thesis|exam)|"
+             r"mi (?:curso|tesis|examen|carrera))\b",
+}
+
+
+def _stem(w: str) -> str:
+    """Very small EN/ES stemmer so 'trabajo/trabajando' or 'meeting/meetings' meet the same hint."""
+    for suf in ("aciones", "ación", "amente", "mente", "ando", "iendo", "ings", "ing", "ers", "es", "s", "ed", "o", "a"):
+        if len(w) - len(suf) >= 4 and w.endswith(suf):
+            return w[: -len(suf)]
+    return w
+
+
+def _key(sp: dict) -> str:
+    """The generic hint/cue set for a space: by its name, label, or a common alias of either."""
+    for n in (str(sp.get("name", "")).lower(), str(sp.get("label", "")).lower()):
+        if n in HINTS or n in CUES:
+            return n
+        if n in ALIASES:
+            return ALIASES[n]
+    return ""
+
+
 def by_rules(text: str, spaces: list[dict], default: str) -> dict:
+    """Pick a space from the note's words, without any model.
+
+    Score = words shared with the space's description (and the generic hints for its kind of name, stemmed)
+    + 2 per strong cue phrase ("I work at…", "my wife…"). One strong cue with no competition is enough to decide."""
     ws = _words(text)
+    stems = {_stem(w) for w in ws}
+    low = (text or "").lower()
     scores = []
     for sp in describe(spaces):
         if sp["name"] == "shared":
             continue
-        hint = _words(sp["description"]) | _words(HINTS.get(sp["name"], "") if not sp["custom"] else "") \
-            | _words(sp["label"])
-        hits = sorted(ws & hint)
-        scores.append((len(hits), sp["name"], hits))
+        k = _key(sp)
+        hint = _words(sp["description"]) | _words(HINTS.get(k, "")) | _words(sp["label"])
+        hits = ws & hint
+        hits |= {w for w in ws if _stem(w) in {_stem(h) for h in hint}} if stems else set()
+        score = float(len(hits))
+        cue = re.search(CUES[k], low, re.I) if k in CUES else None
+        if cue:
+            score += 2
+            hits.add(cue.group(0))
+        scores.append((score, sp["name"], sorted(hits)))
     scores.sort(key=lambda x: -x[0])
     if not scores or scores[0][0] == 0:
         return {"space": default, "confidence": 0.3, "by": "rules", "review": True,
                 "reason": "no clear clue; put in the default space"}
     top, second = scores[0], (scores[1] if len(scores) > 1 else (0, "", []))
-    conf = min(0.85, 0.3 + 0.15 * top[0] + 0.1 * (top[0] - second[0])) if top[0] > second[0] else 0.4
+    if top[0] > second[0]:
+        conf = min(0.9, 0.35 + 0.1 * top[0] + 0.1 * (top[0] - second[0]))
+    else:
+        conf = 0.4
     return {"space": top[1], "confidence": round(conf, 2), "by": "rules", "review": conf < REVIEW_BELOW,
             "reason": "mentions " + ", ".join(top[2][:3])}
 

@@ -174,7 +174,7 @@
         : `Facts are found with ${en.name}, on this computer.`;
       $("d-sources").innerHTML = dSources.length ? dSources.map((s, i) => `<label class="imp-item"><input type="checkbox" data-i="${i}" checked>
         <span style="flex:1"><b>${esc(s.label)}</b> · ${s.count} ${esc(s.unit)} · ${kb(s.bytes)}<br><span class="small muted">${esc(s.where)}</span></span>
-        <select data-c="${i}" aria-label="Context">${dCtxs.map((c) => `<option ${c === s.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>`).join("")
+        <select data-c="${i}" aria-label="Context">${dCtxs.length > 1 ? `<option value="auto" ${s.context === "auto" ? "selected" : ""}>Sort by content</option>` : ""}${dCtxs.map((c) => `<option ${c === s.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>`).join("")
         : '<p class="muted small">Nothing found on this computer. Use the options below.</p>';
       $("d-go-row").classList.toggle("hidden", !dSources.length);
     } catch (e) { alert("Scan failed: " + e.message); }
@@ -205,9 +205,11 @@
       const head = it.source_label !== last ? `<h3 class="small" style="margin:14px 0 4px">${esc(it.source_label)} → ${esc(it.context)}</h3>` : "";
       last = it.source_label;
       return head + `<label class="imp-item${it.duplicate ? " dup" : ""}"><input type="checkbox" data-i="${i}" ${it.duplicate ? "" : "checked"}>
-        <span>${esc(it.text)}${it.duplicate ? ` <span class="badge obs">${esc(it.duplicate)}</span>` : ""}</span></label>`;
+        <span>${esc(it.text)}${it.duplicate ? ` <span class="badge obs">${esc(it.duplicate)}</span>` : ""}${it.route ? `<br><span class="small muted">→ ${esc(it.context)} · ${esc(it.route.reason || "")}${it.route.review ? " · review" : ""}</span>` : ""}</span>
+        ${it.route ? `<select class="d-sp" data-i="${i}" aria-label="Space">${dCtxs.map((c) => `<option ${c === it.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>` : ""}</label>`;
     }).join("") : '<p class="muted">No durable facts found in those sources.</p>';
   }
+  $("d-list").addEventListener("change", (ev) => { const t = ev.target; if (t.classList.contains("d-sp")) dRes.items[+t.dataset.i].context = t.value; });
   $("d-all").onclick = () => $("d-list").querySelectorAll("input").forEach((c) => { c.checked = !dRes.items[+c.dataset.i].duplicate; });
   $("d-none").onclick = () => $("d-list").querySelectorAll("input").forEach((c) => { c.checked = false; });
   $("d-save").onclick = async (e) => {

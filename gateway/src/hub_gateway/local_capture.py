@@ -126,13 +126,21 @@ class Capture:
                 if not ctx:
                     self.st["read"][s["path"]] = len(turns)  # paused: drop, don't read later either
                     continue
-                pool = await self.ui._existing(ctx)
+                from . import local_route
+                spaces = local_route.spaces_of(self.ui.home, self.ui.servers)
+                cwd = next((t.get("cwd") for t in reversed(turns) if t.get("cwd")), "")
+                pools: dict[str, list[str]] = {}
                 topic = self.st["topics"].get(s["path"], "")
                 when = time.strftime("%Y-%m-%d", time.localtime(turns[-1]["ts"])) if turns else ""
                 for w in mf.windows([t["text"] for t in turns[s["from"]:]]):
                     facts, topic = await mf.extract_window(llm, w, LABELS[s["app"]], when, topic)
-                    for f in facts:
-                        await self._place(f, ctx, s["app"], pool, res)
+                    routes = await local_route.route_many([f["text"] for f in facts], spaces, ctx, llm=llm,
+                                                          home=self.ui.home, cwd=cwd)
+                    for f, rt in zip(facts, routes):
+                        sp = rt["space"] if rt["space"] in self.ui.servers else ctx
+                        if sp not in pools:
+                            pools[sp] = await self.ui._existing(sp)
+                        await self._place({**f, "route": rt}, sp, s["app"], pools[sp], res)
                 self.st["topics"][s["path"]] = topic
                 self.st["read"][s["path"]] = len(turns)
                 res["sessions"] += 1
@@ -150,7 +158,7 @@ class Capture:
             return
         base = {"id": _h(ctx + f["text"]), "text": f["text"], "context": ctx, "app": app, "kind": f.get("kind"),
                 "quote": f.get("quote"), "topic": f.get("topic"), "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                "status": "new"}
+                "status": "new", "route": f.get("route")}
         if any(x["id"] == base["id"] for x in self.st["recent"] + self.st["inbox"]):
             res["skipped"] += 1
             return
@@ -248,6 +256,24 @@ class Capture:
             self._save()
         return await self.h_status({})
 
+    async def h_move(self, b: dict) -> dict:
+        """One-click move of a learned note (or an inbox item before keeping it) to another space."""
+        to = str(b.get("to", ""))
+        if to not in self.ui.servers:
+            raise ValueError("pick a space")
+        i = str(b.get("id"))
+        x = next((x for x in self.st["inbox"] if x["id"] == i), None)
+        if x is None:
+            x = self._find("recent", i)
+            if x["status"] == "kept" and x.get("note_id") and x["context"] != to:
+                r = await self.ui.move({"context": x["context"], "to": to, "id": x["note_id"], "text": x["text"],
+                                        "confirm": True})
+                x["note_id"] = (r.get("saved") or {}).get("id") or x["note_id"]
+        x["context"] = to
+        x["route"] = {**(x.get("route") or {}), "space": to, "by": "you", "review": False, "reason": "you moved it"}
+        self._save()
+        return await self.h_status({})
+
     async def h_dismiss(self, b: dict) -> dict:
         x = self._find("inbox", str(b.get("id")))
         x["status"] = "dismissed"
@@ -282,5 +308,6 @@ class Capture:
         h[("POST", "capture/undo")] = self.h_undo
         h[("POST", "capture/accept")] = self.h_accept
         h[("POST", "capture/dismiss")] = self.h_dismiss
+        h[("POST", "capture/move")] = self.h_move
         h[("POST", "capture/run")] = self.h_run
         h[("POST", "capture/profile")] = self.refresh_profile

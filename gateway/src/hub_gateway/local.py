@@ -590,6 +590,8 @@ tokens by hand.</p></body>""",
     from .local_capture import Capture
     ui.capture = Capture(ui, local_engine.get(home), router.router.apps)
     ui.capture.install()
+    from . import local_route
+    local_route.install(ui, local_engine.get(home))
     app = Starlette(routes=[Route("/", home_page), Route("/health", health), *ui.routes(),
                             Route("/mcp", endpoint=router_app, methods=["GET", "POST", "DELETE"]),
                             *[Mount(f"/{c}", app=s) for c, s in subs.items()]], lifespan=lifespan)

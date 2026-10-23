@@ -79,7 +79,7 @@ def test_scan_finds_every_kind(tmp_path):
                           "chatgpt_zip", "claude_zip"}
     assert kinds["claude_md"]["count"] == 1  # node_modules skipped
     assert kinds["cursor_chats"]["count"] == 2 and kinds["obsidian"]["count"] == 1
-    assert kinds["claude_code"]["context"] == "work" and kinds["obsidian"]["context"] == "personal"
+    assert kinds["claude_code"]["context"] == "auto" and kinds["obsidian"]["context"] == "auto"  # 0.13: by content
     assert not any(".env" in p for s in found for p in s["paths"])
     assert all("paths" not in s for s in ld.public(found))
 

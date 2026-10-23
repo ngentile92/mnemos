@@ -9,15 +9,37 @@
   async function load() {
     try { data = await window.MNEMOS_API("/api/spaces"); } catch (e) { return msg(e.message, true); }
     window.MNEMOS_SPACES = data;
-    render();
+    try { routing = await window.MNEMOS_API("/api/routing"); } catch { routing = null; }
+    if (routing) data.spaces.forEach((sp) => { const d = routing.spaces.find((x) => x.name === sp.name); if (d && !d.custom) sp.default_description = d.description; });
+    render(); folders();
     window.dispatchEvent(new Event("mnemos:spaces"));
   }
+  let routing = null;
+  const lab = (n) => ((data.spaces.find((s) => s.name === n) || {}).label || n);
+  function folders() {
+    if (!routing || !$("sp-folders")) return;
+    $("sp-fspace").innerHTML = data.spaces.filter((s) => s.name !== "shared").map((s) => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("");
+    $("sp-folders").innerHTML = routing.folders.length ? routing.folders.map((f) => `<div class="sp-br small"><code>${esc(f.path)}</code>&nbsp;→&nbsp;<b>${esc(lab(f.space))}</b>
+      <button class="mbtn sp-frm" data-p="${esc(f.path)}" style="margin-left:auto">Remove</button></div>`).join("") : '<p class="small muted">No folders mapped yet.</p>';
+  }
+  document.addEventListener("click", async (ev) => {
+    const t = ev.target;
+    try {
+      if (t.id === "sp-fadd") { routing = await window.MNEMOS_API("/api/routing/folder", { path: $("sp-fpath").value, space: $("sp-fspace").value }); $("sp-fpath").value = ""; folders(); msg("Folder mapped."); }
+      else if (t.classList && t.classList.contains("sp-frm")) { routing = await window.MNEMOS_API("/api/routing/folder", { path: t.dataset.p, space: "" }); folders(); msg("Removed."); }
+      else if (t.id === "sp-ttry") {
+        $("sp-tout").innerHTML = '<span class="spin"></span>';
+        const r = await window.MNEMOS_API("/api/routing/test", { text: $("sp-ttext").value });
+        $("sp-tout").innerHTML = `→ <b>${esc(lab(r.space))}</b> · ${esc(r.reason)} <span class="muted">(${esc(r.by)}, ${Math.round(r.confidence * 100)}%)</span>${r.review ? ` · <span class="badge">review</span>${r.suggested ? ` maybe ${esc(lab(r.suggested))}` : ""}` : ""}`;
+      }
+    } catch (e) { msg(e.message, true); $("sp-tout").textContent = ""; }
+  });
   function render() {
     $("sp-shared").textContent = data.shared;
     $("sp-list").innerHTML = data.spaces.map((sp, i) => `<div class="sp-row" data-i="${i}">
       <div class="sp-sw">${data.palette.map((c) => `<button title="${c}" data-c="${c}" class="${c === sp.color ? "on" : ""}" style="background:${c}"></button>`).join("")}</div>
       <div><input class="sp-label" maxlength="40" value="${esc(sp.label)}" aria-label="Name"><div class="sp-key">key: ${esc(sp.name)} (never changes)</div></div>
-      <input class="sp-desc" maxlength="200" value="${esc(sp.description)}" placeholder="What goes here, in one line (e.g. my job at Acme: clients, team, projects)" aria-label="Description">
+      <input class="sp-desc" maxlength="200" value="${esc(sp.description)}" placeholder="${esc(sp.default_description || "What goes here, in one line (e.g. my job at Acme: clients, team, projects)")}" aria-label="Description">
       <button class="mbtn primary sp-save">Save</button></div>`).join("");
     const pairs = [];
     for (const a of data.spaces) for (const b of data.spaces) if (a.name !== b.name) pairs.push([a, b]);

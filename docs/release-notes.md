@@ -39,6 +39,13 @@ Your notes go to the right space, and you can see what each AI app remembers.
 - Better auto-capture: notes are written in your language, without "The person…/El usuario…", vague items are dropped and near-duplicates skipped (capture eval: precision 0.68 → 1.0 on the dev set).
 - App memories: a new tab showing each app's own memory files (Claude Code, Codex, Cursor, chat exports) exactly as stored, read-only, with path, date and "Import into Mnemos" per section.
 - Spaces with a one-word description now get a sensible default description for sorting.
+**New in 0.14: memory that keeps itself tidy — you decide every change.**
+
+- **Memory health** (Memory tab): after every import, once a day, or on "Check now", Mnemos groups suggestions: not about you (pasted code, tables, logs), rewrite (third person), duplicates, contradictions, other space, probably wrong, out of date. Accept one or a whole group; contradictions you pick by hand. A backup is saved before anything is applied and "Undo last cleanup" puts it all back. Nothing changes without your click.
+- **Cleaner saves**: pasted code, tables and logs are refused (the AI is asked for a one-sentence fact instead), third-person notes are saved first-person-neutral, and near-duplicates are skipped.
+- **Works in files mode too**: the Memory health card stays visible when your memory is Markdown files, and the files list refreshes after a cleanup or undo.
+- Fixes: editing a note now refreshes the profile; the third-person rule recognises any verb.
+
 **New in 0.12: built-in memory for coding agents (opt-in).**
 - Mnemos → Apps → *Built-in memory for coding agents*: write your profile where each coding agent already looks, so
   every session starts knowing you even before it calls Mnemos. **Claude Code**: `~/.claude/rules/mnemos.md`.

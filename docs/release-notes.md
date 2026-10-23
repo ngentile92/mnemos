@@ -2,7 +2,7 @@
 
 - `Mnemos-macos.dmg` — the app (unsigned: first open with right-click → Open).
 - `Mnemos-macos.app.zip` — same app, zipped.
-- `mnemos.mcpb` — Claude Desktop extension (optional; the app's "Connect to Claude Desktop" button is enough).
+- `mnemos.mcpb` — old Claude Desktop extension, deprecated: not needed (use **Connect Claude Desktop** in the app) and kept only for older setups.
 
 Newest first. Each `## vX.Y.Z` section is the body of that GitHub Release (`scripts/release_notes.py`).
 

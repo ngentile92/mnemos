@@ -143,7 +143,7 @@ reconnect those apps from *Connect apps*.
 ## Reach from anywhere (0.6, opt-in)
 
 Cloud AI apps (Claude on the web and phone, ChatGPT, Grok) cannot start a program on your computer, so they need a
-public HTTPS address. **Open my memory → Apps → Reach from anywhere** sets one up with
+public HTTPS address. **Open my memory → Settings → Advanced → Reach from anywhere** sets one up with
 [Tailscale Funnel](https://tailscale.com/kb/1223/funnel). It is **off by default** and does nothing until you
 press *Turn on*.
 

@@ -287,7 +287,7 @@ tokens by hand.</p></body>""",
         return JSONResponse({"ok": True, "contexts": list(subs), "mode": "local"})
 
     from .local_ui import UI
-    token = os.environ.get("MNEMOS_TOKEN") or (home / "token").read_text().strip()  # Desktop: from the Keychain
+    token = os.environ.get("MNEMOS_TOKEN") or (home / "token").read_text().strip()  # Desktop: ~/Mnemos/token (0600)
     ui = UI(servers, home, token)
     from . import local_hygiene as lh
 

@@ -37,7 +37,7 @@ def test_files_endpoints(home):
         rel = "personal/profile.md"
         assert any(t["file"] == rel for s in spaces for t in s["topics"])
         f = c.get("/api/files", params={"context": "personal", "op": "read", "file": rel}).json()
-        assert "prefers short" in f["text"]
+        assert "prefers short" in f["text"].lower()
         w = c.post("/api/files", json={"context": "personal", "op": "write", "file": rel,
                                        "text": f["text"] + "- Ana drinks mate\n", "version": f["version"]}, headers=W).json()
         assert not w.get("error"), w

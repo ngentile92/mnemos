@@ -215,23 +215,60 @@
     });
   }
 
-  // ------------------------------------------------ cleanup inbox (nightly hygiene proposals)
-  let inbox = [];
-  const TYPE_LABEL = { merge: "merge", contradiction: "contradiction", stale: "out of date" };
+  // ------------------------------------------------ memory health (proposals from the checks; the user decides)
+  let inbox = [], hyFilter = "", lastBatch = null, hyPoll = null;
+  const GROUPS = [
+    ["junk", "Not about you", "Code, tables, logs and task steps that slipped in."],
+    ["rewrite", "Rewrite", "Written about you in the third person."],
+    ["merge", "Duplicates", "The same fact saved twice."],
+    ["contradiction", "Disagree", "Two notes that cannot both be true."],
+    ["move", "Other space", "Notes that look like they belong in another space."],
+    ["wrong", "Probably wrong", "About the assistant, a character or someone else."],
+    ["stale", "Out of date", "Old notes nobody touched in a year."]];
+  const TYPE_LABEL = Object.fromEntries(GROUPS.map((g) => [g[0], g[1]]));
   async function loadInbox() {
     let j;
     try { j = await get("/api/hygiene", {}); } catch { return; }
-    inbox = j.items || [];
-    $("me-inbox-card").classList.toggle("hidden", !inbox.length && !j.date);
-    $("me-inbox-head").textContent = j.date ? `report ${j.date} · ${inbox.length} to review${j.total > inbox.length ? ` · ${j.total - inbox.length} done` : ""}` : "";
-    $("me-inbox").innerHTML = inbox.length ? inbox.map((i, n) => `<div class="me-prop" data-k="${esc(i.key)}">
-      <div class="small muted">${esc(TYPE_LABEL[i.type] || i.type)} · ${esc(i.context)}</div><div class="why">${esc(i.title)}</div>
+    inbox = j.items || []; lastBatch = j.last_batch || null;
+    const counts = j.counts || {};
+    $("me-inbox-head").textContent = j.running ? "checking…" : j.date ? `checked ${when(j.at || j.date)} · ${inbox.length} to review${j.total > inbox.length ? ` · ${j.total - inbox.length} done` : ""}` : "not checked yet";
+    $("me-hy-undo").classList.toggle("hidden", !lastBatch);
+    if (lastBatch) $("me-hy-undo").textContent = `Undo last cleanup (${lastBatch.count})`;
+    $("me-hy-groups").innerHTML = GROUPS.filter((g) => counts[g[0]]).map((g) => `<div class="me-hy-g${hyFilter === g[0] ? " on" : ""}" data-g="${g[0]}">
+      <b>${counts[g[0]]}</b> ${esc(g[1])}<div class="small muted">${esc(g[2])}</div>
+      <div class="me-actions"><button class="mbtn" data-gs="${g[0]}">${hyFilter === g[0] ? "Show all" : "Review"}</button>${g[0] === "contradiction" ? "" : `<button class="mbtn primary" data-ga="${g[0]}">Accept all ${counts[g[0]]}</button>`}</div></div>`).join("");
+    const shown = inbox.map((i, n) => [i, n]).filter(([i]) => !hyFilter || i.type === hyFilter);
+    $("me-inbox").innerHTML = shown.length ? shown.map(([i, n]) => `<div class="me-prop" data-k="${esc(i.key)}">
+      <div class="small muted">${esc(TYPE_LABEL[i.type] || i.type)} · ${esc(i.context)}${i.to ? " → " + esc(i.to) : ""}</div><div class="why">${esc(i.title)}</div>
       <p class="small">${esc(i.explain)}</p>
       ${i.notes.map((x, k) => `<div class="me-inote"><span class="small muted">${i.notes.length > 1 ? (k ? (i.type === "merge" ? "older copy" : "newer") : (i.type === "merge" ? "kept" : "older")) + " · " : ""}${esc(when(x.created_at))}</span><div>${esc(x.text)}</div></div>`).join("")}
-      ${i.proposed_text ? `<div class="me-inote ok"><span class="small muted">merged text</span><div>${esc(i.proposed_text)}</div></div>` : ""}
-      <div class="me-actions">${i.actions.map((a) => `<button class="mbtn ${a.kind}" data-ia="${a.id}" data-n="${n}">${esc(a.label)}</button>`).join("")}<button class="mbtn" data-ia="dismiss" data-n="${n}">Dismiss</button></div></div>`).join("")
-      : '<p class="muted small">Nothing to review. ✓</p>';
+      ${i.proposed_text ? `<div class="me-inote ok"><span class="small muted">${i.type === "merge" ? "merged text" : "new text"}</span><div>${esc(i.proposed_text)}</div></div>` : ""}
+      <div class="me-actions">${i.actions.map((a) => `<button class="mbtn ${a.kind}" data-ia="${a.id}" data-n="${n}">${esc(a.label)}</button>`).join("")}<button class="mbtn" data-ia="dismiss" data-n="${n}">Keep as is</button></div></div>`).join("")
+      : `<p class="muted small">${j.running ? "Checking your memory…" : "Nothing to review. ✓"}</p>`;
+    clearTimeout(hyPoll);
+    if (j.running) hyPoll = setTimeout(loadInbox, 3000);
   }
+  $("me-hy-groups").addEventListener("click", async (ev) => {
+    const s = ev.target.closest("[data-gs]");
+    if (s) { hyFilter = hyFilter === s.dataset.gs ? "" : s.dataset.gs; loadInbox(); return; }
+    const b = ev.target.closest("[data-ga]"); if (!b) return;
+    const typ = b.dataset.ga, n = inbox.filter((i) => i.type === typ).length;
+    if (!confirm(`Apply all ${n} “${TYPE_LABEL[typ]}” suggestions? A backup is saved first and you can undo it.`)) return;
+    b.disabled = true; b.innerHTML = '<span class="spin"></span>Applying…';
+    try {
+      const r = await post("/api/hygiene/act", { type: typ, action: "accept" });
+      toast(`Done: ${r.done}${r.failed ? `, ${r.failed} not done` : ""} ✓ — “Undo last cleanup” puts them back`);
+      hyFilter = ""; await loadInbox(); load();
+    } catch (e) { toast("Not done: " + e.message); loadInbox(); }
+  });
+  $("me-hy-run").onclick = async () => {
+    try { await post("/api/hygiene/run", {}); toast("Checking your memory…"); setTimeout(loadInbox, 800); } catch (e) { toast("Could not start: " + e.message); }
+  };
+  $("me-hy-undo").onclick = async () => {
+    if (!lastBatch || !confirm(`Undo the last cleanup (${lastBatch.count} changes)?`)) return;
+    try { const r = await post("/api/hygiene/undo", { batch: lastBatch.id }); toast(`Undone ✓ (${r.reverted} changes)`); await loadInbox(); load(); }
+    catch (e) { toast("Undo failed: " + e.message); }
+  };
   $("me-inbox").addEventListener("click", async (ev) => {
     const b = ev.target.closest("[data-ia]"); if (!b) return;
     const it = inbox[+b.dataset.n], action = b.dataset.ia, card = b.closest(".me-prop");
@@ -241,8 +278,8 @@
       await post("/api/hygiene/act", { context: it.context, key: it.key, action });
       card.classList.add("me-gone");
       setTimeout(() => loadInbox(), 250);
-      toast(action === "dismiss" ? "Dismissed" : "Done ✓ — undo from the note panel if needed");
-      if (action !== "dismiss" && it.context === ctx()) load();
+      toast(action === "dismiss" ? "Kept as is" : "Done ✓ — “Undo last cleanup” puts it back");
+      if (action !== "dismiss") load();
     } catch (e) { card.querySelectorAll("button").forEach((x) => { x.disabled = false; }); toast("Not done: " + e.message); loadInbox(); }
   });
 

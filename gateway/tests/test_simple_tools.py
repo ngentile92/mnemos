@@ -80,7 +80,7 @@ async def test_legacy_tools_still_work_in_process_and_labs_brings_entity(home):
     async with Client(servers["personal"]) as a:
         await a.call_tool("memory_save", {"text": "Ana runs every morning at 7"})
         items = data(await a.call_tool("memory_list", {}))["items"]
-    assert any("runs every morning" in i["text"] for i in items)
+    assert any("runs every morning" in i["text"].lower() for i in items)
     local_labs.set_enabled(home, True)
     router = local.build_router(home, servers)
     assert "memory_entity" in {t.name for t in await router.list_tools()}

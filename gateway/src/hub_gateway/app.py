@@ -429,7 +429,23 @@ def build_server(
             if links:
                 meta["links"] = links
             similar_notes: list[dict[str, Any]] = []
+            rewritten = None
             if local_mode:
+                from . import contexts as _cx
+                from .memfilter import pasted_block, tidy
+                if (blk := pasted_block(text)):
+                    audit.log(tool, login, "rejected", reason=f"pasted {blk}")
+                    return {"saved_to": None, "status": "rejected", "reason": f"pasted {blk}",
+                            "note": "eso parece " + {"code": "código", "table": "una tabla", "log": "un log"}[blk]
+                                    + ", no un hecho sobre el usuario: no guardé nada. Guardá en una frase lo que "
+                                      "importa (por ejemplo, la decisión o la preferencia)"}
+                try:  # the file, not the module copy: the user may have renamed themselves in the app
+                    owner = str(_cx.load_config().get("owner") or "")
+                except Exception:  # noqa: BLE001
+                    owner = str(getattr(_cx, "OWNER", "") or "")
+                t2 = tidy(text, owner if owner.lower() not in ("", "me", "the owner") else None)
+                if t2 and t2 != text.strip():
+                    rewritten, text = text, t2
                 similar_notes = await _save_check(name, ds_id, text)
                 dup = next((n for n in similar_notes if n["kind"] == "duplicate"), None)
                 if dup and not allow_duplicate:
@@ -460,6 +476,8 @@ def build_server(
             out["file"] = res["file"]
         if local_mode:
             out["note"] = "guardado" + (f" en {out['file']}" if out.get("file") else "")
+            if rewritten is not None:
+                out["saved_text"] = text  # phrased about the user in the first person (no "The user …")
             if _returned_id(res):
                 out["id"] = _returned_id(res)
             from .memfilter import classify

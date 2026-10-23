@@ -295,7 +295,14 @@ tokens by hand.</p></body>""",
         return lh.pending(home)
 
     async def _act(b):
-        return await lh.act(home, b, ui.call)
+        return await lh.act(home, b, ui.call, move=ui.move)
+
+    async def _hy_run(_b):
+        return {"started": lh.kick(home, list(subs), ui.call, why="manual"), "running": True}
+
+    async def _hy_undo(b):
+        return await lh.undo_batch(home, str((b or {}).get("batch", "")), ui.call)
+    ui.after_import = lambda: lh.kick(home, list(subs), ui.call, why="import")
     from . import local_spaces as lsp
 
     async def _spaces(_b):
@@ -405,6 +412,8 @@ tokens by hand.</p></body>""",
     ui.hooks[("POST", "labs")] = _labs_set
     ui.hooks[("GET", "hygiene")] = _pending
     ui.hooks[("POST", "hygiene/act")] = _act
+    ui.hooks[("POST", "hygiene/run")] = _hy_run
+    ui.hooks[("POST", "hygiene/undo")] = _hy_undo
     from . import local_engine
     local_engine.get(home).install(ui)
     from .local_discover import Discover

@@ -5,7 +5,7 @@ RUN useradd --create-home --uid 10001 hub && mkdir -p /data && chown hub /data
 WORKDIR /app
 COPY pyproject.toml ./
 COPY src ./src
-RUN pip install .
+RUN pip install -U "pip>=26.2.2" "certifi>=2026.10.19" && pip install .
 USER hub
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \

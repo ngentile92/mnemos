@@ -57,7 +57,6 @@
   function route() {
     const v = (location.hash.slice(1).split(/[?&]/)[0] || "memoria").replace(/^k=.*/, "memoria");
     let view = ["memoria", "graph", "skills", "spaces", "apps", "import", "settings"].includes(v) ? v : "memoria";
-    if (view === "graph" && document.body.classList.contains("nolabs")) view = "memoria";
     document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.id !== "view-" + view));
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
     if (!loaded[view]) {

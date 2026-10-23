@@ -24,5 +24,7 @@ def test_env_wins(tmp_path, monkeypatch):
 def test_static_marks_labs_features():
     from pathlib import Path
     html = (Path(local_labs.__file__).parent / "local_ui_static" / "index.html").read_text()
-    assert 'class="tab labs" data-view="graph"' in html and 'id="labs-on"' in html
+    assert 'class="tab" data-view="graph"' in html and 'id="labs-on"' in html  # 0.12.1: Graph always visible
+    js = (Path(local_labs.__file__).parent / "local_ui_static" / "local.js").read_text()
+    assert 'view === "graph" && document.body.classList.contains("nolabs")' not in js
     assert 'class="card labs"' in html and "labs" in html.split('id="pf-card"')[0].rsplit("<section", 1)[1]

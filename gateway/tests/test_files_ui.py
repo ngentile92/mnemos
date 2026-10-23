@@ -52,3 +52,11 @@ def test_files_endpoints(home):
                       headers=W).json()["error"]
         st = c.get("/api/memory-migrate").json()
         assert st["active"] is True
+
+
+def test_graph_works_on_files_store(home):
+    with TestClient(local.http_app(home, 8765), base_url="http://127.0.0.1:8765") as c:
+        assert c.post("/api/login", json={"token": (home / "token").read_text().strip()}, headers=W).status_code == 200
+        g = c.get("/api/graph", params={"context": "personal"})
+        assert g.status_code == 200, g.text
+        assert "nodes" in g.json() and "edges" in g.json()

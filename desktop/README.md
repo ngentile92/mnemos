@@ -43,3 +43,12 @@ with uv removed and no Python on PATH, checks the hub answers MCP `initialize`, 
   `xattr -dr com.apple.quarantine Mnemos.app`).
 - Embedded dashboard, "Configure Cursor" button. The Claude config points at the
   app's location: moving Mnemos.app afterwards needs the Connect button pressed again.
+
+## Demo memory (screenshots, videos, talks)
+
+`MNEMOS_DEMO=1` points Mnemos at `~/Mnemos-demo`, seeded on first start with a fictional person (Ana, ~150 notes in
+Personal and Work over 14 months). Your real `~/Mnemos` is never read or written. Seed a folder by hand with
+`mnemos-local demo --home DIR`. The Graph tab's **Present**, **How it grew**, **PNG** and **Record** buttons are made
+for this. After a big cleanup, `mnemos-local graph-rebuild` backs up each space's `graph.sqlite` / `model.sqlite`
+(`.bak-<time>`) and drops their rows for notes that no longer exist.
+

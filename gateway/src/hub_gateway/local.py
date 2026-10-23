@@ -28,6 +28,7 @@ still point at a specific Ollama.
 from __future__ import annotations
 
 import argparse
+import json
 import asyncio
 import contextlib
 import hmac
@@ -42,6 +43,9 @@ log = logging.getLogger("mnemos.local")
 
 
 def home_dir(arg: str | None) -> Path:
+    if not arg and os.environ.get("MNEMOS_DEMO") == "1":  # fictional demo memory (local_demo), never ~/Mnemos
+        from .local_demo import demo_home
+        return demo_home()
     return Path(arg or os.environ.get("MNEMOS_HOME") or Path.home() / "Mnemos").expanduser()
 
 
@@ -620,7 +624,7 @@ def _exit_with_parent() -> None:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="mnemos-local", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["init", "serve", "stdio", "token", "set-password", "hygiene", "migrate"])
+    ap.add_argument("cmd", choices=["init", "serve", "stdio", "token", "set-password", "hygiene", "migrate", "demo", "graph-rebuild"])
     ap.add_argument("action", nargs="?", help="migrate: preview | apply | undo")
     ap.add_argument("--home")
     ap.add_argument("--contexts", default="personal,work")
@@ -629,6 +633,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--context", help="stdio: which context this process serves")
     a = ap.parse_args(argv)
     home = home_dir(a.home)
+    if a.cmd == "demo" or os.environ.get("MNEMOS_DEMO") == "1":
+        from .local_demo import seed
+        n = seed(home)
+        if a.cmd == "demo":
+            print(f"demo memory in {home}: " + (f"{n} notes" if n else "already there"))
+            return 0
+    if a.cmd == "graph-rebuild":  # after a big cleanup: drop derived graph/model rows of notes that are gone
+        from .local_ui import rebuild_derived
+        servers = build_all(home, a.port)
+        print(json.dumps(asyncio.run(rebuild_derived(home, servers)), indent=2))
+        return 0
     if a.cmd == "init":
         made = init_home(home, [c.strip() for c in a.contexts.split(",") if c.strip()], a.owner)
         print(f"Mnemos home: {home}" + ("".join(f"\n  created {m}" for m in made) if made else " (already set up)"))

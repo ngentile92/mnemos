@@ -255,6 +255,10 @@ fn home() -> PathBuf {
     if let Ok(h) = std::env::var("MNEMOS_HOME") {
         return PathBuf::from(h);
     }
+    if std::env::var("MNEMOS_DEMO").as_deref() == Ok("1") {
+        // fictional demo memory for screenshots and talks (seeded by the hub on first start); never ~/Mnemos
+        return PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".into())).join("Mnemos-demo");
+    }
     PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".into())).join("Mnemos")
 }
 
@@ -528,6 +532,10 @@ fn main() {
             let py = app.path().resource_dir().ok().map(|r| r.join("python/bin/python3")).filter(|p| p.is_file());
             let _ = BUNDLED_PY.set(py);
             // always start the hub when set up (MNEMOS_AUTOSTART=0 to skip); --background = menu bar only
+            if std::env::var("MNEMOS_DEMO").as_deref() == Ok("1") && !home().join("contexts.yaml").exists() {
+                let h = home().display().to_string(); // seed the fictional demo memory once
+                if let Ok(mut c) = hub_command(&["demo", "--home", &h]) { let _ = c.output(); }
+            }
             if std::env::var("MNEMOS_AUTOSTART").as_deref() != Ok("0") && home().join("contexts.yaml").exists() {
                 if let Err(e) = start_hub(app.state::<Hub>()) {
                     eprintln!("autostart failed: {e}");

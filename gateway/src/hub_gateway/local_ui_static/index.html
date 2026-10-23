@@ -98,15 +98,27 @@
   <div id="me-toast" class="me-toast hidden" role="status"></div>
 </main>
 <main id="view-graph" class="view hidden">
-  <section class="card me-bar"><select id="g-ctx" aria-label="Context"></select>
+  <section class="card me-bar g-bar"><select id="g-ctx" aria-label="Space"></select>
     <input id="g-q" type="search" placeholder="Find a person, project or topic…" maxlength="80">
     <label class="small muted">Colour by <select id="g-colour"><option value="type">kind</option><option value="space">space</option><option value="cluster">group</option></select></label>
+    <label class="small muted" title="Dragging a thing also moves what it is linked to"><input type="checkbox" id="g-pull" checked style="width:auto"> drag pulls neighbours</label>
+    <label class="small muted"><input type="checkbox" id="g-hideshared" style="width:auto"> hide shared</label>
     <label class="small muted"><input type="checkbox" id="g-me" style="width:auto"> show me</label>
-    <button id="g-fit" class="mbtn">Fit</button>
-    <span class="muted small me-hint">People, projects and things in your notes; arrows read “subject → relation → object”.</span></section>
-  <section class="card graphcard"><div class="graphwrap"><div id="cy"></div>
+    <span class="g-actions"><button id="g-fit" class="mbtn" title="Fit (or double-click the graph)">Fit</button>
+    <button id="g-grow" class="mbtn" title="Watch your memory grow, oldest first">▶ How it grew</button>
+    <button id="g-pres" class="mbtn" title="Full screen, presentation look (Esc to leave)">✦ Present</button>
+    <button id="g-png" class="mbtn" title="Save a PNG of the graph">PNG</button>
+    <button id="g-rec" class="mbtn" title="Record a short video: fly-in + how it grew">● Record</button></span></section>
+  <section class="card graphcard"><div class="graphwrap"><div id="g-stage" class="g-stage"><canvas id="g-canvas" aria-label="Graph of your memory"></canvas></div>
     <aside id="g-side" class="nodepanel"><div id="g-legend" class="g-legend"></div><div id="g-node"><p class="muted">Tap a name to see the notes that mention it.</p></div>
-      <div id="g-top"></div></aside></div></section>
+      <div id="g-top"></div>
+      <details class="howto small"><summary>How to read this</summary><ul>
+        <li>Each <b>space</b> (Personal, Work…) is a galaxy with its own halo. Things in several spaces sit between them as <b>bridges</b> (white ring).</li>
+        <li>A <b>dot</b> is a person, project, place, tool or topic named in your notes; its <b>size</b> is how much it matters (how many notes mention it).</li>
+        <li>A <b>line</b> means two things appear together; a relation reads <i>subject — relation → object</i>, the way it was found.</li>
+        <li>Relations found by a model can be wrong. When in doubt, open the notes behind a dot: they are the source of truth.</li>
+        <li>Drag to move (neighbours follow), scroll to zoom, double-click to fit, shift-click two dots to see how they connect.</li>
+      </ul></details></aside></div></section>
 </main>
 <main id="view-skills" class="view hidden">
   <section class="card me-bar"><select id="s-ctx" aria-label="Context"></select>
@@ -235,8 +247,9 @@
     <div id="i-list"></div></section>
 </main>
 </div>
-<script src="/ui/vendor/cytoscape.min.js"></script>
+<script src="/ui/vendor/d3-force.bundle.min.js"></script>
 <script src="/ui/local.js"></script>
+<script src="/ui/graph.js"></script>
 <script src="/ui/spaces.js"></script>
 <script src="/ui/apps.js"></script>
 <script src="/ui/remote.js"></script>

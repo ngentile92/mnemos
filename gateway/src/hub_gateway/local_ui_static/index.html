@@ -21,6 +21,7 @@
     <a href="#skills" class="tab" data-view="skills" role="tab">Skills</a>
     <a href="#spaces" class="tab" data-view="spaces" role="tab">Spaces</a>
     <a href="#apps" class="tab" data-view="apps" role="tab">Apps</a>
+    <a href="#native" class="tab" data-view="native" role="tab">App memories</a>
     <a href="#import" class="tab" data-view="import" role="tab">Import</a>
     <a href="#settings" class="tab" data-view="settings" role="tab">Settings</a>
     <a href="#settings" class="badge" id="eng-badge" title="Which engine finds facts and cleans up your memory" style="align-self:center;margin-left:6px"></a>
@@ -145,6 +146,13 @@
     <div class="sp-frow"><input id="sp-ttext" placeholder="Try it: type a note to see where it would go" aria-label="Test note"><button class="mbtn" id="sp-ttry">Where would it go?</button></div>
     <p class="small" id="sp-tout"></p></section>
 </main>
+<main id="view-native" class="view hidden">
+  <section class="card" style="margin:14px 36px"><div class="card-h"><h2>App memories</h2><span class="muted small" id="nm-head">read-only</span></div>
+    <p class="small muted">What each AI app keeps in its own files, shown exactly as stored (Mnemos never changes them). Import any section into your Mnemos memory with one click.</p>
+    <div class="nm-bar"><div id="nm-apps" class="nm-apps"></div><button class="mbtn" id="nm-refresh">Refresh</button></div>
+    <div class="nm-wrap"><div id="nm-files" class="nm-files"></div><div id="nm-view" class="nm-view"><p class="muted small">Pick a file.</p></div></div>
+    <p class="small" id="nm-msg"></p></section>
+</main>
 <main id="view-apps" class="view hidden">
   <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Apps using your memory</h2><span class="muted small" id="ap-head"></span></div>
     <p class="small muted">Every AI app you connected appears here the first time it uses Mnemos. Choose its default space (where it reads and saves unless you ask for another), which spaces it may use, or pause it. New apps use <select id="ap-default" aria-label="Default space for new apps"></select> by default.</p>
@@ -263,5 +271,6 @@
 <script src="/ui/model.js"></script>
 <script src="/ui/files.js"></script>
 <script src="/ui/sync.js"></script>
+<script src="/ui/native.js"></script>
 </body>
 </html>

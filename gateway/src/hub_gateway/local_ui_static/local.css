@@ -32,3 +32,11 @@ body.filesmode #empty-cta { display: none !important }
 .sp-frow{display:flex;gap:8px;margin-top:10px}.sp-frow input{flex:1}
 .rl-where{margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}.rl-where select{width:auto;padding:2px 6px;font-size:12px}
 .imp-item .d-sp{width:auto;margin-left:auto;font-size:12px}
+.nm-bar{display:flex;gap:8px;align-items:center;margin:10px 0}.nm-apps{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.nm-wrap{display:grid;grid-template-columns:320px 1fr;gap:14px;min-height:420px}
+.nm-files{display:flex;flex-direction:column;gap:6px;max-height:68vh;overflow:auto}
+.nm-file{display:block;padding:8px 10px;border:1px solid var(--line);border-radius:10px;cursor:pointer}.nm-file.on{border-color:var(--acc);background:rgba(124,92,255,.08)}
+.nm-view{max-height:68vh;overflow:auto}.nm-meta{margin-bottom:8px}
+.nm-sec{border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden}
+.nm-sec-h{display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.03)}.nm-sec-h select{width:auto;font-size:12px}
+.nm-raw{margin:0;padding:10px;white-space:pre-wrap;font-size:12.5px;line-height:1.45}

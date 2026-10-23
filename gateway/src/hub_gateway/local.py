@@ -639,6 +639,7 @@ def port_busy(port: int) -> str | None:
     """A clear message when the port is taken (by another Mnemos or another app), else None."""
     import socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sk:
+        sk.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # like uvicorn: a TIME_WAIT socket is not "busy"
         try:
             sk.bind(("127.0.0.1", port))
             return None

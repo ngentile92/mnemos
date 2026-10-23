@@ -603,7 +603,17 @@ def route(repo: MemoryRepo, dataset: str, text: str, tags: list[str] | None = No
         if tg.startswith("kind-") and tg[5:] in KIND_FILE:
             f = KIND_FILE[tg[5:]]
             return _profile_or_overflow(repo, dataset) if f == PROFILE else f"{dataset}/{f}"
+    # no model and no tags: the same word rules the memory model uses, so a new memory has a profile and real
+    # topics from the first notes instead of one "notes" file
+    from .local_model import guess_kind
+    f = KIND_FILE.get(GUESS_FILE.get(guess_kind(text) or "", ""))
+    if f:
+        return _profile_or_overflow(repo, dataset) if f == PROFILE else f"{dataset}/{f}"
     return f"{dataset}/{TOPICS}/notes.md"
+
+
+GUESS_FILE = {"identity": "identity", "preference": "preference", "relationship": "relationship", "goal": "goal",
+              "decision": "decision", "project_state": "project_state", "skill_fact": "skill"}
 
 
 def _profile_or_overflow(repo: MemoryRepo, dataset: str) -> str:

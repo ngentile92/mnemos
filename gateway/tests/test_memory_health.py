@@ -153,3 +153,17 @@ async def test_import_kicks_a_check(home):
         await asyncio.sleep(0.05)
     rep = json.loads((home / "data" / "hygiene.json").read_text())
     assert rep["why"] == "import"
+
+
+def test_polarity_conflict_across_languages_without_model():
+    from hub_gateway.local_hygiene import polarity_conflict, lexical_conflict, analyze_notes
+    import datetime as dt
+    assert polarity_conflict("Prefers dark mode", "No me gusta el modo oscuro")
+    assert polarity_conflict("Likes coffee in the morning", "Doesn't like coffee")
+    assert not polarity_conflict("Prefers dark mode", "Likes coffee")
+    assert not polarity_conflict("Prefers dark mode", "Prefiere el modo oscuro")
+    assert lexical_conflict("Prefers dark mode", "Hates dark mode")
+    notes = [{"id": "a", "text": "Prefers dark mode", "dataset": "personal", "created_at": "2026-01-01"},
+             {"id": "b", "text": "No me gusta el modo oscuro", "dataset": "personal", "created_at": "2026-02-01"}]
+    _, related = analyze_notes("personal", notes, dt.date(2026, 3, 1))
+    assert related and {related[0][0]["id"], related[0][1]["id"]} == {"a", "b"}

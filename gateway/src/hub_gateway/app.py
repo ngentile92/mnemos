@@ -513,16 +513,23 @@ def build_server(
                 out["similar_notes"] = similar_notes
                 out["note"] = ("saved. There are similar notes: if one says the opposite or is out of date, "
                                "fix it with memory_update or mark it with memory_mark_obsolete")
+                if any(n["kind"] == "contradicts" for n in similar_notes):
+                    out["note"] = ("saved, but it seems to contradict a saved note (see similar_notes). Ask the user "
+                                   "which one is true now, then fix or mark the wrong one obsolete")
         return out
 
     async def _save_check(name: str, ds_id: str, text: str) -> list[dict[str, Any]]:
         """Local mode: near-duplicates (token Jaccard >= 0.8, like the importer) and related notes that may
         contradict the new one (shared topic, or a semantic hit when embeddings are on). Never blocks on errors."""
-        from .local_hygiene import lexical_conflict
+        from .local_hygiene import lexical_conflict, polarity_conflict, topic_query
         from .local_import import _tokens, norm
         try:
             await index.sync(name, lambda: cognee.list_data(ds_id), lambda did: cognee.raw_text(ds_id, did))
             hits = await index.search(text, [name], 5, "hybrid")
+            extra = topic_query(text)  # the same topic written in the other language (no model needed)
+            if extra:
+                seen = {h["id"] for h in hits}
+                hits += [h for h in await index.search(extra, [name], 5, "hybrid") if h["id"] not in seen]
         except Exception:  # noqa: BLE001 — the check is advisory
             return []
         tn, out = _tokens(text), []
@@ -545,6 +552,9 @@ def build_server(
             # by meaning only with some shared words: a save is refused on "duplicate", so a false alarm costs a note
             kind = ("duplicate" if (j >= 0.8 or (sem >= SEM_DUP and j >= 0.25)) and not clash else "related"
                     if (j >= 0.3 or sem >= SEM_DUP or "semantic" in h.get("match", "")) else None)
+            opposite = polarity_conflict(text, h["text"])
+            if opposite and kind != "duplicate":
+                kind, j = "contradicts", max(j, 0.5)
             j = max(j, round(sem, 2)) if kind == "duplicate" else j
             if kind:
                 out.append({"id": h["id"], "kind": kind, "similarity": round(j, 2), "text": h["text"][:300]})
@@ -1123,6 +1133,9 @@ def build_server(
             if out.get("status") == "duplicate":
                 out["note"] = ("an almost identical note exists; nothing saved. If the new one corrects it, use memory_edit "
                                "with that id")
+            elif any(n.get("kind") == "contradicts" for n in out.get("similar_notes") or []):
+                out["note"] = ("saved, but it seems to contradict a saved note (see similar_notes). Ask the user which "
+                               "one is true now, then memory_edit the wrong one (mode='no_longer_true' or 'replace')")
             elif out.get("similar_notes"):
                 out["note"] = ("saved. There are similar notes: if one says the opposite or is out of date, use "
                                "memory_edit (mode='replace' or 'no_longer_true')")

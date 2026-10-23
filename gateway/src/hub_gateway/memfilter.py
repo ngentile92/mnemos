@@ -211,9 +211,10 @@ def tidy(text: str, owner: str | None = None) -> str:
     """First-person-neutral note text: drop a leading "The person / El usuario / <owner name>" subject."""
     t = text.strip()
     if owner and owner.strip() and owner.strip().lower() not in ("me", "the owner"):
-        t = re.sub(r"^\s*" + re.escape(owner.strip().split()[0]) + r"(?:\s+\S+)?\s+(?=(?:is|was|has|prefers|"
-                   r"likes|works|lives|uses|wants|es|está|tiene|prefiere|trabaja|vive|usa|quiere)\b)", "", t, flags=re.I) \
-            if len(owner.strip().split()) > 1 else re.sub(r"^\s*" + re.escape(owner.strip()) + r"\s+(?=\w)", "", t)
+        # only "<first name> [surname] <verb> …": never "Ana López y Juan son colegas" (a list, not a subject)
+        t = re.sub(r"^\s*" + re.escape(owner.strip().split()[0]) + r"(?:\s+[A-ZÁÉÍÓÚÑ][\wáéíóúñ-]+)?\s+"
+                   r"(?=(?:is|was|has|prefers|likes|works|lives|uses|wants|es|está|tiene|prefiere|trabaja|vive|usa|"
+                   r"quiere)\b)", "", t, flags=re.I)
     t2 = _SUBJ.sub("", t)
     if t2 != t:
         t2 = _EN_AUX.sub("", t2)

@@ -5,6 +5,8 @@ def test_tidy_drops_third_person_subject():
     assert mf.tidy("The person is working on the Atlas billing page") == "Working on the Atlas billing page"
     assert mf.tidy("El usuario prefiere respuestas cortas") == "Prefiere respuestas cortas"
     assert mf.tidy("Ana López works at Acme", "Ana López") == "Works at Acme"
+    assert mf.tidy("Ana López trabaja en Acme", "Ana") == "Trabaja en Acme"
+    assert mf.tidy("Ana López y Juan Pérez son colegas", "Ana") == "Ana López y Juan Pérez son colegas"
 
 
 def test_vague_and_language_and_near_dup():

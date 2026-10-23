@@ -200,9 +200,9 @@ _SUBJ = re.compile(r"^\s*(?:the\s+(?:person|user|author|individual)|this\s+(?:pe
                    r"el\s+usuario|la\s+usuaria|la\s+persona|el\s+autor|la\s+autora|esta\s+persona)\b[\s,]*", re.I)
 _EN_AUX = re.compile(r"^(?:is|are)\s+(?=\w+ing\b)", re.I)  # "is working on X" → "Working on X"
 _VAGUE = re.compile(
-    r"\b(?:working on (?:something|a project|some(?:thing)? stuff|things|a task|an app)\b|"
+    r"\b(?:working on (?:something|a project|some(?:thing)? stuff|things|a task|an app)\b(?! (?:called|named))|"
     r"(?:asked|asks|asking) (?:for|about)\b|(?:needs|wants|wanted) help\b|is interested in (?:something|things)\b|"
-    r"trabajando en (?:algo|un proyecto|cosas)\b|(?:pidió|pide|pregunt[óa]) (?:ayuda|por|sobre)\b|necesita ayuda\b|"
+    r"trabaj(?:ando|a) en (?:algo|un proyecto|cosas)\b(?! (?:llamado|que se llama))|(?:pidió|pide|pregunt[óa]) (?:ayuda|por|sobre)\b|necesita ayuda\b|"
     r"\b(?:something|algo|stuff|cosas)\s*\.?$)", re.I)
 _NAMEISH = re.compile(r"\b(?:[A-ZÁÉÍÓÚÑ][\wáéíóúñ-]{2,}|\d[\d.,]*)\b")
 

@@ -21,8 +21,10 @@ from typing import Any
 REVIEW_BELOW = 0.6
 # Default descriptions for common space names, used when the user left a space's description empty.
 DEFAULT_DESC = {
-    "personal": "Personal life: family, friends, home, health habits, hobbies, travel, personal plans and preferences.",
-    "work": "Job and career: employer, clients, colleagues, work projects, meetings, tools and decisions at work.",
+    "personal": "Personal life: family, friends, home, health habits, hobbies, travel, personal plans and personal tastes "
+                "(not how software, code or work should be done).",
+    "work": "Job and career: employer, clients, colleagues, work projects, meetings, tools and decisions at work, "
+            "including preferences about code, design, UI and how the assistant should work on projects.",
     "side": "Side projects: things built on my own time, open source, experiments, ideas to try.",
     "study": "Learning: courses, books, research, things being studied.",
     "family": "Family: partner, kids, parents, home logistics.",
@@ -139,7 +141,8 @@ def by_rules(text: str, spaces: list[dict], default: str) -> dict:
 
 
 # ------------------------------------------------------------------ model
-PROMPT = ("Sort each note into ONE of these spaces of the same person's memory, by what the note is about.\n"
+PROMPT = ("Sort each note into ONE of these spaces of the same person's memory, by what the note is about. "
+          "A preference about software, code, UI, design or tools goes where that software or work is.\n"
           "Spaces:\n{spaces}\n\nNotes:\n{notes}\n\n"
           'Reply JSON only: {{"r": [{{"n": <note number>, "space": "<space key>", "confidence": 0.0-1.0, '
           '"reason": "<max 8 words, in the note\'s language>"}}, ...]}}')

@@ -177,8 +177,8 @@ BROWSER_HINT = b"""<!doctype html><meta charset=utf-8><title>Mnemos</title>
 <h1>This address is for AI apps, not for your browser</h1>
 <p>Mnemos is running fine. Addresses ending in <code>/mcp</code> are how Claude, ChatGPT or Cursor talk to your
 memory; opening them in a browser shows nothing useful.</p>
-<p>To connect an app, use <b>Connect to Claude Desktop</b> in Mnemos Desktop (it fills in the address and your
-private token for you), or install the Mnemos extension (.mcpb) in Claude Desktop.</p>
+<p>To connect an app, use <b>Connect apps</b> in the Mnemos window (it fills in the address and your private token
+for you).</p>
 <p><a href="/">Back to the Mnemos status page</a></p></body>"""
 
 

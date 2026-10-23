@@ -17,12 +17,12 @@
   </div>
   <nav class="tabs hidden" id="tabs" role="tablist">
     <a href="#memoria" class="tab active" data-view="memoria" role="tab">Notes</a>
-    <a href="#graph" class="tab" data-view="graph" role="tab">Graph</a>
     <a href="#skills" class="tab" data-view="skills" role="tab">Skills</a>
     <a href="#spaces" class="tab" data-view="spaces" role="tab">Spaces</a>
     <a href="#apps" class="tab" data-view="apps" role="tab">Apps</a>
     <a href="#native" class="tab" data-view="native" role="tab">App memories</a>
     <a href="#import" class="tab" data-view="import" role="tab">Import</a>
+    <a href="#graph" class="tab" data-view="graph" role="tab">Graph</a>
     <a href="#settings" class="tab" data-view="settings" role="tab">Settings</a>
     <a href="#settings" class="badge" id="eng-badge" title="Which engine finds facts and cleans up your memory" style="align-self:center;margin-left:6px"></a>
   </nav>
@@ -36,10 +36,7 @@
 </section>
 <div id="app" class="hidden">
 <main id="view-memoria" class="view">
-  <section class="card hidden" id="mig-card" style="margin:14px 36px"><div class="card-h"><h2>Switch to simple memory</h2><span class="muted small">files you can read</span></div>
-    <p class="small muted">Your memory becomes a few Markdown files on this computer (one folder per space), with full history and undo. You can preview exactly what it will look like first, and switch back afterwards; your current notes are never deleted.</p>
-    <div class="me-actions"><button class="mbtn" id="mig-preview">Preview</button><button class="mbtn primary" id="mig-apply">Switch</button><span class="small" id="mig-msg"></span></div>
-    <pre id="mig-report" class="me-note hidden" style="white-space:pre-wrap"></pre></section>
+  
   <section class="card hidden" id="files-view" style="margin:14px 36px"><div class="card-h"><h2>Memory files</h2><span class="muted small" id="fv-head"></span></div>
     <p class="small muted">One folder per space. Click a file to read or edit it; every save is a new version you can restore.</p>
     <div id="fv-list" class="ap-list"></div>
@@ -167,28 +164,16 @@
   <section class="card" style="margin:0 36px 14px" id="sync-card"><div class="card-h"><h2>Built-in memory for coding agents</h2><span class="muted small">opt-in</span></div>
     <p class="small muted">Write your profile where Claude Code, Codex and Cursor already look, so every session starts knowing you even before it calls Mnemos. Only the spaces you pick; Mnemos keeps a backup of any file it touches and only writes its own part (in Codex's AGENTS.md, a marked block). Turning it off removes exactly what Mnemos wrote.</p>
     <div id="sync-list" class="ap-list"></div><p class="small" id="sync-msg"></p></section>
-  <section class="card" style="margin:0 36px 14px" id="rm-card"><div class="card-h"><h2>Reach from anywhere</h2><span class="ap-pill" id="rm-state">off</span></div>
-    <p class="small muted">Lets AI apps that run in the cloud (Claude on the web and on your phone, ChatGPT, Grok) use your memory through
-      <b>Tailscale Funnel</b>, a free secure tunnel to this computer. Each app signs in with your Mnemos password and you choose which spaces it may use.</p>
-    <p class="small rm-warn"><b>Your computer has to be on, awake and running Mnemos.</b> When it sleeps or Mnemos is closed, those apps cannot reach your memory (they will say so). Apps on this computer are not affected.</p>
-    <div id="rm-body"></div><p class="small" id="rm-msg"></p></section>
+  
   <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Activity</h2>
       <span><select id="ap-filter" aria-label="Filter by app"><option value="">All apps</option></select> <button class="mbtn" id="ap-refresh">Refresh</button></span></div>
     <p class="small muted">What each app read or saved, newest first. Only a short summary is kept.</p>
     <div id="ap-feed" class="ap-feed"></div></section>
 </main>
 <main id="view-settings" class="view hidden">
-  <section class="card" style="margin:14px 36px" id="sm-card"><div class="card-h"><h2>Simple memory</h2><span class="ap-pill" id="sm-state">…</span></div>
-    <p class="small muted">Your memory as Markdown files with history (in the <code>memory</code> folder of your Mnemos home).</p>
-    <div class="me-actions"><button class="mbtn hidden" id="sm-undo">Switch back to the previous store</button><span class="small" id="sm-msg"></span></div></section>
-  <section class="card" style="margin:14px 36px" id="labs-card"><div class="card-h"><h2>Labs</h2><span class="muted small" id="labs-head">optional extras</span></div>
-    <p class="small muted">Extras on top of your memory files: people and project pages built by a model, the “still true?” check and the nightly tidy-up of the memory model. They are kept up to date but off by default: your memory works without them.</p>
-    <label class="small"><input type="checkbox" id="labs-on" style="width:auto"> Show Labs features</label> <span class="small" id="labs-msg"></span></section>
-  <section class="card labs" style="margin:14px 36px" id="mg-card"><div class="card-h"><h2>Memory model</h2><span class="muted small" id="mg-head"></span></div>
-    <p class="small muted">Mnemos links each note to who or what it is about (you, a person, a project, a tool) so it can build your profile, keep only the current version of a fact and explain why a note was used. Notes are never rewritten or deleted by this: try it first, and undo it any time.</p>
-    <div class="me-actions"><select id="mg-ctx" aria-label="Space"></select><button class="mbtn" id="mg-dry">Try it (no changes)</button>
-      <button class="mbtn primary" id="mg-apply">Link my notes</button><button class="mbtn" id="mg-cons">Tidy up now</button></div>
-    <div id="mg-out" class="small"></div><div id="mg-jobs" class="small muted"></div><p class="small" id="mg-msg"></p></section>
+  
+  
+  
   <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Engine</h2><span class="muted small">what does the smart parts</span></div>
     <div id="st-active"></div>
     <p class="small muted">Order: an API key you enabled for that feature → Ollama (if running) → the built-in model → Apple Intelligence (import only) → simple rules. Search similarity never uses an API.</p>
@@ -215,6 +200,28 @@
       <label class="small" style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="st-f-hygiene" style="width:auto"> Use it for cleanup (notes that disagree)</label></div>
     <div class="me-actions"><button class="mbtn primary" id="st-save">Save</button><button class="mbtn" id="st-test">Test the key</button><button class="mbtn danger" id="st-clear">Forget the key</button><span class="muted small" id="st-amsg"></span></div>
   </section>
+<details class="card adv" id="adv-card" style="margin:14px 36px"><summary><b>Advanced</b> <span class="muted small">reach from the web and phone, memory store, Labs</span></summary>
+  <section class="card" style="margin:10px 0" id="rm-card"><div class="card-h"><h2>Reach from anywhere</h2><span class="ap-pill" id="rm-state">off</span></div>
+    <p class="small muted">Lets AI apps that run in the cloud (Claude on the web and on your phone, ChatGPT, Grok) use your memory through
+      <b>Tailscale Funnel</b>, a free secure tunnel to this computer. Each app signs in with your Mnemos password and you choose which spaces it may use.</p>
+    <p class="small rm-warn"><b>Your computer has to be on, awake and running Mnemos.</b> When it sleeps or Mnemos is closed, those apps cannot reach your memory (they will say so). Apps on this computer are not affected.</p>
+    <div id="rm-body"></div><p class="small" id="rm-msg"></p></section>
+  <section class="card" style="margin:10px 0" id="sm-card"><div class="card-h"><h2>Simple memory</h2><span class="ap-pill" id="sm-state">…</span></div>
+    <p class="small muted">Your memory as Markdown files with history (in the <code>memory</code> folder of your Mnemos home).</p>
+    <div class="me-actions"><button class="mbtn hidden" id="sm-undo">Switch back to the previous store</button><span class="small" id="sm-msg"></span></div></section>
+  <section class="card hidden" id="mig-card" style="margin:10px 0"><div class="card-h"><h2>Switch to simple memory</h2><span class="muted small">files you can read</span></div>
+    <p class="small muted">Your memory becomes a few Markdown files on this computer (one folder per space), with full history and undo. You can preview exactly what it will look like first, and switch back afterwards; your current notes are never deleted.</p>
+    <div class="me-actions"><button class="mbtn" id="mig-preview">Preview</button><button class="mbtn primary" id="mig-apply">Switch</button><span class="small" id="mig-msg"></span></div>
+    <pre id="mig-report" class="me-note hidden" style="white-space:pre-wrap"></pre></section>
+  <section class="card" style="margin:10px 0" id="labs-card"><div class="card-h"><h2>Labs</h2><span class="muted small" id="labs-head">optional extras</span></div>
+    <p class="small muted">Extras on top of your memory files: people and project pages built by a model, the “still true?” check and the nightly tidy-up of the memory model. They are kept up to date but off by default: your memory works without them.</p>
+    <label class="small"><input type="checkbox" id="labs-on" style="width:auto"> Show Labs features</label> <span class="small" id="labs-msg"></span></section>
+  <section class="card labs" style="margin:10px 0" id="mg-card"><div class="card-h"><h2>Memory model</h2><span class="muted small" id="mg-head"></span></div>
+    <p class="small muted">Mnemos links each note to who or what it is about (you, a person, a project, a tool) so it can build your profile, keep only the current version of a fact and explain why a note was used. Notes are never rewritten or deleted by this: try it first, and undo it any time.</p>
+    <div class="me-actions"><select id="mg-ctx" aria-label="Space"></select><button class="mbtn" id="mg-dry">Try it (no changes)</button>
+      <button class="mbtn primary" id="mg-apply">Link my notes</button><button class="mbtn" id="mg-cons">Tidy up now</button></div>
+    <div id="mg-out" class="small"></div><div id="mg-jobs" class="small muted"></div><p class="small" id="mg-msg"></p></section>
+</details>
 </main>
 <main id="view-import" class="view hidden">
   <section class="card me-bar"><label class="small muted" style="margin:0">Import into <select id="i-ctx" aria-label="Context"></select></label>

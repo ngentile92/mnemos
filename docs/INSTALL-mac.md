@@ -31,15 +31,15 @@ Ask Claude *"what do you know about me?"*: it now reads and saves to Mnemos on i
 
 - **Cursor**: click **Connect Cursor**, then **Install** in Cursor.
 - **Claude Code, Codex, VS Code**: click **Copy** and paste the line in Terminal once.
-- **Claude on the web or phone, ChatGPT, Grok** (optional): **Open my memory → Apps → Reach from anywhere** (needs
+- **Claude on the web or phone, ChatGPT, Grok** (optional): **Open my memory → Settings → Advanced → Reach from anywhere** (needs
   the free Tailscale app). Off until you turn it on; those apps only work while this Mac is awake and Mnemos is
   running. Details: [local-mode.md](local-mode.md#reach-from-anywhere-06-opt-in).
 
 Every app sees all your spaces and saves to its default one (change it in **Open my memory → Apps**).
 
 ## 5. See and fix your memory
-Click **Open my memory**. The tabs: **Notes** (search, edit, forget with undo, and *Memory health*), **Graph**,
-**Skills**, **Spaces**, **Apps**, **App memories** (what each app stores on its own), **Import** and **Settings**.
+Click **Open my memory**. The tabs: **Notes** (search, edit, forget with undo, and *Memory health*), **Skills**,
+**Spaces**, **Apps**, **App memories** (what each app stores on its own), **Import**, **Graph** and **Settings**.
 
 ### Scan this Mac (first big import)
 The first time your memory is empty, Mnemos offers to **Scan this Mac** (also under **Import**). It looks, read-only,
@@ -107,14 +107,14 @@ Preguntale *"¿qué sabés de mí?"*: desde ahora lee y guarda en Mnemos solo.
 
 - **Cursor**: tocá **Connect Cursor** y después **Install** en Cursor.
 - **Claude Code, Codex, VS Code**: tocá **Copy** y pegá la línea una vez en la Terminal.
-- **Claude web o celular, ChatGPT, Grok** (opcional): **Open my memory → Apps → Reach from anywhere** (necesita la
+- **Claude web o celular, ChatGPT, Grok** (opcional): **Open my memory → Settings → Advanced → Reach from anywhere** (necesita la
   app gratuita Tailscale). Viene apagado; esas apps solo funcionan mientras la Mac está despierta y Mnemos abierto.
 
 Cada app ve todos tus espacios y guarda en el suyo por defecto (se cambia en **Open my memory → Apps**).
 
 ## 5. Mirá y corregí tu memoria
 Tocá **Open my memory**. Las pestañas: **Notes** (buscar, editar, olvidar con deshacer, y *Memory health*),
-**Graph**, **Skills**, **Spaces**, **Apps**, **App memories** (lo que cada app guarda por su cuenta), **Import** y
+**Skills**, **Spaces**, **Apps**, **App memories** (lo que cada app guarda por su cuenta), **Import**, **Graph** y
 **Settings**.
 
 ### Scan this Mac (primera importación)

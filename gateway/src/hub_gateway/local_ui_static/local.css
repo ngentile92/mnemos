@@ -41,3 +41,6 @@ body.filesmode #empty-cta { display: none !important }
 .nm-sec{border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden}
 .nm-sec-h{display:flex;gap:8px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.03)}.nm-sec-h select{width:auto;font-size:12px}
 .nm-raw{margin:0;padding:10px;white-space:pre-wrap;font-size:12.5px;line-height:1.45}
+/* Settings → Advanced: things most people never need, folded away */
+details.adv > summary { cursor: pointer; padding: 4px 0; list-style: revert; }
+details.adv:not([open]) { padding-bottom: 12px; }

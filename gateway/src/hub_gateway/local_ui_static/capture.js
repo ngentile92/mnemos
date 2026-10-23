@@ -35,12 +35,16 @@
     $("rl-card").classList.toggle("hidden", !show);
     if (!show) return;
     $("rl-head").textContent = `${r.recent.length} kept`;
+    const sps = ((window.MNEMOS_SPACES || {}).spaces || []).filter((s) => s.name !== "shared");
+    const lab = (n) => ((sps.find((s) => s.name === n) || {}).label || n);
+    const where = (x) => { const r = x.route || {}; return `<div class="small rl-where">→ <b>${esc(lab(x.context))}</b>${r.reason ? ` · ${esc(r.reason)}` : ""}${r.review ? ' <span class="badge">review</span>' : ""}${r.suggested ? ` · maybe ${esc(lab(r.suggested))}` : ""}
+      <select class="rl-move" aria-label="Move to space"><option value="">Move to…</option>${sps.filter((s) => s.name !== x.context).map((s) => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("")}</select></div>`; };
     const why = (x) => `<span class="small muted">${esc(APP[x.app] || x.app)} · ${esc((x.ts || "").slice(0, 10))}${x.quote ? ` · you said “${esc(x.quote)}”` : ""}</span>`;
-    $("rl-list").innerHTML = r.recent.slice(0, 30).map((x) => `<div class="ap-row" data-id="${esc(x.id)}"><div class="ap-top"><div>${esc(x.text)}</div>${why(x)}</div>
+    $("rl-list").innerHTML = r.recent.slice(0, 30).map((x) => `<div class="ap-row" data-id="${esc(x.id)}"><div class="ap-top"><div>${esc(x.text)}</div>${why(x)}${where(x)}</div>
         <div class="ap-ctl"><button class="mbtn rl-undo">Undo</button></div></div>`).join("");
     $("rl-inbox-wrap").classList.toggle("hidden", !r.inbox.length);
     $("rl-inbox-n").textContent = r.inbox.length ? `(${r.inbox.length})` : "";
-    $("rl-inbox").innerHTML = r.inbox.map((x) => `<div class="ap-row" data-id="${esc(x.id)}"><div class="ap-top"><div>${esc(x.text)}</div>${why(x)}
+    $("rl-inbox").innerHTML = r.inbox.map((x) => `<div class="ap-row" data-id="${esc(x.id)}"><div class="ap-top"><div>${esc(x.text)}</div>${why(x)}${where(x)}
         ${x.conflict_with ? `<div class="small">You have: “${esc(x.conflict_with)}”</div>` : ""}</div>
         <div class="ap-ctl"><button class="mbtn primary rl-ok">Keep</button><button class="mbtn rl-no">Dismiss</button></div></div>`).join("");
   }
@@ -49,6 +53,12 @@
     const act = t.classList.contains("rl-undo") ? "undo" : t.classList.contains("rl-ok") ? "accept" : t.classList.contains("rl-no") ? "dismiss" : null;
     if (!act) return;
     try { await window.MNEMOS_API("/api/capture/" + act, { id: row.dataset.id }); msg(act === "undo" ? "Removed." : act === "accept" ? "Kept." : "Dismissed."); load(); }
+    catch (e) { msg(e.message, true); }
+  });
+  document.addEventListener("change", async (ev) => {
+    const t = ev.target; if (!t.classList || !t.classList.contains("rl-move") || !t.value) return;
+    const row = t.closest("#rl-card .ap-row"); if (!row) return;
+    try { await window.MNEMOS_API("/api/capture/move", { id: row.dataset.id, to: t.value }); msg("Moved."); load(); }
     catch (e) { msg(e.message, true); }
   });
   window.addEventListener("mnemos:view", (e) => { if (e.detail === "memoria") load(); });

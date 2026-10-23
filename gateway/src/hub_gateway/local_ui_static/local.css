@@ -28,3 +28,7 @@ body.nolabs .labs{display:none!important}
 /* Simple memory (0.11): when files mode is on, hide the notes list and show the files view */
 body.filesmode .me-bar, body.filesmode .me-dispute, body.filesmode .me-inbox, body.filesmode .me-grid,
 body.filesmode #empty-cta { display: none !important }
+
+.sp-frow{display:flex;gap:8px;margin-top:10px}.sp-frow input{flex:1}
+.rl-where{margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}.rl-where select{width:auto;padding:2px 6px;font-size:12px}
+.imp-item .d-sp{width:auto;margin-left:auto;font-size:12px}

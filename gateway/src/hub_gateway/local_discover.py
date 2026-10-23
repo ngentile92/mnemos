@@ -108,6 +108,16 @@ def _zip_kind(p: Path) -> str | None:
 
 
 def suggest(kind: str, contexts: list[str]) -> str:
+    """0.13: "auto" (sort each note by its content) whenever there is more than one space to choose from."""
+    if not contexts:
+        return ""
+    if len(contexts) > 1:
+        return "auto"
+    return kind_default(kind, contexts)
+
+
+def kind_default(kind: str, contexts: list[str]) -> str:
+    """Where a source's unsure notes land when sorting by content (the pre-0.13 guess from the source kind)."""
     if not contexts:
         return ""
     want = ("work", "trabajo", "dev", "code") if kind in CODE_KINDS else ("personal", "me", "home", "vida")
@@ -519,10 +529,31 @@ async def preview(sources: list[dict], existing: dict[str, list[str]], progress:
         cands = notes + facts
         kept = [t for t in notes if not has_secret(t)] + keep_texts(facts)
         ctx = src.get("context") or ""
-        pool = existing.get(ctx, []) + [it["text"] for it in items if it["context"] == ctx]
-        pv = li.preview(kept[:MAX_PER_SOURCE * 3], pool)
-        for it in pv["items"][:MAX_PER_SOURCE]:
-            items.append({**it, "context": ctx, "source": src["kind"], "source_label": src["label"]})
+        if ctx == "auto":  # 0.13: each note goes where its content says (model, else rules); unsure → default
+            from . import local_route
+            if llm:
+                progress({"phase": f"Choosing a space for each note ({llm.name})", "done": i, "total": len(sources)})
+            spaces = src.get("spaces") or [{"name": c} for c in existing]
+            texts = kept[:MAX_PER_SOURCE * 3]
+            routes = await local_route.route_many(texts, spaces, src.get("default") or spaces[0]["name"], llm=llm)
+            groups: dict[str, list[tuple[str, dict]]] = {}
+            for t, r in zip(texts, routes):
+                groups.setdefault(r["space"], []).append((t, r))
+            new = 0
+            for c, lst in groups.items():
+                pool = existing.get(c, []) + [it["text"] for it in items if it["context"] == c]
+                pv = li.preview([t for t, _r in lst], pool)
+                rmap = {t: r for t, r in lst}
+                new += pv["new"]
+                for it in pv["items"][:MAX_PER_SOURCE]:
+                    items.append({**it, "context": c, "route": rmap.get(it["text"]), "source": src["kind"],
+                                  "source_label": src["label"]})
+            pv = {"new": new}
+        else:
+            pool = existing.get(ctx, []) + [it["text"] for it in items if it["context"] == ctx]
+            pv = li.preview(kept[:MAX_PER_SOURCE * 3], pool)
+            for it in pv["items"][:MAX_PER_SOURCE]:
+                items.append({**it, "context": ctx, "source": src["kind"], "source_label": src["label"]})
         stats.append({"id": src["id"], "label": src["label"], "messages": len(msgs), "candidates": len(kept),
                       "new": pv["new"], "secrets_dropped": sum(1 for t in cands if has_secret(t)),
                       "filtered": len(cands) - len(kept)})
@@ -569,11 +600,16 @@ class Discover:
         for c in body.get("sources") or []:
             s = self.sources.get(str((c or {}).get("id")))
             ctx = str((c or {}).get("context") or "")
-            if s and ctx in self.ui.servers:
+            if s and ctx == "auto":
+                from . import local_route
+                chosen.append({**s, "context": "auto", "spaces": local_route.spaces_of(self.ui.home, self.ui.servers),
+                               "default": kind_default(s["kind"], list(self.ui.servers))})
+            elif s and ctx in self.ui.servers:
                 chosen.append({**s, "context": ctx})
         if not chosen:
             raise ValueError("pick at least one source (scan again if the list is old)")
-        existing = {c: await self.ui._existing(c) for c in {s["context"] for s in chosen}}
+        want = {c for s in chosen for c in ([*self.ui.servers] if s["context"] == "auto" else [s["context"]])}
+        existing = {c: await self.ui._existing(c) for c in want}
         self.job = {"state": "running", "phase": "Starting", "done": 0, "total": len(chosen)}
 
         async def run() -> None:

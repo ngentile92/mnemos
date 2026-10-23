@@ -138,6 +138,12 @@
   <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Let one space read another</h2><span class="muted small">read-only, off by default</span></div>
     <p class="small muted">Turn one on when, say, your work AI should know your side project. It can only read: it never writes, edits or deletes there.</p>
     <div id="sp-bridges"></div></section>
+  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Folders</h2><span class="muted small">for Claude Code, Cursor and Codex</span></div>
+    <p class="small muted">What you say in a coding app inside one of these folders always goes to the space you pick, whatever the note is about. Everything else is sorted by what it says, using the descriptions above.</p>
+    <div id="sp-folders"></div>
+    <div class="sp-frow"><input id="sp-fpath" placeholder="Folder, e.g. ~/code/my-project" aria-label="Folder"><select id="sp-fspace" aria-label="Space"></select><button class="mbtn primary" id="sp-fadd">Map folder</button></div>
+    <div class="sp-frow"><input id="sp-ttext" placeholder="Try it: type a note to see where it would go" aria-label="Test note"><button class="mbtn" id="sp-ttry">Where would it go?</button></div>
+    <p class="small" id="sp-tout"></p></section>
 </main>
 <main id="view-apps" class="view hidden">
   <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Apps using your memory</h2><span class="muted small" id="ap-head"></span></div>

@@ -174,7 +174,88 @@ PROMPT = (
     '"kind": "identity|preference|relationship|project_state|decision|goal|skill_fact|event|transient", '
     '"about": "<me or the person/project/tool it is about>", "importance": 1-5, '
     '"durability": "permanent|long|medium|short", "quote": "<the person\'s words, max 15 words>"}}]}}. '
-    "Write facts in the language the person writes.\n\nMESSAGES:\n")
+    "Write facts in {lang}. Write them like a note to self, without a subject: \"Prefers short answers\", "
+    "\"Prefiere respuestas cortas\", \"Works at Acme as a data engineer\". Never start with \"The person\", \"The user\", "
+    "\"El usuario\", \"La persona\" or the person's name. Skip vague or one-off things (\"is working on a project\", "
+    "\"asked for help\").\n\nMESSAGES:\n")
+
+
+# --- capture style (0.13): the user's language, no third-person subject, nothing vague
+_ES = set("el la los las de del que y en un una por para con no es está estoy tengo mi mis me yo quiero hay pero muy "
+          "como cuando también porque más hacer ahora vos usted este esta año su sus le lo al se quiere tiene usa vive "
+          "trabaja prefiere con los".split())
+_EN = set("the and of to in is are was i my me you it that this for with have want not but very how when also "
+          "because more do now please can his her their at on uses lives works prefers wants".split())
+
+
+def language(text: str) -> str:
+    """"es" or "en" (the two the app ships with), from function words; "" when unclear."""
+    w = re.findall(r"[a-záéíóúñü]+", (text or "").lower())
+    es, en = sum(x in _ES for x in w), sum(x in _EN for x in w)
+    return "es" if es > en else "en" if en > es else ""
+
+
+LANG_NAME = {"es": "Spanish", "en": "English"}
+_SUBJ = re.compile(r"^\s*(?:the\s+(?:person|user|author|individual)|this\s+(?:person|user)|user|"
+                   r"el\s+usuario|la\s+usuaria|la\s+persona|el\s+autor|la\s+autora|esta\s+persona)\b[\s,]*", re.I)
+_EN_AUX = re.compile(r"^(?:is|are)\s+(?=\w+ing\b)", re.I)  # "is working on X" → "Working on X"
+_VAGUE = re.compile(
+    r"\b(?:working on (?:something|a project|some(?:thing)? stuff|things|a task|an app)\b|"
+    r"(?:asked|asks|asking) (?:for|about)\b|(?:needs|wants|wanted) help\b|is interested in (?:something|things)\b|"
+    r"trabajando en (?:algo|un proyecto|cosas)\b|(?:pidió|pide|pregunt[óa]) (?:ayuda|por|sobre)\b|necesita ayuda\b|"
+    r"\b(?:something|algo|stuff|cosas)\s*\.?$)", re.I)
+_NAMEISH = re.compile(r"\b(?:[A-ZÁÉÍÓÚÑ][\wáéíóúñ-]{2,}|\d[\d.,]*)\b")
+
+
+def tidy(text: str, owner: str | None = None) -> str:
+    """First-person-neutral note text: drop a leading "The person / El usuario / <owner name>" subject."""
+    t = text.strip()
+    if owner and owner.strip() and owner.strip().lower() not in ("me", "the owner"):
+        t = re.sub(r"^\s*" + re.escape(owner.strip().split()[0]) + r"(?:\s+\S+)?\s+(?=(?:is|was|has|prefers|"
+                   r"likes|works|lives|uses|wants|es|está|tiene|prefiere|trabaja|vive|usa|quiere)\b)", "", t, flags=re.I) \
+            if len(owner.strip().split()) > 1 else re.sub(r"^\s*" + re.escape(owner.strip()) + r"\s+(?=\w)", "", t)
+    t2 = _SUBJ.sub("", t)
+    if t2 != t:
+        t2 = _EN_AUX.sub("", t2)
+    t = t2.strip()
+    return (t[:1].upper() + t[1:]) if t else t
+
+
+def vague(text: str) -> bool:
+    """Too vague to be worth remembering: generic one-off phrasing, or short with nothing specific in it."""
+    t = text.strip()
+    if _VAGUE.search(t):
+        return True
+    words = t.split()
+    return len(words) < 3 and not _NAMEISH.search(" ".join(words[1:]))
+
+
+def near_dup(text: str, pool: list[str], th: float = 0.75) -> str | None:
+    """An existing note saying (almost) the same, by word overlap; None otherwise."""
+    a = set(_toks(text))
+    if len(a) < 3:
+        return None
+    for old in pool:
+        b = set(_toks(old))
+        if b and len(a & b) / len(a | b) >= th:
+            return old
+    return None
+
+
+def polish(facts: list[dict], source: str, owner: str | None = None) -> list[dict]:
+    """Capture style pass: tidy the subject, drop vague ones, and mark facts not in the user's language as unsure."""
+    lang = language(source)
+    out = []
+    for f in facts:
+        t = tidy(f["text"], owner)
+        if not t or (vague(t) and not (f.get("importance", 3) >= 4 and not _VAGUE.search(t))):
+            continue
+        g = {**f, "text": t, "lang": lang}
+        tl = language(t)
+        if lang and tl and tl != lang and len(t.split()) >= 4:
+            g["unsure"] = True
+        out.append(g)
+    return out
 
 
 def _norm_fact(f: Any) -> dict[str, Any] | None:
@@ -301,7 +382,8 @@ async def extract_window(llm: Any, window: str, app: str = "", ts: str = "", top
                          allow_sensitive: bool = False) -> tuple[list[dict], str]:
     """(typed gated facts, updated topic) for one window of one conversation; ([], topic) when the call fails."""
     prompt = PROMPT.format(when=f" on {ts[:10]}" if ts else "", app=f" in {app}" if app else "",
-                           summary=f"So far it was about: {topic}. " if topic else "")
+                           summary=f"So far it was about: {topic}. " if topic else "",
+                           lang=f"{LANG_NAME.get(language(window), 'the language the person writes')}")
     try:
         r = await llm.json(prompt + window)
     except Exception:  # noqa: BLE001 — one bad call does not stop the import
@@ -312,6 +394,8 @@ async def extract_window(llm: Any, window: str, app: str = "", ts: str = "", top
     raw = r.get("facts") or []
     facts = gate([f for f in (_norm_fact(x) for x in raw if x) if f], allow_sensitive)
     facts = [f for f in facts if grounded(f, window)[0]]  # drop what the user never said (names, numbers, quote)
+    from . import contexts as _ctx
+    facts = polish(facts, window, getattr(_ctx, "OWNER", None))
     ok = await entailed(llm, facts, window)  # the model's second opinion only flags: it can reject real facts too
     facts = [f if k else {**f, "unsure": True} for f, k in zip(facts, ok)]
     return [{**f, "topic": topic} for f in facts], topic

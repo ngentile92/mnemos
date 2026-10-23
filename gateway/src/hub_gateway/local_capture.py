@@ -153,7 +153,7 @@ class Capture:
 
     async def _place(self, f: dict, ctx: str, app: str, pool: list[str], res: dict) -> None:
         old = _conflict(f["text"], pool)  # "2 cats" vs "3 cats" looks like a duplicate in words: check first
-        if not old and li.preview([f["text"]], pool)["new"] == 0:
+        if not old and (li.preview([f["text"]], pool)["new"] == 0 or mf.near_dup(f["text"], pool)):
             res["skipped"] += 1
             return
         base = {"id": _h(ctx + f["text"]), "text": f["text"], "context": ctx, "app": app, "kind": f.get("kind"),

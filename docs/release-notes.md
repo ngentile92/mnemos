@@ -12,6 +12,15 @@
 ## v0.10.2
 
 - Entity typing on the memory model, second pass: a new person needs a person cue next to the name; names that open sentences in several notes count; git commit trailers (Co-authored-by) are ignored; acronyms and technical terms (OAuth, RLS) are topics; the context name is a background org, never the subject.
+**New in 0.12: built-in memory for coding agents (opt-in).**
+- Mnemos → Apps → *Built-in memory for coding agents*: write your profile where each coding agent already looks, so
+  every session starts knowing you even before it calls Mnemos. **Claude Code**: `~/.claude/rules/mnemos.md`.
+  **Codex**: a marked block in `~/.codex/AGENTS.md` (the rest of the file is left alone). **Cursor**: a local plugin
+  rule (`~/.cursor/plugins/local/mnemos`), since Cursor has no documented global rules file.
+- Off by default, per agent, only for the spaces you pick. Mnemos keeps a backup of any file before it first changes it,
+  rewrites its part only when your profile changes, never reads edits back from those files, and removes exactly what
+  it wrote when you turn it off.
+
 **New in 0.11: simple memory — your memory as Markdown files you can read.**
 - **Memory as files.** Each space is a folder with a short `profile.md` (read at the start of every chat) and a few
   topic files (`people.md`, `projects.md`, `goals.md`, `how-i-work.md`, …). Every change is a version in a built-in

@@ -197,16 +197,18 @@ def guess_kind(text: str, tags: Iterable[str] = ()) -> str | None:
         return "preference"
     if re.search(r"\b(decid|chose|eligió|switched|cambió|moved .* to|migr)\w*", low):
         return "decision"
-    if re.search(r"\b(goal|meta|objetivo|wants to|quiere|learning|aprendiendo|plans? to|planea)\b", low):
+    if re.search(r"\b(goal|meta|objetivo|wants to|quiere|quiero|learning|aprendiendo|plans? to|planea|planeo)\b", low):
         return "goal"
     m = re.search(r"\b(?:works? with|trabaja con|uses?|usa|utiliza)\s+([\w.+ -]{2,30}?)(?=[\s,;.]|$)", text, re.I)
     if m and any(is_tool(" ".join(m.group(1).split()[:k])) for k in (1, 2, 3)):
         return "skill_fact"  # "works with ClickUp" is about a tool, not a person
-    if re.search(r"\b(manager|jefe|partner|pareja|wife|husband|sister|hermana|brother|friend|works with|trabaja con)\b", low):
+    if re.search(r"\b(manager|jefe|jefa|partner|pareja|wife|husband|esposa|esposo|sister|hermana|brother|hermano|friend|"
+                 r"amig[oa]|mother|madre|mamá|father|padre|papá|son|hijo|daughter|hija|works with|trabaja con)\b", low):
         return "relationship"
     if re.search(r"\b(project|proyecto|building|construyendo|stack|uses .* for)\b", low):
         return "project_state"
-    if re.search(r"\b(lives|vive|works as|trabaja como|is a|es una?|born|nació|name is|se llama)\b", low):
+    if re.search(r"\b(lives|vive|vivo|i live|works as|trabaja como|trabajo como|is a|es una?|soy|i am|i'm|born|nació|"
+                 r"nací|name is|se llama|me llamo|call me|llamame)\b", low):
         return "identity"
     # instructions and working habits ("PRs should be small", "no usar X", "always ask before")
     if re.search(r"\b(should|shouldn't|must|debe\w*|debería\w*|hay que|tiene que|no usar|don't|do not|avoid|evitar|"

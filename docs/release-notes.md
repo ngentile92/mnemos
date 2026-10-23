@@ -6,6 +6,18 @@
 
 Newest first. Each `## vX.Y.Z` section is the body of that GitHub Release (`scripts/release_notes.py`).
 
+## v0.15.0
+
+**Simpler and smarter without a model.**
+
+- **Sorts notes into the right space with rules alone**: phrases like "I work at…", "Trabajo en…", "my wife…" or "mi jefe…" now decide the space (before, they stayed in the default space). Spaces named in other words (trabajo, vida, job…) get sensible defaults.
+- **Catches contradictions without a model**, even across English and Spanish: "Prefers dark mode" vs "No me gusta el modo oscuro" is flagged when saving (the AI is asked to check with you) and in Memory health.
+- **A real profile from the first notes**: in a new memory, who you are and your preferences go to your profile and people, goals and projects to their own topics, instead of one "notes" file.
+- **Less to think about**: Reach from anywhere, the memory store switch, Labs and the memory model are folded into **Settings → Advanced**. The Graph tab sits next to Settings and never animates in the background (saves battery).
+- **One Mnemos in Claude**: the old `.mcpb` extension is deprecated; Connect flags it and opens Claude so you can remove it.
+- **Clear port message**: if another app (OpenMemory uses the same port) holds 8765, Mnemos says so instead of looking "running".
+- Hub: rate limit per app and session, so parallel tool calls no longer fail (#135). Tool messages are in English only.
+
 ## v0.14.0
 
 **New in 0.14: memory that keeps itself tidy — you decide every change.**

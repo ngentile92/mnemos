@@ -18,9 +18,8 @@ A small Tauri 2 app around the single-process hub (`mnemos-local`, see `docs/loc
 - **Menu bar icon** (Open my memory / Show / Quit); closing the window keeps Mnemos running.
 - **Starts with your Mac** (LaunchAgent `~/Library/LaunchAgents/io.mnemos.desktop.plist`, opens in the background;
   on by default after setup, checkbox in the app). The hub starts on launch (`MNEMOS_AUTOSTART=0` skips it).
-- **Keychain**: the local token is kept in the macOS Keychain (service `io.mnemos.desktop`) and passed to the hub as
-  `MNEMOS_TOKEN`; an existing `~/Mnemos/token` is moved there. `MNEMOS_NO_KEYCHAIN=1` keeps the file. The
-  password is never stored, only its scrypt hash.
+- **Local token**: a 0600 file `~/Mnemos/token`, passed to the hub as `MNEMOS_TOKEN` (0.12.1: no Keychain, so no
+  password prompts; it only unlocks the page on 127.0.0.1). The password is never stored, only its scrypt hash.
 
 **Self-contained:** release builds carry a relocatable Python (python-build-standalone) with `mnemos-hub`
 preinstalled in `Mnemos.app/Contents/Resources/python` (`scripts/bundle_python.sh`, ~200 MB unpacked), so users

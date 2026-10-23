@@ -258,42 +258,42 @@ fn home() -> PathBuf {
     PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".into())).join("Mnemos")
 }
 
-const KC_SERVICE: &str = "io.mnemos.desktop";
+/// The local bearer token: a 0600 file in ~/Mnemos (0.12.1). It only unlocks the local page on 127.0.0.1, so the
+/// Keychain bought nothing but password prompts: the app is ad-hoc signed, its signature changes with every build
+/// and macOS forgets "Always Allow" on each update (2-4 prompts per start). No Keychain access at all now; an old
+/// Keychain item is simply ignored (a fresh token only affects the local page; Claude uses stdio, no token).
+static TOKEN: OnceLock<String> = OnceLock::new();
 
-/// The local bearer token lives in the macOS Keychain (not in ~/Mnemos/token). First run after an upgrade moves
-/// the file into the Keychain. MNEMOS_NO_KEYCHAIN=1 keeps the file (CI, CLI users).
 fn token() -> Result<String, String> {
+    if let Some(t) = TOKEN.get() {
+        return Ok(t.clone());
+    }
     let file = home().join("token");
-    if std::env::var("MNEMOS_NO_KEYCHAIN").as_deref() == Ok("1") || !cfg!(target_os = "macos") {
-        return std::fs::read_to_string(&file).map(|t| t.trim().to_string()).map_err(|_| "Mnemos is not set up yet".into());
-    }
-    #[cfg(target_os = "macos")]
-    {
-        use security_framework::passwords::{get_generic_password, set_generic_password};
-        let acct = home().display().to_string();
-        if let Ok(t) = std::fs::read_to_string(&file) {
-            let t = t.trim().to_string();
-            if set_generic_password(KC_SERVICE, &acct, t.as_bytes()).is_ok()
-                && get_generic_password(KC_SERVICE, &acct).ok().as_deref() == Some(t.as_bytes())
-            {
-                let _ = std::fs::remove_file(&file);
+    let t = match std::fs::read_to_string(&file).map(|t| t.trim().to_string()) {
+        Ok(t) if !t.is_empty() => t,
+        _ => {
+            if !home().join("contexts.yaml").exists() {
+                return Err("Mnemos is not set up yet".into());
             }
-            return Ok(t);
-        }
-        if let Ok(b) = get_generic_password(KC_SERVICE, &acct) {
-            return String::from_utf8(b).map_err(|e| e.to_string());
-        }
-        // lost (e.g. Keychain reset): a fresh token only affects the local page; Claude uses stdio, no token
-        if home().join("contexts.yaml").exists() {
             let t: String = std::iter::repeat_with(|| format!("{:08x}", rand_u32())).take(6).collect();
-            set_generic_password(KC_SERVICE, &acct, t.as_bytes()).map_err(|e| e.to_string())?;
-            return Ok(t);
+            write_private(&file, &t)?;
+            t
         }
-    }
-    Err("Mnemos is not set up yet".into())
+    };
+    Ok(TOKEN.get_or_init(|| t).clone())
 }
 
-#[cfg(target_os = "macos")]
+fn write_private(path: &std::path::Path, text: &str) -> Result<(), String> {
+    let mut o = std::fs::OpenOptions::new();
+    o.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        o.mode(0o600);
+    }
+    o.open(path).and_then(|mut f| f.write_all(text.as_bytes())).map_err(|e| e.to_string())
+}
+
 fn rand_u32() -> u32 {
     let mut b = [0u8; 4];
     let _ = std::fs::File::open("/dev/urandom").and_then(|mut f| std::io::Read::read_exact(&mut f, &mut b));
@@ -472,7 +472,7 @@ fn setup(contexts: Vec<String>, owner: String, password: String) -> Result<Strin
     if !res.status.success() {
         return Err(String::from_utf8_lossy(&res.stderr).lines().last().unwrap_or("password failed").to_string());
     }
-    let _ = token(); // move the new token into the Keychain
+    let _ = token(); // create the 0600 token file if init did not
     let _ = set_login_item(true); // a memory that is off is no memory: start with the Mac (toggle in the app)
     Ok(h)
 }
@@ -487,7 +487,7 @@ fn show_main(app: &tauri::AppHandle) {
 /// Headless entry points (same code paths as the buttons; used by the end-to-end "friend test" and scripts):
 ///   Mnemos --setup <contexts> <name>   (password on stdin)   = the first-run wizard
 ///   Mnemos --connect-claude                                 = the Connect button (one entry, every space)
-///   Mnemos --open-memory                                    = menu "Open my memory" (browser, token from Keychain)
+///   Mnemos --open-memory                                    = menu "Open my memory" (browser, token from ~/Mnemos/token)
 ///   Mnemos --app-cards                                      = the Connect apps screen as JSON (commands, links)
 fn headless() -> Option<i32> {
     let args: Vec<String> = std::env::args().collect();

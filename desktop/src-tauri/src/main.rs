@@ -136,9 +136,17 @@ fn claude_extensions() -> Vec<String> {
 
 /// Claude Desktop does not pass MCP server instructions to the model, so the save rules only reach it through
 /// tool descriptions. Its personal preferences (Settings → Profile) are read in every chat: this text goes there.
-const CLAUDE_PREFS: &str = "I use Mnemos as my long-term memory. At the start of every chat call memory_profile. \
+const CLAUDE_PREFS: &str = "I use Mnemos as my long-term memory. At the start of every chat call memory_start (memory_profile on older setups). \
 Whenever I share something lasting about myself (likes, people, work, projects, decisions, goals), save it right away \
-with memory_save in one short sentence, without asking. Search it with memory_search when my past or preferences matter.";
+with memory_remember (memory_save on older setups) in one short sentence, without asking. Search it with memory_search when my past or preferences matter.";
+
+/// Opens Claude Desktop so the user can remove an old Mnemos extension (Settings → Extensions). Mnemos never edits
+/// Claude's extension files itself.
+#[tauri::command]
+fn open_claude() -> Result<(), String> {
+    std::process::Command::new("/usr/bin/open").args(["-a", "Claude"]).status().map_err(|e| e.to_string())?;
+    Ok(())
+}
 
 #[tauri::command]
 fn claude_notes() -> serde_json::Value {
@@ -575,7 +583,7 @@ fn main() {
                 api.prevent_close();
             }
         })
-        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude, connect_cursor, app_cards, memory_url, claude_notes,
+        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude, connect_cursor, app_cards, memory_url, claude_notes, open_claude,
                                                  set_login_item, login_item])
         .build(tauri::generate_context!())
         .expect("error while building Mnemos Desktop");

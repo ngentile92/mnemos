@@ -25,7 +25,7 @@
           <li><b>Claude</b> (web, desktop and phone share connectors): Settings → Connectors → Add custom connector → paste the address → Connect.</li>
           <li><b>ChatGPT</b>: Settings → Apps &amp; Connectors → Advanced → Developer mode on → Create → paste the address, authentication OAuth.</li>
           <li><b>Grok</b> and other apps with “remote MCP server”: paste the address; choose OAuth if asked.</li>
-          <li>A Mnemos page opens: type your Mnemos password and tick the spaces that app may use. It then appears in the list above, marked “from anywhere”.</li></ul></details>
+          <li>A Mnemos page opens: type your Mnemos password and tick the spaces that app may use. It then appears in the Apps tab, marked “from anywhere”.</li></ul></details>
         <label class="small"><input type="checkbox" id="rm-awake" ${st.keep_awake ? "checked" : ""}> Keep this computer from sleeping while this is on (when plugged in; closing the lid still sleeps)</label>
         <div class="ap-ctl"><button class="mbtn danger" id="rm-off">Turn off</button> <button class="mbtn" id="rm-check">Check</button></div>`;
     } else {
@@ -65,5 +65,5 @@
       catch (e) { msg(esc(e.message), true); }
     }
   });
-  window.addEventListener("mnemos:view", (e) => { if (e.detail === "apps") load(false); });
+  window.addEventListener("mnemos:view", (e) => { if (e.detail === "settings") load(false); });
 })();

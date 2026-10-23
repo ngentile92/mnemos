@@ -77,8 +77,11 @@ async function claudeExtras(el) {
   let n; try { n = await invoke("claude_notes"); } catch (_) { return; }
   if (n.duplicate) {
     const w = document.createElement("p"); w.className = "small"; w.style.color = "#f59e0b";
-    w.textContent = `Claude also has the Mnemos extension installed (${n.extensions.join(", ")}). Remove it in Claude → Settings → Extensions, so Claude sees one memory.`;
-    el.append(w);
+    w.textContent = `Claude also has the old Mnemos extension (${n.extensions.join(", ")}), so it sees Mnemos twice. The extension is no longer needed: remove it in Claude → Settings → Extensions → Mnemos → Uninstall.`;
+    const ob = document.createElement("button"); ob.textContent = "Open Claude to remove it";
+    ob.onclick = async () => { try { await invoke("open_claude"); } catch (_) { /* Claude not installed */ } };
+    const oa = document.createElement("div"); oa.className = "actions"; oa.append(ob);
+    el.append(w, oa);
   }
   const p = document.createElement("p"); p.className = "muted small";
   p.textContent = "So Claude saves on its own: paste this once in Claude → Settings → Profile → personal preferences.";

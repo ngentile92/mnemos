@@ -153,8 +153,8 @@
   }
   function frame() {
     if (!running) return;
+    if (document.hidden) { running = false; return; }   // window hidden: stop; visibilitychange restarts it
     requestAnimationFrame(frame);
-    if (document.hidden) return;
     const t = (performance.now() - t0) / 1000;
     if (sim && !reduce) sim.tick();
     if (target) {                                  // smooth camera (fly-in / fit / focus)
@@ -527,11 +527,15 @@
     build(g); legend();
     if (quiet && keepSel && byId.get(keepSel)) { sel = byId.get(keepSel); path = keepPath; } else if (quiet) { sel = null; path = null; }
     if (!quiet || !sel) summary(); else progressCard();
-    if (!running) { running = true; requestAnimationFrame(frame); }
+    const shown = !$("view-graph").classList.contains("hidden");
+    if (!running && shown) { running = true; requestAnimationFrame(frame); }   // never animate in the background
     if (!quiet) fit(first);
     clearTimeout(load._poll);
     if (g.building && !$("view-graph").classList.contains("hidden")) load._poll = setTimeout(() => load(true), 4000);
   }
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && cv && !running && nodes.length && !$("view-graph").classList.contains("hidden")) { running = true; requestAnimationFrame(frame); }
+  });
   window.addEventListener("mnemos:view", (ev) => { if (ev.detail !== "graph") { running = false; } else if (cv && !running && nodes.length) { running = true; resize(); requestAnimationFrame(frame); } });
   window.MnemosGraph = { load: () => load(), timelapse, png, fit, _live: (g) => { build(g); legend(); summary(); }, _state: () => ({ nodes: nodes.length, links: links.length, galaxies: galaxies.map((g) => g.name) }) };
 })();

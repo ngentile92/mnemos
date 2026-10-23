@@ -136,6 +136,9 @@
       on this computer (no AI reads it at that moment, code and pasted logs are dropped) and, once the chat goes quiet, Mnemos keeps the lasting facts
       in <i>Recently learned</i>, where you can undo any of them. New chats also start knowing your profile. Pausing the app in the list above pauses this too.</p>
     <div id="cap-list" class="ap-list"></div><p class="small" id="cap-msg"></p></section>
+  <section class="card" style="margin:0 36px 14px" id="sync-card"><div class="card-h"><h2>Built-in memory for coding agents</h2><span class="muted small">opt-in</span></div>
+    <p class="small muted">Write your profile where Claude Code, Codex and Cursor already look, so every session starts knowing you even before it calls Mnemos. Only the spaces you pick; Mnemos keeps a backup of any file it touches and only writes its own part (in Codex's AGENTS.md, a marked block). Turning it off removes exactly what Mnemos wrote.</p>
+    <div id="sync-list" class="ap-list"></div><p class="small" id="sync-msg"></p></section>
   <section class="card" style="margin:0 36px 14px" id="rm-card"><div class="card-h"><h2>Reach from anywhere</h2><span class="ap-pill" id="rm-state">off</span></div>
     <p class="small muted">Lets AI apps that run in the cloud (Claude on the web and on your phone, ChatGPT, Grok) use your memory through
       <b>Tailscale Funnel</b>, a free secure tunnel to this computer. Each app signs in with your Mnemos password and you choose which spaces it may use.</p>
@@ -240,5 +243,6 @@
 <script src="/ui/capture.js"></script>
 <script src="/ui/model.js"></script>
 <script src="/ui/files.js"></script>
+<script src="/ui/sync.js"></script>
 </body>
 </html>

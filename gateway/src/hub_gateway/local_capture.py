@@ -262,6 +262,8 @@ class Capture:
         while True:
             try:
                 await self.run_once()
+                from . import local_sync
+                await asyncio.to_thread(local_sync.refresh, Path(self.ui.home))  # 0.12: opt-in native memory files
                 from . import local_labs
                 if local_labs.enabled(Path(self.ui.home)) and (
                         time.localtime().tm_hour in (2, 3, 4, 5) or not self.st.get("consolidated_at")):

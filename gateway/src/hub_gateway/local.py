@@ -361,6 +361,20 @@ tokens by hand.</p></body>""",
     def _user_home() -> Path:
         return Path(os.environ.get("MNEMOS_SCAN_HOME") or Path.home())
 
+    async def _sync(_b):
+        from . import local_sync
+        return local_sync.status(home, list(servers))
+
+    async def _sync_set(b):
+        from . import local_sync
+        try:
+            r = local_sync.set_target(home, str(b.get("target") or ""), bool(b.get("on")), b.get("spaces"), list(servers))
+        except ValueError as e:
+            return {"error": str(e)}
+        return {**r, **local_sync.status(home, list(servers))}
+    ui.hooks[("GET", "sync")] = _sync
+    ui.hooks[("POST", "sync")] = _sync_set
+
     async def _hooks(_b):
         return {"apps": local_hooks.status(_user_home()), "spool": local_spool.counts(home)}
 

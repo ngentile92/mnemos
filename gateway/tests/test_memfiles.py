@@ -20,11 +20,18 @@ def run(c):
     return asyncio.run(c)
 
 
+def test_no_tags_uses_word_rules(tmp_path):
+    s = store(tmp_path)
+    assert run(s.remember("Me llamo Ana.", DS))["file"] == "personal/profile.md"
+    assert run(s.remember("Mi hermana Laura vive en Lisboa.", DS))["file"] == "personal/topics/people.md"
+    assert run(s.remember("Horses at the farm.", DS))["file"] == "personal/topics/notes.md"
+
+
 def test_remember_routes_by_kind_and_commits_per_app(tmp_path):
     s = store(tmp_path)
     a = run(s.remember("Lives in Lisbon.", DS, metadata={"source_app": "claude-code", "tags": ["kind-identity"]}))
     b = run(s.remember("Sister Ana is a doctor.", DS, metadata={"source_app": "chatgpt", "tags": ["kind-relationship"]}))
-    c = run(s.remember("Likes horses.", DS, metadata={"source_app": "Claude"}))
+    c = run(s.remember("Horses at the farm.", DS, metadata={"source_app": "Claude"}))
     assert a["file"] == "personal/profile.md" and b["file"] == "personal/topics/people.md"
     assert c["file"] == "personal/topics/notes.md"
     prof = (tmp_path / "memory/personal/profile.md").read_text()
@@ -45,11 +52,11 @@ def test_same_text_is_one_note(tmp_path):
 
 def test_update_delete_keep_ids_and_history(tmp_path):
     s = store(tmp_path)
-    nid = run(s.remember("Uses Kaiko for market data.", DS))["items"][0]["id"]
-    other = run(s.remember("Prefers Postgres.", DS))["items"][0]["id"]
-    run(s.update(DS, nid, "Uses Tiingo for market data."))
-    assert run(s.raw_text(DS, nid)) == "Uses Tiingo for market data."
-    assert run(s.raw_text(DS, other)) == "Prefers Postgres."
+    nid = run(s.remember("Market data comes from Kaiko.", DS))["items"][0]["id"]
+    other = run(s.remember("Database: Postgres.", DS))["items"][0]["id"]
+    run(s.update(DS, nid, "Market data comes from Tiingo."))
+    assert run(s.raw_text(DS, nid)) == "Market data comes from Tiingo."
+    assert run(s.raw_text(DS, other)) == "Database: Postgres."
     run(s.delete_data(DS, other))
     assert run(s.raw_text(DS, other)) is None
     with pytest.raises(MemoryError_):
@@ -59,17 +66,17 @@ def test_update_delete_keep_ids_and_history(tmp_path):
 
 def test_supersede_moves_to_no_longer_true(tmp_path):
     s = store(tmp_path)
-    nid = run(s.remember("Uses Kaiko.", DS))["items"][0]["id"]
-    run(s.remember("Uses Tiingo.", DS))
+    nid = run(s.remember("Market data: Kaiko.", DS))["items"][0]["id"]
+    run(s.remember("Market data: Tiingo.", DS))
     run(s.supersede(DS, nid))
     text = (tmp_path / "memory/personal/topics/notes.md").read_text()
-    assert "## No longer true" in text and "~~Uses Kaiko.~~" in text
+    assert "## No longer true" in text and "~~Market data: Kaiko.~~" in text
     assert [d["id"] for d in run(s.list_data(DS))] != [nid] and nid not in {d["id"] for d in run(s.list_data(DS))}
-    assert run(s.raw_text(DS, nid)) == "Uses Kaiko."  # still readable as history
-    run(s.remember("Likes jazz.", DS))  # new notes go above the past section
+    assert run(s.raw_text(DS, nid)) == "Market data: Kaiko."  # still readable as history
+    run(s.remember("Jazz on Fridays.", DS))  # new notes go above the past section
     body = split_front((tmp_path / "memory/personal/topics/notes.md").read_text())[1]
     bs = bullets(body)
-    assert [b["text"] for b in bs if not b["past"]] == ["Uses Tiingo.", "Likes jazz."]
+    assert [b["text"] for b in bs if not b["past"]] == ["Market data: Tiingo.", "Jazz on Fridays."]
 
 
 def test_hand_edit_keeps_ids_and_is_committed_as_you(tmp_path):
@@ -112,7 +119,7 @@ def test_restore_and_undo(tmp_path):
 
 def test_write_file_checks_version(tmp_path):
     s = store(tmp_path)
-    run(s.remember("Likes horses.", DS))
+    run(s.remember("Horses at the farm.", DS))
     f = s.read_file(DS, "personal/topics/notes.md")
     s.write_file(DS, f["file"], f["text"] + "- Likes jazz.\n", expected=f["version"])
     with pytest.raises(MemoryError_):

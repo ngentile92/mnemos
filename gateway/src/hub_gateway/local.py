@@ -634,6 +634,25 @@ def _exit_with_parent() -> None:
     threading.Thread(target=watch, daemon=True, name="parent-watch").start()
 
 
+
+def port_busy(port: int) -> str | None:
+    """A clear message when the port is taken (by another Mnemos or another app), else None."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sk:
+        try:
+            sk.bind(("127.0.0.1", port))
+            return None
+        except OSError:
+            pass
+    try:
+        import httpx
+        if httpx.get(f"http://127.0.0.1:{port}/health", timeout=1).json().get("mode") == "local":
+            return f"Mnemos is already running on port {port}."
+    except Exception:  # noqa: BLE001 — not a Mnemos
+        pass
+    return (f"Port {port} is used by another app, not Mnemos (OpenMemory uses it too, for example). "
+            "Quit that app and start Mnemos again, or pass --port.")
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="mnemos-local", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -689,6 +708,9 @@ def main(argv: list[str] | None = None) -> int:
         servers[a.context].run(transport="stdio", show_banner=False)
         return 0
     _exit_with_parent()
+    busy = port_busy(a.port)
+    if busy:
+        raise SystemExit(busy)
     import uvicorn
     uvicorn.run(http_app(home, a.port), host="127.0.0.1", port=a.port, log_level="info")
     # Stopped (Quit / SIGTERM): skip C++ static teardown. llama.cpp's Metal backend can GGML_ASSERT there while a

@@ -156,3 +156,24 @@ async def test_update_refreshes_model_copy_and_profile(home):
         assert "té verde" not in profile_text(m)  # stale profile dropped
         prof = data(await p.call_tool("memory_profile", {}))["profile"]
         assert "café solo" in prof and "té verde" not in prof
+
+
+def test_port_busy_message():
+    import socket
+    from hub_gateway.local import port_busy
+    with socket.socket() as sk:
+        sk.bind(("127.0.0.1", 0)); sk.listen(1)
+        port = sk.getsockname()[1]
+        msg = port_busy(port)
+    assert msg and "another app" in msg
+    assert port_busy(port) is None
+
+
+def test_rate_limit_key_is_per_client():
+    from hub_gateway.app import rate_client_id
+
+    class Ctx:
+        class fastmcp_context:
+            session_id = "s1"
+    assert rate_client_id(Ctx()).endswith("|s1")
+    assert rate_client_id(object()).endswith("|-")

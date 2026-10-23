@@ -374,9 +374,26 @@ fn hub_command(args: &[&str]) -> Result<Command, String> {
     Ok(cmd)
 }
 
-fn healthy() -> bool {
+/// Something is listening on our port (Mnemos or another app).
+fn port_taken() -> bool {
     let addr: SocketAddr = ([127, 0, 0, 1], PORT).into();
     TcpStream::connect_timeout(&addr, Duration::from_millis(300)).is_ok()
+}
+
+/// A Mnemos answers on our port (its /health says mode "local"), not just any app that took 8765.
+fn healthy() -> bool {
+    use std::io::Read;
+    let addr: SocketAddr = ([127, 0, 0, 1], PORT).into();
+    let Ok(mut s) = TcpStream::connect_timeout(&addr, Duration::from_millis(300)) else { return false };
+    let _ = s.set_read_timeout(Some(Duration::from_millis(800)));
+    let _ = s.set_write_timeout(Some(Duration::from_millis(300)));
+    if s.write_all(b"GET /health HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n").is_err() {
+        return false;
+    }
+    let mut buf = Vec::new();
+    let _ = s.take(4096).read_to_end(&mut buf);
+    let body = String::from_utf8_lossy(&buf);
+    body.contains("\"mode\":\"local\"") || body.contains("\"mode\": \"local\"")
 }
 
 fn valid_ctx(c: &str) -> bool {
@@ -416,7 +433,11 @@ fn start_hub(hub: State<Hub>) -> Result<(), String> {
         }
     }
     if healthy() {
-        return Err(format!("port {PORT} is already in use (another Mnemos running?)"));
+        return Err("Another Mnemos is already running. Quit it from its menu bar icon (Quit Mnemos), then press Start.".into());
+    }
+    if port_taken() {
+        return Err(format!("Port {PORT} is used by another app, not Mnemos (OpenMemory uses it too, for example). \
+Quit that app, then press Start."));
     }
     let h = home();
     let log = std::fs::File::create(h.join("hub.log")).map_err(|e| e.to_string())?;

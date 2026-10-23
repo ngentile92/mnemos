@@ -32,6 +32,13 @@ Cleaner graph, round two.
 
 - Also hides file paths, links, @handles and whole sentences that the model mistook for things.
 - Folds "X API", "X repository", "X platform", "MCP de X", "base de datos de X" into X.
+Your notes go to the right space, and you can see what each AI app remembers.
+
+- Sorted by content: each new note (auto-capture from Claude Code, Cursor and Codex, Import, or an AI that names no space) goes to the space whose description fits it. The local model decides, with simple rules as a fallback. When unsure, the note stays in the default space marked "review". Recently learned shows where each note went and why, with a one-click Move.
+- Folders: map a code folder to a space (Spaces → Folders). Whatever you say in a coding app inside that folder goes there.
+- Better auto-capture: notes are written in your language, without "The person…/El usuario…", vague items are dropped and near-duplicates skipped (capture eval: precision 0.68 → 1.0 on the dev set).
+- App memories: a new tab showing each app's own memory files (Claude Code, Codex, Cursor, chat exports) exactly as stored, read-only, with path, date and "Import into Mnemos" per section.
+- Spaces with a one-word description now get a sensible default description for sorting.
 **New in 0.12: built-in memory for coding agents (opt-in).**
 - Mnemos → Apps → *Built-in memory for coding agents*: write your profile where each coding agent already looks, so
   every session starts knowing you even before it calls Mnemos. **Claude Code**: `~/.claude/rules/mnemos.md`.

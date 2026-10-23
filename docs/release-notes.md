@@ -12,6 +12,10 @@
 ## v0.10.2
 
 - Entity typing on the memory model, second pass: a new person needs a person cue next to the name; names that open sentences in several notes count; git commit trailers (Co-authored-by) are ignored; acronyms and technical terms (OAuth, RLS) are topics; the context name is a background org, never the subject.
+## Mnemos 0.12.1
+
+- **No more Keychain password prompts.** The local token now lives in `~/Mnemos/token` (0600). Before, the app was ad-hoc signed and its signature changed with every build, so macOS forgot "Always Allow" and asked 2–4 times per start and on "Open my memory".
+- **The Graph is back.** The Graph tab is visible again by default (Labs stays optional for the extra model features) and works with both note stores.
 **New in 0.12: built-in memory for coding agents (opt-in).**
 - Mnemos → Apps → *Built-in memory for coding agents*: write your profile where each coding agent already looks, so
   every session starts knowing you even before it calls Mnemos. **Claude Code**: `~/.claude/rules/mnemos.md`.

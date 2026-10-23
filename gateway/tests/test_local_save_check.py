@@ -38,3 +38,18 @@ async def test_duplicate_and_related(home):
         assert r["saved_to"] and r["similar_notes"]  # different year: related, not a duplicate
         who = data(await p.call_tool("hub_whoami", {}))
         assert who["login"] == "local-owner"
+
+
+@pytest.mark.parametrize("store", ["notes", "files"])
+async def test_contradiction_across_languages_without_model(tmp_path, monkeypatch, store):
+    monkeypatch.delenv("HUB_OLLAMA_URL", raising=False)
+    monkeypatch.setenv("MNEMOS_STORE", store)
+    h = tmp_path / "Mnemos"
+    local.init_home(h, ["personal", "work"], "Ana")
+    s = local.build_all(h, 8765)
+    async with Client(s["personal"]) as p:
+        tool = "memory_remember" if store == "files" else "memory_save"
+        await p.call_tool(tool, {"text": "Prefers dark mode in every app"})
+        r = data(await p.call_tool(tool, {"text": "No me gusta el modo oscuro"}))
+        assert any(n["kind"] == "contradicts" for n in r.get("similar_notes") or []), r
+        assert "contradict" in r["note"]

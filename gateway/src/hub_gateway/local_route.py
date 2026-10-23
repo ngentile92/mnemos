@@ -56,9 +56,12 @@ def describe(spaces: list[dict]) -> list[dict]:
     out = []
     for sp in spaces:
         name, label = str(sp.get("name")), str(sp.get("label") or sp.get("name"))
-        d = str(sp.get("description") or "").strip() or DEFAULT_DESC.get(name) or DEFAULT_DESC.get(label.lower()) \
-            or GENERIC_DESC.format(label=label)
-        out.append({"name": name, "label": label, "description": d, "custom": bool(sp.get("description"))})
+        own = str(sp.get("description") or "").strip()
+        # a description that only repeats the name ("work") says nothing: use the generic one for that name
+        custom = len(own.split()) >= 3 and own.lower() not in (name.lower(), label.lower())
+        d = own if custom else (DEFAULT_DESC.get(name) or DEFAULT_DESC.get(label.lower()) or own
+                                or GENERIC_DESC.format(label=label))
+        out.append({"name": name, "label": label, "description": d, "custom": custom})
     return out
 
 

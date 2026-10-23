@@ -182,6 +182,7 @@ list lista item items goal goals objetivo objetivos plan plans step steps paso p
 _LANG = re.compile(r"^(idioma|lengua|language|lenguaje)\s+\S+$|^\S+\s+(language|idioma)$")
 _IDENT = re.compile(r"^[a-z0-9]+(_[a-z0-9]+)+$")          # GLOBAL_PREFERENCES, user_id: code identifiers
 _DATE = re.compile(r"^[\d\s/.:,-]+$")
+_PATH = re.compile(r"^(~|/|\.{1,2}/|[a-z]:\\)|^https?://|^www\.|\S+/\S+/\S+")   # file paths, urls
 
 
 def junk(name: str) -> bool:
@@ -189,11 +190,17 @@ def junk(name: str) -> bool:
     k = norm(name)
     for art in ("el ", "la ", "los ", "las ", "un ", "una ", "a ", "an "):
         k = k.removeprefix(art)
+    if _PATH.search(k) or k.startswith("@") or len(k) > 40 or len(k.split()) > 4:  # paths, handles, whole phrases
+        return True
     return (len(k) < 2 or k in GENERIC or bool(_LANG.match(k) or _IDENT.match(k) or _DATE.match(k)))
 
 
 _PRE = ("proyecto ", "project ", "el proyecto ", "the project ")
-_SUF = (" project", " proyecto", " app", " inc", " inc.", " ltd", " llc", " team", " hq", " sa", " s.a.")
+_SUF = (" project", " proyecto", " app", " inc", " inc.", " ltd", " llc", " team", " hq", " sa", " s.a.", " repository",
+        " repo", " platform", " plataforma", " api", " mcp", " database", " codebase", " website", " web")
+_HEAD = GENERIC | {"mcp", "arquitectura", "architecture", "repositorio", "repo", "repository", "equipo", "base de datos",
+                   "plataforma", "evidencia", "docs", "documentación", "documentacion"}
+_OF = {"de", "del", "para", "of", "for"}
 _TLD = re.compile(r"\.(com|info|io|ai|app|net|org|dev|co|es|ar)$")
 
 
@@ -201,6 +208,11 @@ def base(k: str) -> str:
     """The name without the decorations people add around it: "Nimbus project", "Nimbus.info",
     "Nimbus-E" and "proyecto Nimbus" are all Nimbus."""
     k0 = k
+    w = k.split()
+    for i, t in enumerate(w):                     # "MCP de X", "base de datos de X", "arquitectura para X" → X
+        if t in _OF and 0 < i < len(w) - 1 and " ".join(w[:i]) in _HEAD:
+            k = " ".join(w[i + 1:]).removeprefix("la ").removeprefix("el ").removeprefix("the ")
+            break
     for _ in range(2):
         for p in _PRE:
             k = k.removeprefix(p)

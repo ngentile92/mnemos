@@ -39,7 +39,7 @@ class DatasetMap:
             return self.ids[name]
         except KeyError as exc:
             raise MemoryError_(
-                f"dataset {name!r} no está en cognee-datasets.json; corré scripts/bootstrap_cognee.py"
+                f"dataset {name!r} is not in cognee-datasets.json; run scripts/bootstrap_cognee.py"
             ) from exc
 
 
@@ -71,7 +71,7 @@ class MemoryScope:
         if project is None:
             if self.ctx.project_required:
                 raise MemoryError_(
-                    f"en el contexto {self.ctx.name} tenés que indicar project: {', '.join(self.ctx.projects)}"
+                    f"in context {self.ctx.name} you must pass project: {', '.join(self.ctx.projects)}"
                 )
             name = self.ctx.datasets[""]
         else:
@@ -80,8 +80,8 @@ class MemoryScope:
 
     def _dataset_for_project(self, project: str) -> str:
         if project not in self.ctx.projects:
-            opts = ", ".join(self.ctx.projects) or "(este contexto no tiene subproyectos)"
-            raise MemoryError_(f"project inválido {project!r}. Opciones: {opts}")
+            opts = ", ".join(self.ctx.projects) or "(this context has no projects)"
+            raise MemoryError_(f"invalid project {project!r}. Options: {opts}")
         return self.ctx.datasets[project]
 
     def allowed_ids(self) -> set[str]:
@@ -117,7 +117,7 @@ class CogneeClient:
     async def recall(self, query: str, dataset_ids: list[str], top_k: int = 10,
                      search_type: str | None = None) -> Any:
         if not dataset_ids:
-            raise MemoryError_("sin datasets: el gateway nunca consulta sin alcance explícito")
+            raise MemoryError_("no datasets: the gateway never queries without an explicit scope")
         payload = {
             "query": query,
             "dataset_ids": dataset_ids,
@@ -131,16 +131,16 @@ class CogneeClient:
         if r.status_code == 404 and "NoDataError" in r.text:
             return []  # dataset(s) todavía vacíos: no es un error para el modelo
         if r.status_code in (403, 404):
-            raise MemoryError_(f"Cognee negó el acceso o no encontró datasets (HTTP {r.status_code})")
+            raise MemoryError_(f"Cognee denied access or found no datasets (HTTP {r.status_code})")
         r.raise_for_status()
         return r.json()
 
     async def remember(self, text: str, dataset_id: str, node_set: list[str] | None = None,
                        run_in_background: bool = True, metadata: dict[str, Any] | None = None) -> Any:
         if not text.strip():
-            raise MemoryError_("texto vacío")
+            raise MemoryError_("empty text")
         if len(text) > MAX_TEXT_CHARS:
-            raise MemoryError_(f"texto demasiado largo (máx {MAX_TEXT_CHARS} caracteres)")
+            raise MemoryError_(f"text too long (max {MAX_TEXT_CHARS} characters)")
         form: list[tuple[str, str]] = [
             ("raw_data", text),
             ("datasetId", dataset_id),
@@ -156,7 +156,7 @@ class CogneeClient:
             # multipart/form-data, como espera el endpoint /api/v1/remember
             r = await c.post("/api/v1/remember", files=[(k, (None, v)) for k, v in form])
         if r.status_code in (403, 404):
-            raise MemoryError_(f"Cognee negó la escritura (HTTP {r.status_code})")
+            raise MemoryError_(f"Cognee denied the write (HTTP {r.status_code})")
         r.raise_for_status()
         return r.json()
 
@@ -165,7 +165,7 @@ class CogneeClient:
         async with self._client() as c:
             r = await c.get(f"/api/v1/datasets/{dataset_id}/data")
         if r.status_code in (401, 403, 404):
-            raise MemoryError_(f"Cognee negó el listado (HTTP {r.status_code})")
+            raise MemoryError_(f"Cognee denied the listing (HTTP {r.status_code})")
         r.raise_for_status()
         data = r.json()
         return data if isinstance(data, list) else []
@@ -181,9 +181,9 @@ class CogneeClient:
         """Edit a note in place (PATCH /api/v1/update): keeps data_id and createdAt.
         Send node_set ONLY when tags change: it forces a full rebuild that drops external_metadata."""
         if not text.strip():
-            raise MemoryError_("texto vacío")
+            raise MemoryError_("empty text")
         if len(text) > MAX_TEXT_CHARS:
-            raise MemoryError_(f"texto demasiado largo (máx {MAX_TEXT_CHARS} caracteres)")
+            raise MemoryError_(f"text too long (max {MAX_TEXT_CHARS} characters)")
         files: list[tuple[str, tuple[str | None, str] | tuple[str, str, str]]] = [
             ("data", ("note.txt", text, "text/plain"))]
         for n in node_set or []:
@@ -191,7 +191,7 @@ class CogneeClient:
         async with self._client() as c:
             r = await c.patch("/api/v1/update", params={"data_id": data_id, "dataset_id": dataset_id}, files=files)
         if r.status_code in (403, 404):
-            raise MemoryError_(f"Cognee negó la corrección (HTTP {r.status_code})")
+            raise MemoryError_(f"Cognee denied the fix (HTTP {r.status_code})")
         r.raise_for_status()
         out = r.json()
         if isinstance(out, dict) and out.get("status") == "failed":
@@ -202,7 +202,7 @@ class CogneeClient:
         async with self._client() as c:
             r = await c.delete(f"/api/v1/datasets/{dataset_id}/data/{data_id}")
         if r.status_code in (401, 403, 404):
-            raise MemoryError_(f"Cognee negó el borrado (HTTP {r.status_code})")
+            raise MemoryError_(f"Cognee denied the delete (HTTP {r.status_code})")
         r.raise_for_status()
 
 

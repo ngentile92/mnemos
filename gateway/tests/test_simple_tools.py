@@ -66,7 +66,7 @@ async def test_six_tools_and_the_files(home):
         assert "- Ana's sister Laura lives in Córdoba" in text
         await c.call_tool("memory_forget", {"context": "personal", "id": e["new_id"]})
         assert "Córdoba" not in (home / "memory" / "personal" / "topics" / "people.md").read_text()
-        with pytest.raises(ToolError, match="secreto"):
+        with pytest.raises(ToolError, match="secret"):
             await c.call_tool("memory_remember", {"context": "personal", "text": "my github token is ghp_" + "a" * 36})
     repo = memfiles.MemoryRepo(home / "memory")
     log = repo.history("personal", 20)

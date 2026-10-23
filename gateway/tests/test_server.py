@@ -300,9 +300,9 @@ async def test_memory_delete_refuses_shared_foreign_and_bad_ids(make_server):
     async with Client(server) as c:
         with pytest.raises(ToolError, match="hub-admin"):
             await c.call_tool("memory_delete", {"id": NOTE_IDS["shared"]})
-        with pytest.raises(ToolError, match="no hay ninguna nota"):
+        with pytest.raises(ToolError, match="no note with that id"):
             await c.call_tool("memory_delete", {"id": NOTE_IDS["work"]})  # nota de otro contexto
-        with pytest.raises(ToolError, match="id inválido"):
+        with pytest.raises(ToolError, match="invalid id"):
             await c.call_tool("memory_delete", {"id": "../../datasets"})
         with pytest.raises(ToolError, match="hub-admin"):
             await c.call_tool("memory_update", {"id": NOTE_IDS["shared"], "text": "cambio"})
@@ -340,7 +340,7 @@ async def test_memory_undo_walks_back_corrections(make_server):
         assert rec.texts[pid] == "ver2"
         await c.call_tool("memory_undo", {"id": pid})
         assert rec.texts[pid] == "nota de personal sobre orion"
-        with pytest.raises(ToolError, match="nada para deshacer"):
+        with pytest.raises(ToolError, match="nothing to undo"):
             await c.call_tool("memory_undo", {"id": pid})
         hist = data(await c.call_tool("memory_history", {"id": pid}))
     assert [v["action"] for v in hist["previous_versions"]] == ["undone", "undone"]
@@ -365,11 +365,11 @@ async def test_history_and_undo_scoped_to_own_context(make_server):
         await c.call_tool("memory_delete", {"id": NOTE_IDS["work"]})
     server, rec2 = make_server("personal")  # same data dir would be per-context in compose
     async with Client(server) as c:
-        with pytest.raises(ToolError, match="no hay"):
+        with pytest.raises(ToolError, match="no history"):
             await c.call_tool("memory_history", {"id": NOTE_IDS["work"]})
-        with pytest.raises(ToolError, match="nada para deshacer"):
+        with pytest.raises(ToolError, match="nothing to undo"):
             await c.call_tool("memory_undo", {"id": NOTE_IDS["work"]})
-        with pytest.raises(ToolError, match="inválido"):
+        with pytest.raises(ToolError, match="invalid"):
             await c.call_tool("memory_history", {"id": "x"})
     assert rec2.remembers == []
 
@@ -535,9 +535,9 @@ async def test_bridge_lets_reader_list_but_not_edit(make_server, work_bridged_to
     async with Client(server) as c:
         who = data(await c.call_tool("hub_whoami", {}))
         listed = data(await c.call_tool("memory_list", {}))
-        with pytest.raises(ToolError, match="solo puede leer"):
+        with pytest.raises(ToolError, match="can only read"):
             await c.call_tool("memory_update", {"id": NOTE_IDS["work"], "text": "pisada desde personal"})
-        with pytest.raises(ToolError, match="solo puede leer"):
+        with pytest.raises(ToolError, match="can only read"):
             await c.call_tool("memory_delete", {"id": NOTE_IDS["work"]})
     assert who["bridged_datasets"] == ["work"]
     assert {i["dataset"]: i["editable"] for i in listed["items"]} == {"personal": True, "work": False}

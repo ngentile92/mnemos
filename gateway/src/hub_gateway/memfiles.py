@@ -343,7 +343,7 @@ class MemoryRepo:
     def _path(self, rel: str) -> Path:
         p = (self.root / rel).resolve()
         if self.root.resolve() not in p.parents or p.suffix != ".md" or ".mnemos" in p.parts or ".git" in p.parts:
-            raise MemoryError_("ruta de archivo inválida")
+            raise MemoryError_("invalid file path")
         return p
 
     @staticmethod
@@ -454,7 +454,7 @@ class MemoryRepo:
             idx = self._load()
             text = self.read(rel)
             if expected is not None and self.version(text) != expected:
-                raise MemoryError_("el archivo cambió desde que lo leíste: volvé a leerlo (version)")
+                raise MemoryError_("the file changed since you read it: read it again (version)")
             if not text:
                 if not create:
                     raise MemoryError_("archivo no encontrado (HTTP 404)")
@@ -513,7 +513,7 @@ class MemoryRepo:
         with self.locked():
             cur = self.read(rel)
             if expected is not None and self.version(cur) != expected:
-                raise MemoryError_("el archivo cambió desde que lo abriste: recargalo")
+                raise MemoryError_("the file changed since you opened it: reload it")
             if len(text) > 400_000:
                 raise MemoryError_("archivo demasiado grande")
             idx = self._load()
@@ -646,10 +646,10 @@ class FileNoteStore:
 
     def _name(self, ds: str) -> str:
         if self.allowed is not None and ds not in self.allowed:
-            raise MemoryError_("dataset fuera del alcance de este contexto (HTTP 403)")
+            raise MemoryError_("dataset outside this context's scope (HTTP 403)")
         name = self.names.get(ds)
         if not name or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", name):
-            raise MemoryError_("dataset id inválido")
+            raise MemoryError_("invalid dataset id")
         return name
 
     def dataset_name(self, ds: str) -> str:
@@ -659,9 +659,9 @@ class FileNoteStore:
                        run_in_background: bool = True, metadata: dict[str, Any] | None = None,
                        topic: str | None = None) -> Any:
         if not text.strip():
-            raise MemoryError_("texto vacío")
+            raise MemoryError_("empty text")
         if len(text) > MAX_TEXT_CHARS:
-            raise MemoryError_(f"texto demasiado largo (máx {MAX_TEXT_CHARS} caracteres)")
+            raise MemoryError_(f"text too long (max {MAX_TEXT_CHARS} characters)")
         name = self._name(dataset_id)
         meta = {k: v for k, v in (metadata or {}).items() if v not in (None, "", [])}
         tags = list(meta.get("tags") or node_set or [])
@@ -712,18 +712,18 @@ class FileNoteStore:
     async def update(self, dataset_id: str, data_id: str, text: str, node_set: list[str] | None = None,
                      author: str | None = None) -> Any:
         if not text.strip():
-            raise MemoryError_("texto vacío")
+            raise MemoryError_("empty text")
         if len(text) > MAX_TEXT_CHARS:
-            raise MemoryError_(f"texto demasiado largo (máx {MAX_TEXT_CHARS} caracteres)")
+            raise MemoryError_(f"text too long (max {MAX_TEXT_CHARS} characters)")
         name = self._name(dataset_id)
         b = self.repo.find(name, data_id)
         if not b:
-            raise MemoryError_("nota no encontrada (HTTP 404)")
+            raise MemoryError_("note not found (HTTP 404)")
 
         def fn(fm, body, bs, idx):
             cur = next((x for x in bs if x["id"] == data_id), None)
             if not cur:
-                raise MemoryError_("nota no encontrada (HTTP 404)")
+                raise MemoryError_("note not found (HTTP 404)")
             new_lines = bullet_lines(text.strip())
             if cur["past"]:
                 new_lines[0] = "- ~~" + new_lines[0][2:] + "~~" if len(new_lines) == 1 else new_lines[0]
@@ -740,12 +740,12 @@ class FileNoteStore:
         name = self._name(dataset_id)
         b = self.repo.find(name, data_id)
         if not b:
-            raise MemoryError_("nota no encontrada (HTTP 404)")
+            raise MemoryError_("note not found (HTTP 404)")
 
         def fn(fm, body, bs, idx):
             cur = next((x for x in bs if x["id"] == data_id), None)
             if not cur:
-                raise MemoryError_("nota no encontrada (HTTP 404)")
+                raise MemoryError_("note not found (HTTP 404)")
             end = cur["end"]
             body2 = body[:cur["start"]] + body[end:]
             idx["meta"].pop(data_id, None)
@@ -757,7 +757,7 @@ class FileNoteStore:
         name = self._name(dataset_id)
         b = self.repo.find(name, data_id)
         if not b:
-            raise MemoryError_("nota no encontrada (HTTP 404)")
+            raise MemoryError_("note not found (HTTP 404)")
         if b["past"]:
             return {"status": "already", "data_id": data_id}
 
@@ -785,7 +785,7 @@ class FileNoteStore:
 
     async def recall(self, query: str, dataset_ids: list[str], top_k: int = 10, search_type: str | None = None) -> Any:
         if not dataset_ids:
-            raise MemoryError_("sin datasets: el gateway nunca consulta sin alcance explícito")
+            raise MemoryError_("no datasets: the gateway never queries without an explicit scope")
         words = {w for w in re.findall(r"\w{3,}", query.lower())}
         scored = []
         for ds in dataset_ids:
@@ -833,12 +833,12 @@ class FileNoteStore:
         for rel in self.repo.files(name):
             if Path(rel).stem == s:
                 return rel
-        raise MemoryError_(f"no hay un tema {topic!r} (usá memory_start para ver los temas)")
+        raise MemoryError_(f"no topic {topic!r} (call memory_start to see the topics)")
 
     def read_file(self, dataset_id: str, rel: str) -> dict[str, Any]:
         name = self._name(dataset_id)
         if not rel.startswith(name + "/"):
-            raise MemoryError_("ese archivo no es de este espacio")
+            raise MemoryError_("that file is not in this space")
         text = self.repo.read(rel)
         if not text:
             raise MemoryError_("archivo no encontrado (HTTP 404)")
@@ -850,19 +850,19 @@ class FileNoteStore:
                    expected: str | None = None) -> dict[str, Any]:
         name = self._name(dataset_id)
         if not rel.startswith(name + "/") or not rel.endswith(".md"):
-            raise MemoryError_("ese archivo no es de este espacio")
+            raise MemoryError_("that file is not in this space")
         return self.repo.write_file(rel, text, author, expected)
 
     def history(self, dataset_id: str, rel: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         name = self._name(dataset_id)
         if rel and not rel.startswith(name + "/"):
-            raise MemoryError_("ese archivo no es de este espacio")
+            raise MemoryError_("that file is not in this space")
         return self.repo.history(rel or name, limit)
 
     def restore(self, dataset_id: str, rel: str, sha: str, author: str = "you") -> dict[str, Any]:
         name = self._name(dataset_id)
         if not rel.startswith(name + "/") or not re.fullmatch(r"[0-9a-f]{7,40}", sha or ""):
-            raise MemoryError_("archivo o versión inválidos")
+            raise MemoryError_("invalid file or version")
         return self.repo.restore(rel, sha, author)
 
 

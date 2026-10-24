@@ -31,7 +31,11 @@
     let total = 0;
     try { for (const c of s.contexts) total += ((await api("/api/memory/list?" + new URLSearchParams({ context: c }))).items || []).length; }
     catch { return false; }
-    if (total > 0) { api("/api/welcome", {}).catch(() => {}); return false; }
+    if (total > 0) { api("/api/welcome", {}).catch(() => {}); return false; }  // existing memory: no welcome, no demo
+    if (w.name) {  // the name was already given in the Mnemos window: ask it only once
+      try { await api("/api/welcome", {}); await api("/api/ftue", { step: "welcome" }); } catch { /* still boot */ }
+      return false;
+    }
     window.MNEMOS_WELCOME = w;
     return true;
   }

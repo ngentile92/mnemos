@@ -43,13 +43,16 @@
     if (!$("me-bulk")) return;
     $("me-bulk").classList.toggle("hidden", !picked.size);
     $("me-bulk-n").textContent = `${picked.size} selected`;
-    $("me-b-to").innerHTML = CTXS.filter((c) => c !== ctx()).map((c) => `<option>${esc(c)}</option>`).join("");
+    $("me-b-to").innerHTML = spOpts(CTXS.filter((c) => c !== ctx()));
     $("me-b-move").classList.toggle("hidden", CTXS.length < 2); $("me-b-to").classList.toggle("hidden", CTXS.length < 2);
   }
   $("me-ctx").innerHTML = CTXS.map((c) => `<option>${esc(c)}</option>`).join("");
   const saved = localStorage.getItem("mnemos.memctx");
   if (saved && CTXS.includes(saved)) $("me-ctx").value = saved;
   const ctx = () => $("me-ctx").value;
+  // spaces by their display name (Spaces screen), translated; the key stays the value
+  const spLabel = (name) => { const s = (((window.MNEMOS_SPACES || {}).spaces) || []).find((x) => x.name === name); const l = (s && s.label) || name; return window.tr ? window.tr(l) : l; };
+  const spOpts = (names, sel) => names.map((c) => `<option value="${esc(c)}"${c === sel ? " selected" : ""}>${esc(spLabel(c))}</option>`).join("");
   const when = (s) => {
     if (!s) return "";
     const t = String(s);
@@ -164,7 +167,7 @@
         <button class="mbtn" id="me-promote">Promote to shared…</button>
         <button class="mbtn danger" id="me-forget">Forget</button></div>`
         : '<p class="muted small">Shared notes are read-only here.</p>'}
-      <dl class="me-meta"><dt>Dataset</dt><dd>${esc(it.dataset)}</dd>
+      <dl class="me-meta"><dt>Space</dt><dd>${esc(spLabel(it.dataset))}</dd>
         <dt>Saved</dt><dd>${esc(when(p.saved_at || it.created_at))} · ${esc(p.source_app || it.source_app || "unknown app")}</dd>
         ${p.updated_at ? `<dt>Last change</dt><dd>${esc(when(p.updated_at))} · ${esc(p.updated_by || "")}</dd>` : ""}
         <dt>True</dt><dd id="me-valid">${validText(p)} ${it.editable ? '<button class="mbtn sm" id="me-valid-edit">Set dates…</button>' : ""}</dd>
@@ -192,7 +195,8 @@
     try {
       const h = await get("/api/memory/history", { context: ctx(), id });
       const v = h.previous_versions || [];
-      $("me-hist").innerHTML = (h.provenance?.source ? `<p>${esc(h.provenance.source)}</p>` : "") + (v.length ? v.map((x) =>
+      const src = h.provenance?.source && !/metadata|cognee/i.test(h.provenance.source) ? h.provenance.source : "";
+      $("me-hist").innerHTML = (src ? `<p>${esc(src)}</p>` : "") + (v.length ? v.map((x) =>
         `<details><summary>${esc(when(x.replaced_at))} · ${esc(x.action)} · ${esc(x.by || "")}</summary><pre>${esc(x.text)}</pre></details>`).join("") : "<p>No previous versions.</p>");
     } catch (e) { $("me-hist").textContent = e.message; }
   }
@@ -244,11 +248,11 @@
   function moveMode(it) {
     const others = CTXS.filter((c) => c !== ctx());
     confirmPanel(it, `<p><b>Move this note to another context.</b> It is copied there (tagged “moved-from-${esc(ctx())}”, origin dashboard) and then forgotten here — you can undo the forget in <b>${esc(ctx())}</b>.</p>
-      <div class="me-row"><select id="me-move-to">${others.map((c) => `<option>${esc(c)}</option>`).join("")}</select>
+      <div class="me-row"><select id="me-move-to">${spOpts(others)}</select>
       <input id="me-move-proj" placeholder="project (only for contexts with projects)" maxlength="80"></div>`, "Move note", async () => {
       const to = $("me-move-to").value;
       await post("/api/memory/move", { context: ctx(), id: it.id, to, text: it.text, project: $("me-move-proj").value, confirm: true });
-      toast(`Moved to ${to} ✓`, it.id); selId = null; $("me-detail").innerHTML = '<p class="muted">Pick a note on the left.</p>'; load();
+      toast(`Moved to ${spLabel(to)} ✓`, it.id); selId = null; $("me-detail").innerHTML = '<p class="muted">Pick a note on the left.</p>'; load();
     });
   }
   function promoteMode(it) {
@@ -432,8 +436,8 @@
   const changedFiles = () => window.dispatchEvent(new Event("mnemos:memory-changed"));
   on("me-b-pin", "onclick", (e) => bulk(e.target, "Pin", (it) => post("/api/memory/pin", { context: ctx(), id: it.id, pinned: true }), "Pinned:"));
   on("me-b-move", "onclick", (e) => { const to = $("me-b-to").value;
-    if (confirm(`Move ${picked.size} notes to ${to}? Each one is copied there and forgotten here; you can undo each forget.`))
-      bulk(e.target, "Move", (it) => post("/api/memory/move", { context: ctx(), id: it.id, to, text: it.text, project: "", confirm: true }), `Moved to ${to}:`); });
+    if (confirm(`Move ${picked.size} notes to ${spLabel(to)}? Each one is copied there and forgotten here; you can undo each forget.`))
+      bulk(e.target, "Move", (it) => post("/api/memory/move", { context: ctx(), id: it.id, to, text: it.text, project: "", confirm: true }), `Moved to ${spLabel(to)}:`); });
   on("me-b-forget", "onclick", (e) => { if (confirm(`Forget ${picked.size} notes? Each one can be restored from its history.`))
       bulk(e.target, "Forget", (it) => post("/api/memory/delete", { context: ctx(), id: it.id }), "Forgotten:"); });
   on("me-b-clear", "onclick", () => { picked.clear(); renderList(); });

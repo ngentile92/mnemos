@@ -3,6 +3,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const t = (x) => (window.t ? window.t(x) : x);
   let data = null, app = null, file = null;
   function msg(t, bad) { $("nm-msg").textContent = t; $("nm-msg").style.color = bad ? "var(--bad,#f87171)" : "var(--ok,#34d399)"; }
   const when = (s) => (s ? new Date(s).toLocaleString() : "");
@@ -22,8 +23,9 @@
         <b>${esc(it.kind)}</b>${it.mnemos ? ' <span class="badge">written by Mnemos</span>' : ""}<br><span class="small muted">${esc(it.where)}</span><br>
         <span class="small muted">modified ${esc(when(it.modified))}</span></a>`).join("")
       : `<p class="muted small">${esc(a.label)} keeps no memory files on this computer (or it is not installed).</p>`;
+    if (!file && a.items.length) file = a.items[0].path;  // never an empty viewer: open the first file
     const it = a.items.find((x) => x.path === file);
-    if (!it) { $("nm-view").innerHTML = '<p class="muted small">Pick a file.</p>'; return; }
+    if (!it) { $("nm-view").innerHTML = `<div class="empty"><b>${esc(t("Nothing to show yet"))}</b>${esc(t("When this app writes memory files on this computer, they appear here exactly as stored."))}</div>`; return; }
     const pick = `<select class="nm-sp" aria-label="Space"><option value="auto">Sort by content</option>${spaces().map((s) => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("")}</select>`;
     $("nm-view").innerHTML = `<div class="small muted nm-meta"><code>${esc(it.where)}</code> · modified ${esc(when(it.modified))} · ${it.size} characters${it.truncated ? " (showing the start)" : ""}</div>
       ${it.note ? `<p class="small">${esc(it.note)}</p>` : ""}

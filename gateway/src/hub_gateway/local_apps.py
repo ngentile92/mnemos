@@ -46,6 +46,12 @@ LABELS = {  # clientInfo.name (lowercase) -> (key, label)
 _KEY_RE = re.compile(r"[^a-z0-9]+")
 
 
+def friendly_label(key: str, label: str | None) -> str:
+    """The name people know ("Claude Desktop"), also for apps first recorded under a raw client name."""
+    k, lab = app_key(label or key)
+    return lab if k != _KEY_RE.sub("-", str(label or key).lower()).strip("-")[:40] else (label or key)
+
+
 def app_key(client_name: str | None) -> tuple[str, str]:
     """(stable key, friendly label) for the name an MCP client declares."""
     raw = " ".join(str(client_name or "").split())[:60]
@@ -122,8 +128,8 @@ class Apps:
 
     def listing(self) -> dict[str, Any]:
         d = self.load()
-        apps = [{"key": k, **v, "allowed": self.allowed(v), "effective_default": self.default_for(v)}
-                for k, v in d["apps"].items()]
+        apps = [{"key": k, **v, "label": friendly_label(k, v.get("label")), "allowed": self.allowed(v),
+                 "effective_default": self.default_for(v)} for k, v in d["apps"].items()]
         apps.sort(key=lambda a: str(a.get("last_seen") or ""), reverse=True)
         return {"default_space": self.default_space(d), "spaces": self.contexts, "apps": apps}
 

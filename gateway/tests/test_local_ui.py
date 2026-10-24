@@ -107,3 +107,16 @@ def test_memory_js_in_sync_with_dashboard():
     b = root / "gateway" / "src" / "hub_gateway" / "local_ui_static" / "memory.js"
     if a.exists():
         assert a.read_text() == b.read_text(), "copy dashboard/static/memory.js into local_ui_static/"
+
+
+async def test_counts_endpoint_has_no_cap(tmp_path, monkeypatch):
+    from hub_gateway import local
+    from hub_gateway.local_ui import UI
+    h = tmp_path / "M"
+    local.init_home(h, ["personal", "work"], "Ana")
+    servers = local.build_all(h, 8765)
+    ui = UI(servers, h, "t")
+    for i in range(3):
+        await ui.action("save", {"context": "work", "text": f"Ana works on project number {i} at her company"})
+    c = await ui.counts()
+    assert c["spaces"]["work"] >= 1 and c["total"] == sum(c["spaces"].values())

@@ -90,6 +90,8 @@
     let view = ["home", "memoria", "graph", "skills", "spaces", "native", "apps", "import", "settings"].includes(v) ? v : "home";
     document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.id !== "view-" + view));
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
+    const more = $("tab-more");
+    if (more) { more.open = false; more.querySelector("summary").classList.toggle("active", ["spaces", "skills", "graph", "settings"].includes(view)); }
     if (!loaded[view]) {
       loaded[view] = true;
       if (view === "memoria") window.dispatchEvent(new Event("mnemos:memoria"));
@@ -360,6 +362,7 @@
   
   // ---------------------------------------------------------------- engine: built-in model, Ollama, API key
   const LABEL = { rules: "Rules", builtin: "Built-in", ollama: "Ollama", api: "API", apple: "Apple" };
+  const WHERE = { rules: "Simple rules (instant, on this Mac)", builtin: "Built-in model (on this Mac)", ollama: "Local model (on this Mac)", api: "Your API key (text leaves this Mac)", apple: "Apple Intelligence (on this Mac)" };
   const gb = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + " GB" : Math.round(n / 1e6) + " MB";
   let eng = null, engPoll = null;
   async function loadEngine() {
@@ -368,8 +371,8 @@
     const top = a.import.kind !== "rules" ? a.import : a.hygiene;
     $("eng-badge").textContent = "Engine: " + LABEL[top.kind];
     $("eng-badge").title = `Import: ${a.import.name} · Cleanup: ${a.hygiene.name} · Search: ${a.search.name}`;
-    $("st-active").innerHTML = [["Import (finding facts)", a.import], ["Cleanup (duplicates, notes that disagree)", a.hygiene], ["Search and duplicate check", a.search]]
-      .map(([k, e]) => `<div class="me-actions"><span class="badge">${LABEL[e.kind] || e.kind}</span><span class="small"><b>${esc(k)}</b> · ${esc(e.name)}${e.kind === "api" ? " · text leaves this Mac" : ""}</span></div>`).join("");
+    $("st-active").innerHTML = [["Finding facts", a.import], ["Cleaning up", a.hygiene], ["Searching", a.search]]
+      .map(([k, e]) => `<div class="me-actions"><span class="small"><b>${esc(k)}</b> · ${esc(WHERE[e.kind] || e.kind)}</span><span class="muted small" title="${esc(e.name)}"></span></div>`).join("");
     $("st-models").innerHTML = b.models.map((m) => `<p class="small">${m.present ? "✓" : "○"} ${esc(m.name)} · ${gb(m.size)} · ${esc(m.license || "")} <span class="muted">(${m.role === "llm" ? "facts and cleanup" : "search and duplicates"})</span></p>`).join("");
     const busy = d.state === "downloading";
     $("st-bstate").textContent = !b.runtime ? "not included in this install" : b.ready ? "installed" : b.upgrade ? (busy ? "upgrading to the better model — the previous one keeps working meanwhile" : "previous model in use — download the better one") : busy ? "downloading" : b.choice === "declined" ? "not downloaded (you said not now)" : "not downloaded";

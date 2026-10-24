@@ -20,7 +20,7 @@
     if (!routing || !$("sp-folders")) return;
     $("sp-fspace").innerHTML = data.spaces.filter((s) => s.name !== "shared").map((s) => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("");
     $("sp-folders").innerHTML = routing.folders.length ? routing.folders.map((f) => `<div class="sp-br small"><code>${esc(f.path)}</code>&nbsp;→&nbsp;<b>${esc(lab(f.space))}</b>
-      <button class="mbtn sp-frm" data-p="${esc(f.path)}" style="margin-left:auto">Remove</button></div>`).join("") : '<p class="small muted">No folders mapped yet.</p>';
+      <button class="mbtn sp-frm" data-p="${esc(f.path)}" style="margin-left:auto">Remove</button></div>`).join("") : '<div class="empty"><b>No folders yet</b>Add a project folder to send everything said there to one space.</div>';
   }
   document.addEventListener("click", async (ev) => {
     const t = ev.target;

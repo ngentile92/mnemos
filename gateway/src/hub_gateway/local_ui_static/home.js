@@ -16,7 +16,7 @@
     const ctxs = s.contexts.filter((c) => c !== "shared");
     let notes = 0, skills = 0, apps = [];
     await Promise.all([
-      ...s.contexts.map(async (c) => { try { notes += ((await api("/api/memory/list?" + new URLSearchParams({ context: c }))).items || []).length; } catch { /* skip */ } }),
+      (async () => { try { notes = (await api("/api/memory/counts")).total || 0; } catch { /* skip */ } })(),
       (async () => { try { skills = ((await api("/api/skills?" + new URLSearchParams({ context: ctxs[0] || "" }))).skills || []).length; } catch { /* skip */ } })(),
       (async () => { try { apps = ((await api("/api/apps")).apps || []).filter((a) => !a.revoked); } catch { /* skip */ } })(),
     ]);
@@ -65,7 +65,7 @@
   async function feed() {
     let r; try { r = await api("/api/activity?" + new URLSearchParams({ limit: 5 })); } catch { return; }
     $("hm-feed").innerHTML = r.events.length ? r.events.map((e) => `<div class="ap-ev"><span class="muted">${esc(when(e.ts))}</span><b>${esc(e.label)}</b><span>${esc(e.summary)}</span></div>`).join("")
-      : '<p class="small muted">${t("Nothing yet. What your AI apps read or save shows up here.")}</p>';
+      : `<p class="small muted">${t("Nothing yet. What your AI apps read or save shows up here.")}</p>`;
   }
 
   // local first-run timing (never sent anywhere)

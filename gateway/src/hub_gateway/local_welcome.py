@@ -14,7 +14,7 @@ from pathlib import Path
 
 from . import local_spaces as lsp
 
-PLACEHOLDER = "the owner"
+PLACEHOLDERS = {"the owner", "me"}  # contexts.py default and `mnemos-local init` default
 
 
 def _file(home: Path) -> Path:
@@ -26,7 +26,7 @@ def owner(home: Path) -> str:
         o = str(lsp._load(home).get("owner") or "").strip()
     except (OSError, ValueError):
         return ""
-    return "" if o == PLACEHOLDER else o
+    return "" if o.lower() in PLACEHOLDERS else o
 
 
 def done(home: Path) -> bool:

@@ -6,6 +6,16 @@
 
 Newest first. Each `## vX.Y.Z` section is the body of that GitHub Release (`scripts/release_notes.py`).
 
+## v0.16.0
+
+**A first run anyone can follow, in English or Spanish.**
+
+- **Welcome screen**: asks your name once, shows your spaces, and a short demo (for new memories only) shows another AI app remembering what you just saved.
+- **Home answers "is it working?" in five seconds**: one next step and one gentle memory suggestion.
+- **Pick your AIs and connect in one click**: every local app connects from the desktop app with a live check; errors come with a button that fixes them.
+- **Starter skills with Try it**, a cloud setup in two steps, and an About block.
+- **Whole app in English or Spanish**, including messages with numbers (proper plurals), server and desktop errors, and full sentences. No jargon on any screen.
+
 ## v0.15.0
 
 **Simpler and smarter without a model.**

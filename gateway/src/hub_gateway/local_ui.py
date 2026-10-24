@@ -416,11 +416,11 @@ class UI:
         if body.get("confirm") is not True:
             raise ValueError("moving a note needs explicit confirmation")
         if src == dst or dst not in self.servers:
-            raise ValueError("pick a different target context")
+            raise ValueError("pick a different target space")
         text = str(body.get("text", ""))
         found = await self.action("list", {"context": src, "contains": text[:80], "include_shared": False})
         if not any(i.get("id") == nid and str(i.get("text", "")).strip() == text.strip() for i in found.get("items", [])):
-            raise ValueError("the note changed or is not in that context — refresh and try again")
+            raise ValueError("the note changed or is not in that space — refresh and try again")
         saved = await self.action("save", {"context": dst, "text": text, "tags": [f"moved-from-{src}"]})
         gone = await self.action("delete", {"context": src, "id": nid})
         return {"moved": nid, "from": src, "to": dst, "saved": saved, "deleted": gone}
@@ -447,7 +447,7 @@ class UI:
         from . import local_import as li
         ctx, source = str(body.get("context", "")), str(body.get("source", ""))
         if ctx not in self.servers or source not in li.SOURCES:
-            raise ValueError("unknown context or source")
+            raise ValueError("unknown space or source")
         notes = [str(t).strip()[:li.MAX_NOTE] for t in (body.get("notes") or [])][:li.MAX_CANDIDATES]
         existing = await self._existing(ctx)
         seen = {li.norm(t) for t in existing}

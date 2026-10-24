@@ -119,7 +119,7 @@
         <button class="mbtn" id="me-move">Move…</button>
         <button class="mbtn" id="me-promote">Promote to shared…</button>
         <button class="mbtn danger" id="me-forget">Forget</button></div>`
-        : '<p class="muted small">Shared notes are read-only here (owner edits them with scripts/memory_admin.py).</p>'}
+        : '<p class="muted small">Shared notes are read-only here.</p>'}
       <dl class="me-meta"><dt>Dataset</dt><dd>${esc(it.dataset)}</dd>
         <dt>Saved</dt><dd>${esc(when(p.saved_at || it.created_at))} · ${esc(p.source_app || it.source_app || "unknown app")}</dd>
         ${p.updated_at ? `<dt>Last change</dt><dd>${esc(when(p.updated_at))} · ${esc(p.updated_by || "")}</dd>` : ""}
@@ -334,7 +334,7 @@
         : "";
       box.insertAdjacentHTML("beforeend", saveCard(q, ps.length > 0));
       const ck = j.checked || [];
-      if (!ck.length && !ps.length) box.insertAdjacentHTML("beforeend", '<p class="small muted">No note in this context mentions it.</p>');
+      if (!ck.length && !ps.length) box.insertAdjacentHTML("beforeend", '<p class="small muted">No note in this space mentions it.</p>');
       if (ck.length) box.insertAdjacentHTML("beforeend", `<details class="me-checked"><summary class="small muted">Checked ${ck.length} note${ck.length > 1 ? "s" : ""}${j.cached ? " · same answer as before (cached)" : ""}${j.timings_ms ? ` · ${((j.timings_ms.retrieval + j.timings_ms.model) / 1000).toFixed(1)} s` : ""} — why</summary>` +
         ck.map((c) => `<div class="small"><span class="${c.verdict === "proposed" ? "ok" : "muted"}">${esc(c.verdict)}</span> — ${esc(c.preview)}…</div>`).join("") + "</details>");
       box.querySelectorAll("[data-skip]").forEach((b) => (b.onclick = () => b.closest(".me-prop").remove()));

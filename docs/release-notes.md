@@ -6,6 +6,13 @@
 
 Newest first. Each `## vX.Y.Z` section is the body of that GitHub Release (`scripts/release_notes.py`).
 
+## v0.16.1
+
+**Hotfix: the desktop app no longer gets stuck on "Starting…".**
+
+- The desktop app's health check now sends the address and private token the server expects, so the status turns to "Mnemos is running" and **Open my memory** works.
+- If Mnemos ever takes more than 30 seconds to start, the app says so and offers a **Restart Mnemos** button instead of waiting forever.
+
 ## v0.16.0
 
 **A first run anyone can follow, in English or Spanish.**

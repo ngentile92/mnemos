@@ -78,10 +78,10 @@
     clearTimeout(demoPoll);
     let f; try { f = await api("/api/ftue"); } catch { return; }
     const st = f.steps || {};
-    const show = ok && !st.aha && !st.skipped;
+    const show = ok && !!st.welcome && !st.aha && !st.skipped;  // new memories only: older activity never ticks it
     $("hm-demo").classList.toggle("hidden", !show);
     if (!show) return;
-    const since = st.welcome || "";
+    const since = st.welcome;
     let ev = []; try { ev = ((await api("/api/activity?" + new URLSearchParams({ limit: 100 }))).events || []).filter((e) => e.ok !== 0 && e.ok !== false && (!since || e.ts >= since)).reverse(); } catch { /* none */ }
     const save = ev.find((e) => e.kind === "write");
     const ask = save && ev.find((e) => e.kind === "read" && e.ts > save.ts && (e.app !== save.app || e.tool === "memory_search"));

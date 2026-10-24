@@ -66,3 +66,10 @@ def test_home_view():
 
 def test_init_default_owner_is_not_a_name(tmp_path):
     assert local_welcome.status(_home(tmp_path, owner="me"))["name"] == ""
+
+
+def test_name_asked_once_and_demo_only_for_new_memories():
+    js = (STATIC / "local.js").read_text()
+    assert "if (w.name)" in js  # name from the Mnemos window: no second question
+    home = (STATIC / "home.js").read_text()
+    assert "!!st.welcome" in home

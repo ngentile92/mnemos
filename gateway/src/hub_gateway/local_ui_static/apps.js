@@ -1,6 +1,8 @@
 "use strict";
 // Apps screen: each AI app's default space, allowed spaces, pause / remove access, and the activity feed.
 (() => {
+  // activity summaries: "verb “quoted text” → n notes" — translate the verb and the tail, never the quoted text
+  const trSum = (s) => { const T = window.tr || ((x) => x); const m = String(s || "").match(/^([^“]*)(“.*”)?(.*)$/s); return m ? [T(m[1].trim()), m[2] || "", m[3].trim() ? T(m[3].trim()) : ""].filter(Boolean).join(" ") : s; };
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   let data = null;
@@ -65,7 +67,7 @@
     try { r = await window.MNEMOS_API("/api/activity?" + new URLSearchParams({ app: $("ap-filter").value, limit: 150 })); }
     catch (e) { $("ap-feed").innerHTML = `<p class="small muted">${esc(e.message)}</p>`; return; }
     $("ap-feed").innerHTML = r.events.length ? r.events.map((e) => `<div class="ap-ev"><span class="muted">${esc(when(e.ts))}</span>
-        <b>${esc(e.label)}</b><span class="k-${esc(e.kind)}">${esc(e.summary)}${e.space ? ` <span class="ap-pill">${esc(label(e.space))}</span>` : ""}</span></div>`).join("")
+        <b>${esc(e.label)}</b><span class="k-${esc(e.kind)}">${esc(trSum(e.summary))}${e.space ? ` <span class="ap-pill">${esc(label(e.space))}</span>` : ""}</span></div>`).join("")
       : '<p class="small muted">Nothing yet. What your AI apps read or save shows up here.</p>';
   }
   $("ap-filter").onchange = feed;

@@ -2,6 +2,8 @@
 // Home: answers "is it working?" at a glance (state, memories, connected apps, skills), one next step, at most one
 // gentle memory suggestion (accept or "not now"), and the latest activity.
 (() => {
+  // activity summaries: "verb “quoted text” → n notes" — translate the verb and the tail, never the quoted text
+  const trSum = (s) => { const T = window.tr || ((x) => x); const m = String(s || "").match(/^([^“]*)(“.*”)?(.*)$/s); return m ? [T(m[1].trim()), m[2] || "", m[3].trim() ? T(m[3].trim()) : ""].filter(Boolean).join(" ") : s; };
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const api = (p, b) => window.MNEMOS_API(p, b);
@@ -26,14 +28,17 @@
     $("hm-title").textContent = ok ? t("Mnemos is working ✓") : t("Almost there");
     $("hm-sub").textContent = ok ? `${live.length === 1 ? "1 AI app uses" : live.length + " AI apps use"} your memory` : t("Connect an AI app so it can use your memory");
     $("hm-apps").innerHTML = apps.map((a) => `<span class="ap-pill">${esc(a.label)} ${a.paused ? "· paused" : "✓"}</span>`).join("");
-    next(ok, notes);
+    let aha = false; try { aha = !!(((await api("/api/ftue")).steps || {}).aha); } catch { /* skip */ }
+    next(ok, notes, aha);
     if (ok) mark("first_app");
     loadTip(); feed(); demo(ok);
   }
 
-  function next(ok, notes) {
+  function next(ok, notes, aha) {
     let html;
-    if (!ok) html = `<div class="hm-next"><p>${t("In the Mnemos window, press Connect next to the AI apps you use, then restart them. They show up here after their first message.")}</p><a class="mbtn primary" href="#apps">${t("See apps")}</a></div>`;
+    if (ok && notes && aha) html = `<div class="hm-next"><p>${t("Your AIs already know you ✓ Next: see what each AI keeps on its own and bring in anything missing.")}</p><a class="mbtn primary" href="#native">${t("What each AI knows")}</a></div>`;
+    else
+    if (!ok) html = `<div class="hm-next"><p>${t("In the Mnemos window, press Connect next to the AI apps you use, then restart them. They show up here after their first message.")}</p><a class="mbtn primary" href="#apps">${t("Connect apps")}</a></div>`;
     else if (!notes) html = `<div class="hm-next"><p>${t("Your memory is empty. Mnemos can find what your AI apps already know about you; nothing is saved until you review it.")}</p><a class="mbtn primary" href="#import">${t("Find what my AIs know")}</a></div>`;
     else html = `<div class="hm-next"><p>${t("Try it: in any connected AI, ask")} <b>“${ASK}”</b></p><button class="mbtn primary" id="hm-copy">${t("Copy the question")}</button></div>`;
     $("hm-next-body").innerHTML = html;
@@ -64,7 +69,7 @@
 
   async function feed() {
     let r; try { r = await api("/api/activity?" + new URLSearchParams({ limit: 5 })); } catch { return; }
-    $("hm-feed").innerHTML = r.events.length ? r.events.map((e) => `<div class="ap-ev"><span class="muted">${esc(when(e.ts))}</span><b>${esc(e.label)}</b><span>${esc(e.summary)}</span></div>`).join("")
+    $("hm-feed").innerHTML = r.events.length ? r.events.map((e) => `<div class="ap-ev"><span class="muted">${esc(when(e.ts))}</span><b>${esc(e.label)}</b><span>${esc(trSum(e.summary))}</span></div>`).join("")
       : `<p class="small muted">${t("Nothing yet. What your AI apps read or save shows up here.")}</p>`;
   }
 

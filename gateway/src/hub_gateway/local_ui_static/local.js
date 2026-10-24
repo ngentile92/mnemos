@@ -42,7 +42,7 @@
     $("wl-spaces").innerHTML = w.spaces.filter((x) => x.name !== "shared").map((x) => `<span><i style="background:${esc(x.color)}"></i>${esc(x.label)}</span>`).join("");
     const go = async () => {
       $("wl-err").textContent = ""; $("wl-go").disabled = true;
-      try { await api("/api/welcome", { name: $("wl-name").value }); $("welcome").classList.add("hidden"); location.hash = "#home"; boot(s); }
+      try { await api("/api/welcome", { name: $("wl-name").value }); api("/api/ftue", { step: "welcome" }).catch(() => {}); $("welcome").classList.add("hidden"); location.hash = "#home"; boot(s); }
       catch (e) { $("wl-err").textContent = e.message; }
       $("wl-go").disabled = false;
     };
@@ -92,10 +92,16 @@
       if (view === "graph") loadGraph();
       if (view === "skills") loadSkills();
     }
-    if (view === "settings") loadEngine();
+    if (view === "settings") { loadEngine(); loadFtue(); }
     window.dispatchEvent(new CustomEvent("mnemos:view", { detail: view }));
   }
 
+  async function loadFtue() {
+    let f; try { f = await api("/api/ftue"); } catch { return; }
+    const L = { first_app: "First AI app connected", first_save: "First memory saved by an AI", aha: "Asked in another AI (aha)", skipped: "Skipped the demo" };
+    const rows = Object.entries(f.minutes || {}).map(([k, m]) => `<div>${esc(L[k] || k)}: <b>${m} min</b></div>`);
+    $("ft-out").innerHTML = f.steps && f.steps.welcome ? (rows.join("") || '<p class="muted">Nothing yet after the welcome.</p>') : '<p class="muted">No first run recorded on this memory.</p>';
+  }
   // ------------------------------------------------ graph (graph.js: canvas + physics)
   let gInit = false;
   function loadGraph() {
@@ -109,8 +115,10 @@
   async function loadSkills() {
     try { skills = (await api("/api/skills?" + new URLSearchParams({ context: $("s-ctx").value }))).skills; }
     catch (e) { $("s-list").innerHTML = `<p class="muted">${esc(e.message)}</p>`; return; }
-    $("s-list").innerHTML = skills.length ? skills.map((s, i) => `<div class="me-item" data-i="${i}"><div class="m"><span>${esc(s.owner)}</span></div><div class="t"><b>${esc(s.name)}</b> — ${esc(s.description)}</div></div>`).join("")
-      : '<p class="muted">No skills yet. Create one with “+ New skill”.</p>';
+    $("s-list").innerHTML = skills.length ? skills.map((s, i) => `<div class="me-item" data-i="${i}"><div class="m"><span>${esc(s.owner)}</span></div><div class="t"><b>${esc(s.name)}</b> — ${esc(s.description)}</div>
+        ${s.try ? `<button class="mbtn s-try" data-i="${i}" title="Copies a sentence to paste in any connected AI">Try it in your AI</button>` : ""}</div>`).join("")
+      : '<p class="muted">No skills yet.</p><div class="me-actions"><button class="mbtn primary" id="s-examples2">Add 3 examples</button></div>';
+    if ($("s-examples2")) $("s-examples2").onclick = addExamples;
   }
   async function showSkill(s) {
     let text = "";
@@ -132,7 +140,21 @@
       } catch (e) { $("s-msg").textContent = "Not saved: " + e.message; }
     };
   }
-  $("s-list").addEventListener("click", (ev) => { const n = ev.target.closest(".me-item"); if (n) showSkill(skills[+n.dataset.i]); });
+  $("s-list").addEventListener("click", async (ev) => {
+    const t = ev.target.closest(".s-try");
+    if (t) {
+      ev.stopPropagation();
+      try { await navigator.clipboard.writeText(skills[+t.dataset.i].try); t.textContent = "Copied ✓ — paste it in your AI"; } catch { t.textContent = skills[+t.dataset.i].try; }
+      return;
+    }
+    const n = ev.target.closest(".me-item"); if (n) showSkill(skills[+n.dataset.i]);
+  });
+  async function addExamples() {
+    try { const r = await api("/api/skills/examples", {}); $("s-detail").innerHTML = `<p class="small">${r.added.length ? `Added ${r.added.map(esc).join(", ")} ✓ — press “Try it in your AI” on one.` : "The examples are already there."}</p>`; }
+    catch (e) { $("s-detail").innerHTML = `<p class="err small">${esc(e.message)}</p>`; }
+    setTimeout(loadSkills, 600);
+  }
+  $("s-examples").onclick = addExamples;
   $("s-ctx").onchange = loadSkills;
   $("s-new").onclick = () => editor("", "", "", true, true);
 
@@ -258,6 +280,14 @@
     window.open(b.dataset.cloud, "_blank", "noopener");
   }; });
   $("c-go").onclick = (e) => previewJSON("claude", { text: $("c-text").value }, e.target);
+  $("c-block").onclick = async () => {
+    $("c-block-msg").textContent = "";
+    try {
+      const r = await api("/api/cloud/block");
+      await navigator.clipboard.writeText(r.block);
+      $("c-block-msg").textContent = `Copied ✓ (${r.block.length} characters) — paste it in the app's settings`;
+    } catch (e) { $("c-block-msg").textContent = "Could not copy: " + e.message; }
+  };
   // ------------------------------------------------ full-history mining (background, resumable)
   let mPoll = null, mNew = [];
   async function mLoad() {

@@ -26,7 +26,8 @@
     $("hm-sub").textContent = ok ? `${live.length === 1 ? "1 AI app uses" : live.length + " AI apps use"} your memory` : "Connect an AI app so it can use your memory";
     $("hm-apps").innerHTML = apps.map((a) => `<span class="ap-pill">${esc(a.label)} ${a.paused ? "· paused" : "✓"}</span>`).join("");
     next(ok, notes);
-    loadTip(); feed();
+    if (ok) mark("first_app");
+    loadTip(); feed(); demo(ok);
   }
 
   function next(ok, notes) {
@@ -65,6 +66,36 @@
     $("hm-feed").innerHTML = r.events.length ? r.events.map((e) => `<div class="ap-ev"><span class="muted">${esc(when(e.ts))}</span><b>${esc(e.label)}</b><span>${esc(e.summary)}</span></div>`).join("")
       : '<p class="small muted">Nothing yet. What your AI apps read or save shows up here.</p>';
   }
+
+  // local first-run timing (never sent anywhere)
+  const marked = new Set();
+  function mark(step) { if (!marked.has(step)) { marked.add(step); api("/api/ftue", { step }).catch(() => {}); } }
+
+  // guided "aha": save in one AI, ask in another. Ticks itself from the activity feed; can be skipped.
+  let demoPoll = null;
+  async function demo(ok) {
+    clearTimeout(demoPoll);
+    let f; try { f = await api("/api/ftue"); } catch { return; }
+    const st = f.steps || {};
+    const show = ok && !st.aha && !st.skipped;
+    $("hm-demo").classList.toggle("hidden", !show);
+    if (!show) return;
+    const since = st.welcome || "";
+    let ev = []; try { ev = ((await api("/api/activity?" + new URLSearchParams({ limit: 100 }))).events || []).filter((e) => e.ok !== 0 && e.ok !== false && (!since || e.ts >= since)).reverse(); } catch { /* none */ }
+    const save = ev.find((e) => e.kind === "write");
+    const ask = save && ev.find((e) => e.kind === "read" && e.ts > save.ts && (e.app !== save.app || e.tool === "memory_search"));
+    $("hm-d1").classList.toggle("done", !!save); $("hm-d2").classList.toggle("done", !!save);
+    $("hm-d2-msg").textContent = save ? `Saved by ${save.label} ✓` : "Waiting for the save…";
+    $("hm-d3").classList.toggle("done", !!ask);
+    if (save) mark("first_save");
+    if (ask) { mark("aha"); $("hm-demo-msg").textContent = `${ask.label} found it ✓ Every connected AI now shares this memory.`; return; }
+    demoPoll = setTimeout(() => { if (!document.getElementById("view-home").classList.contains("hidden")) demo(ok); }, 4000);
+  }
+  document.addEventListener("click", async (e) => {
+    const c = e.target.closest("[data-copy]");
+    if (c) { try { await navigator.clipboard.writeText($(c.dataset.copy).textContent); c.textContent = "Copied ✓"; } catch { /* visible text */ } }
+    if (e.target.id === "hm-demo-skip") { mark("skipped"); $("hm-demo").classList.add("hidden"); clearTimeout(demoPoll); }
+  });
 
   window.addEventListener("mnemos:view", (e) => { if (e.detail === "home") load(); });
 })();

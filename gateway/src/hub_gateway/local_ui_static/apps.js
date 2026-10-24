@@ -16,7 +16,7 @@
     $("ap-default").innerHTML = data.spaces.map((s) => `<option value="${esc(s)}" ${s === data.default_space ? "selected" : ""}>${esc(label(s))}</option>`).join("");
     $("ap-filter").innerHTML = '<option value="">All apps</option>' + data.apps.map((a) => `<option value="${esc(a.key)}">${esc(a.label)}</option>`).join("");
     if (!data.apps.length) {
-      $("ap-list").innerHTML = '<p class="small muted">No app has used Mnemos yet. Connect one from Mnemos Desktop → Connect apps, then ask it something.</p>';
+      $("ap-list").innerHTML = '<p class="small muted">No AI app has used your memory yet. In the Mnemos window, press Connect next to an app, restart it and send it any message.</p><div class="me-actions"><a class="mbtn primary" href="#home">Show me the next step</a></div>';
       return;
     }
     $("ap-list").innerHTML = data.apps.map((a, i) => {
@@ -66,7 +66,7 @@
     catch (e) { $("ap-feed").innerHTML = `<p class="small muted">${esc(e.message)}</p>`; return; }
     $("ap-feed").innerHTML = r.events.length ? r.events.map((e) => `<div class="ap-ev"><span class="muted">${esc(when(e.ts))}</span>
         <b>${esc(e.label)}</b><span class="k-${esc(e.kind)}">${esc(e.summary)}${e.space ? ` <span class="ap-pill">${esc(label(e.space))}</span>` : ""}</span></div>`).join("")
-      : '<p class="small muted">Nothing yet.</p>';
+      : '<p class="small muted">Nothing yet. What your AI apps read or save shows up here.</p><div class="me-actions"><button class="mbtn" onclick="document.getElementById(\'ap-refresh\').click()">Refresh</button></div>';
   }
   $("ap-filter").onchange = feed;
   $("ap-refresh").onclick = load;

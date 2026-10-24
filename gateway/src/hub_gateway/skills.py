@@ -53,6 +53,8 @@ class Skill:
         out: dict[str, object] = {"name": self.name, "description": self.description, "owner": self.owner}
         if self.triggers:
             out["triggers"] = list(self.triggers)
+        if self.metadata.get("hub-try"):
+            out["try"] = str(self.metadata["hub-try"])[:300]
         if self.version:
             out["version"] = self.version
         if self.tools:

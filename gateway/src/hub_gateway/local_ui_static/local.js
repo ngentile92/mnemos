@@ -21,7 +21,34 @@
     }
     let s;
     try { s = await api("/api/session"); } catch { return showLogin(); }
+    if (await needsWelcome(s)) return showWelcome(s);
     boot(s);
+  }
+  // first run: one optional field (the name every AI will use) and one button; people with notes skip it
+  async function needsWelcome(s) {
+    let w; try { w = await api("/api/welcome"); } catch { return false; }
+    if (w.done) return false;
+    let total = 0;
+    try { for (const c of s.contexts) total += ((await api("/api/memory/list?" + new URLSearchParams({ context: c }))).items || []).length; }
+    catch { return false; }
+    if (total > 0) { api("/api/welcome", {}).catch(() => {}); return false; }
+    window.MNEMOS_WELCOME = w;
+    return true;
+  }
+  function showWelcome(s) {
+    const w = window.MNEMOS_WELCOME || { spaces: [] };
+    $("welcome").classList.remove("hidden");
+    $("wl-name").value = w.name || "";
+    $("wl-spaces").innerHTML = w.spaces.filter((x) => x.name !== "shared").map((x) => `<span><i style="background:${esc(x.color)}"></i>${esc(x.label)}</span>`).join("");
+    const go = async () => {
+      $("wl-err").textContent = ""; $("wl-go").disabled = true;
+      try { await api("/api/welcome", { name: $("wl-name").value }); $("welcome").classList.add("hidden"); location.hash = "#memoria"; boot(s); }
+      catch (e) { $("wl-err").textContent = e.message; }
+      $("wl-go").disabled = false;
+    };
+    $("wl-go").onclick = go;
+    $("wl-name").onkeydown = (e) => { if (e.key === "Enter") go(); };
+    $("wl-name").focus();
   }
   function showLogin() {
     $("login").classList.remove("hidden");

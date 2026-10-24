@@ -44,3 +44,9 @@ body.filesmode #empty-cta { display: none !important }
 /* Settings → Advanced: things most people never need, folded away */
 details.adv > summary { cursor: pointer; padding: 4px 0; list-style: revert; }
 details.adv:not([open]) { padding-bottom: 12px; }
+/* First run (0.16): welcome card and the main navigation (Memory, Apps, Skills first; the rest smaller) */
+.welcome{max-width:460px;margin:8vh auto;padding:24px}.welcome input{width:100%;box-sizing:border-box}
+.welcome .me-actions{margin-top:16px}.wl-spaces{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
+.wl-spaces span{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);border-radius:99px;font-size:13px}
+.wl-spaces i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.tab-sep{width:1px;align-self:stretch;background:var(--line);margin:6px 4px}.tab.sec{opacity:.7;font-size:.92em}.tab.sec.active{opacity:1}

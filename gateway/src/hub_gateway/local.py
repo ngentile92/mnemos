@@ -409,6 +409,17 @@ tokens by hand.</p></body>""",
     async def _labs_set(b):
         return local_labs.set_enabled(home, bool(b.get("on")))
     ui.hooks[("GET", "labs")] = _labs
+    from . import local_welcome
+
+    async def _welcome(_b):
+        return local_welcome.status(home)
+
+    async def _welcome_set(b):
+        out = local_welcome.finish(home, b.get("name"))  # ValueError -> 400 with the message
+        router.router.reload_now()
+        return out
+    ui.hooks[("GET", "welcome")] = _welcome
+    ui.hooks[("POST", "welcome")] = _welcome_set
     ui.hooks[("POST", "labs")] = _labs_set
     ui.hooks[("GET", "hygiene")] = _pending
     ui.hooks[("POST", "hygiene/act")] = _act

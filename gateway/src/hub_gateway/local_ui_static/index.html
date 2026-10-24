@@ -16,14 +16,15 @@
     <div><h1>Mnemos</h1><p class="sub">Your memory, on this computer</p></div>
   </div>
   <nav class="tabs hidden" id="tabs" role="tablist">
-    <a href="#memoria" class="tab active" data-view="memoria" role="tab">Notes</a>
-    <a href="#skills" class="tab" data-view="skills" role="tab">Skills</a>
-    <a href="#spaces" class="tab" data-view="spaces" role="tab">Spaces</a>
+    <a href="#memoria" class="tab active" data-view="memoria" role="tab">Memory</a>
     <a href="#apps" class="tab" data-view="apps" role="tab">Apps</a>
-    <a href="#native" class="tab" data-view="native" role="tab">App memories</a>
-    <a href="#import" class="tab" data-view="import" role="tab">Import</a>
-    <a href="#graph" class="tab" data-view="graph" role="tab">Graph</a>
-    <a href="#settings" class="tab" data-view="settings" role="tab">Settings</a>
+    <a href="#skills" class="tab" data-view="skills" role="tab">Skills</a>
+    <span class="tab-sep" aria-hidden="true"></span>
+    <a href="#spaces" class="tab sec" data-view="spaces" role="tab">Spaces</a>
+    <a href="#import" class="tab sec" data-view="import" role="tab">Import</a>
+    <a href="#native" class="tab sec" data-view="native" role="tab">App memories</a>
+    <a href="#graph" class="tab sec" data-view="graph" role="tab">Graph</a>
+    <a href="#settings" class="tab sec" data-view="settings" role="tab">Settings</a>
     <a href="#settings" class="badge" id="eng-badge" title="Which engine finds facts and cleans up your memory" style="align-self:center;margin-left:6px"></a>
   </nav>
 </header>
@@ -33,6 +34,16 @@
   <div class="me-row"><input id="login-pw" type="password" autocomplete="current-password" placeholder="Password">
   <button id="login-go" class="mbtn primary">Open</button></div>
   <p id="login-err" class="err small"></p>
+</section>
+<section id="welcome" class="card welcome hidden" aria-labelledby="wl-h">
+  <h2 id="wl-h">Welcome to Mnemos</h2>
+  <p class="muted">One memory for all your AI apps. Tell them your name once; they will remember it.</p>
+  <label class="small" for="wl-name">What should your AIs call you?</label>
+  <input id="wl-name" maxlength="60" autocomplete="name" placeholder="Your name (optional)">
+  <p class="small muted" style="margin-top:14px">Your memory keeps things apart in separate spaces:</p>
+  <div id="wl-spaces" class="wl-spaces"></div>
+  <p class="small muted">You can rename them later in Spaces.</p>
+  <div class="me-actions"><button id="wl-go" class="mbtn primary">Start</button><span id="wl-err" class="err small"></span></div>
 </section>
 <div id="app" class="hidden">
 <main id="view-memoria" class="view">

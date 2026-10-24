@@ -1,5 +1,17 @@
 "use strict";
 const { invoke } = window.__TAURI__.core;
+
+// English or Spanish, following the system language (FTUE #198); English is the key, missing = English
+const ES = /^es\b/i.test(navigator.language || "") ? {
+  "Connected ✓": "Conectada ✓", "Waiting for the app…": "Esperando a la app…", "Not connected": "Sin conectar",
+  "Connecting…": "Conectando…", "Open Claude": "Abrir Claude", "It can read and save your memory.": "Ya puede leer y guardar tu memoria.",
+  "Did not work?": "¿No funcionó?", "Paste this once in Terminal instead:": "Pegá esto una vez en Terminal:", "Copy": "Copiar", "Copied ✓": "Copiado ✓",
+  "Try again": "Reintentar", "Check again": "Volver a revisar", "Use the running Mnemos": "Usar el Mnemos abierto",
+  "Pick your AIs": "Elegí tus IAs", "The AI apps found on this Mac. One click connects each one to your memory (all your spaces).": "Las IAs que encontramos en esta Mac. Un clic conecta cada una a tu memoria (todos tus espacios).",
+  "Mnemos is running": "Mnemos está funcionando", "Mnemos is stopped": "Mnemos está detenido", "Starting…": "Iniciando…", "Open my memory": "Abrir mi memoria",
+  "Restart the app and send it any message.": "Reiniciá la app y mandale cualquier mensaje.",
+} : {};
+const T = (s) => ES[s] || s;
 const $ = (id) => document.getElementById(id);
 let last = null;
 
@@ -9,7 +21,7 @@ async function refresh() {
   $("main").classList.toggle("hidden", !last.initialized);
   const up = last.running && last.healthy;
   $("dot").className = "dot " + (up ? "ok" : last.running ? "" : "bad");
-  $("state").textContent = up ? "Mnemos is running" : last.running ? "Starting…" : "Mnemos is stopped";
+  $("state").textContent = up ? T("Mnemos is running") : last.running ? T("Starting…") : T("Mnemos is stopped");
   $("where").textContent = `Your memory lives in ${last.home}`;
   $("start").disabled = last.running; $("stop").disabled = !last.running; $("open").disabled = !up;
   $("details").textContent = JSON.stringify(last, null, 1);
@@ -25,10 +37,10 @@ async function run(btn, fn) {
 function showError(msg) {
   $("err").textContent = msg;
   const f = $("fix");
-  if (/another Mnemos is already running/i.test(msg)) { f.textContent = "Use the running Mnemos"; f.onclick = (e) => run(e.target, async () => window.__TAURI__.opener.openUrl(await invoke("memory_url"))); }
-  else if (/Port \d+ is used/i.test(msg)) { f.textContent = "Try again"; f.onclick = (e) => run(e.target, () => invoke("start_hub")); }
-  else if (/Could not find .* command/i.test(msg)) { f.textContent = "Check again"; f.onclick = () => { cardsKey = ""; $("err").textContent = ""; f.classList.add("hidden"); refresh(); }; }
-  else { f.textContent = "Try again"; f.onclick = () => { $("err").textContent = ""; f.classList.add("hidden"); cardsKey = ""; refresh(); }; }
+  if (/another Mnemos is already running/i.test(msg)) { f.textContent = T("Use the running Mnemos"); f.onclick = (e) => run(e.target, async () => window.__TAURI__.opener.openUrl(await invoke("memory_url"))); }
+  else if (/Port \d+ is used/i.test(msg)) { f.textContent = T("Try again"); f.onclick = (e) => run(e.target, () => invoke("start_hub")); }
+  else if (/Could not find .* command/i.test(msg)) { f.textContent = T("Check again"); f.onclick = () => { cardsKey = ""; $("err").textContent = ""; f.classList.add("hidden"); refresh(); }; }
+  else { f.textContent = T("Try again"); f.onclick = () => { $("err").textContent = ""; f.classList.add("hidden"); cardsKey = ""; refresh(); }; }
   f.classList.remove("hidden");
 }
 
@@ -51,28 +63,28 @@ function card(c) {
   const name = document.createElement("b"); name.textContent = c.name;
   const state = c.connected && c.seen ? "ok" : c.connected || pending.has(c.id) ? "restart" : "new";
   const badge = document.createElement("span"); badge.className = "badge" + (state === "ok" ? " on" : "");
-  badge.textContent = state === "ok" ? "Connected ✓" : state === "restart" ? "Waiting for the app…" : "Not connected";
+  badge.textContent = state === "ok" ? T("Connected ✓") : state === "restart" ? T("Waiting for the app…") : T("Not connected");
   head.append(name, badge); el.append(head);
   const a = document.createElement("div"); a.className = "actions";
   if (state === "new") {
     a.append(btn(`Connect ${c.name}`, "primary", (e) => run(e.target, async () => {
-      e.target.textContent = "Connecting…";
+      e.target.textContent = T("Connecting…");
       try { $("ok").textContent = await invoke("connect_app", { id: c.id }); pending.add(c.id); }
       catch (err) { el.dataset.failed = "1"; throw err; }
       finally { cardsKey = ""; }
     })));
   } else if (state === "restart") {
-    el.append(para(RESTART[c.id] || "Restart the app and send it any message."));
-    if (c.id === "claude-desktop") a.append(btn("Open Claude", "", async () => { try { await invoke("open_claude"); } catch (_) { /* not installed */ } }));
+    el.append(para(RESTART[c.id] || T("Restart the app and send it any message.")));
+    if (c.id === "claude-desktop") a.append(btn(T("Open Claude"), "", async () => { try { await invoke("open_claude"); } catch (_) { /* not installed */ } }));
   } else {
-    el.append(para("It can read and save your memory."));
+    el.append(para(T("It can read and save your memory.")));
   }
   if (a.childElementCount) el.append(a);
   if (c.command && state !== "ok") {
     // fallback if the button cannot run the app's command (kept out of sight: nobody should need Terminal)
-    const d = document.createElement("details"); const s = document.createElement("summary"); s.className = "muted small"; s.textContent = "Did not work?";
+    const d = document.createElement("details"); const s = document.createElement("summary"); s.className = "muted small"; s.textContent = T("Did not work?");
     const code = document.createElement("code"); code.textContent = c.command;
-    d.append(s, para("Paste this once in Terminal instead:"), code, btn("Copy", "", async (e) => { try { await navigator.clipboard.writeText(c.command); e.target.textContent = "Copied ✓"; } catch (_) { e.target.textContent = "Select and Cmd+C"; } }));
+    d.append(s, para(T("Paste this once in Terminal instead:")), code, btn(T("Copy"), "", async (e) => { try { await navigator.clipboard.writeText(c.command); e.target.textContent = T("Copied ✓"); } catch (_) { e.target.textContent = "Select and Cmd+C"; } }));
     el.append(d);
   }
   if (c.id === "claude-desktop" && c.connected) claudeExtras(el);
@@ -134,5 +146,6 @@ $("w-go").onclick = async (e) => {
 };
 $("login").onchange = async (e) => { try { e.target.checked = await invoke("set_login_item", { enabled: e.target.checked }); } catch (err) { $("err").textContent = String(err); } };
 invoke("login_item").then((v) => { $("login").checked = v; });
+document.querySelectorAll("h3, p.muted.small, button").forEach((el) => { if (el.childElementCount === 0 && ES[el.textContent.trim()]) el.textContent = ES[el.textContent.trim()]; });
 refresh();
 setInterval(refresh, 2000);

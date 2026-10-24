@@ -53,6 +53,12 @@
       <a href="#apps" class="hm-stat"><b id="hm-a">–</b><span>apps connected</span></a>
       <a href="#skills" class="hm-stat"><b id="hm-s">–</b><span>skills</span></a></div>
     <div id="hm-apps" class="hm-apps"></div></section>
+  <section class="card hm-card hidden" id="hm-demo"><div class="card-h"><h3 style="margin:0">See it work: tell one AI, ask another</h3><button class="mbtn" id="hm-demo-skip">Skip</button></div>
+    <ol class="hm-steps">
+      <li id="hm-d1"><span class="hm-tick">1</span><div>In one AI app, say: <b class="hm-say" id="hm-say1">Remember that my favourite colour is green.</b> <button class="mbtn" data-copy="hm-say1">Copy</button></div></li>
+      <li id="hm-d2"><span class="hm-tick">2</span><div>Mnemos saves it. <span class="muted small" id="hm-d2-msg">Waiting for the save…</span></div></li>
+      <li id="hm-d3"><span class="hm-tick">3</span><div>In a <b>different</b> AI app (or a new chat), ask: <b class="hm-say" id="hm-say3">What is my favourite colour?</b> <button class="mbtn" data-copy="hm-say3">Copy</button></div></li>
+    </ol><p class="small" id="hm-demo-msg"></p></section>
   <section class="card hm-card" id="hm-next"><h3 class="small muted" style="margin:0 0 6px">Next step</h3><div id="hm-next-body"></div></section>
   <section class="card hm-card hidden" id="hm-tip"><h3 class="small muted" style="margin:0 0 6px">A suggestion for your memory</h3><div id="hm-tip-body"></div></section>
   <section class="card hm-card"><div class="card-h"><h3 class="small muted" style="margin:0">Latest</h3><a href="#apps" class="small">All activity</a></div><div id="hm-feed" class="ap-feed"></div></section>
@@ -145,6 +151,7 @@
 <main id="view-skills" class="view hidden">
   <section class="card me-bar"><select id="s-ctx" aria-label="Context"></select>
     <button id="s-new" class="mbtn primary">+ New skill</button>
+    <button id="s-examples" class="mbtn">Add 3 examples</button>
     <span class="muted small me-hint">Skills are reusable instructions your AI follows (e.g. “how I like emails written”).</span></section>
   <section class="me-grid">
     <div class="card me-listcard"><div class="card-h"><h2>Skills</h2></div><div id="s-list"></div></div>
@@ -235,6 +242,9 @@
     <p class="small muted">Your memory becomes a few Markdown files on this computer (one folder per space), with full history and undo. You can preview exactly what it will look like first, and switch back afterwards; your current notes are never deleted.</p>
     <div class="me-actions"><button class="mbtn" id="mig-preview">Preview</button><button class="mbtn primary" id="mig-apply">Switch</button><span class="small" id="mig-msg"></span></div>
     <pre id="mig-report" class="me-note hidden" style="white-space:pre-wrap"></pre></section>
+  <section class="card" style="margin:10px 0" id="ft-card"><div class="card-h"><h2>First-run timing</h2><span class="muted small">kept on this computer only</span></div>
+    <p class="small muted">Minutes from the welcome screen to each first step. Useful when you watch someone set Mnemos up; never sent anywhere.</p>
+    <div id="ft-out" class="small"></div></section>
   <section class="card" style="margin:10px 0" id="labs-card"><div class="card-h"><h2>Labs</h2><span class="muted small" id="labs-head">optional extras</span></div>
     <p class="small muted">Extras on top of your memory files: people and project pages built by a model, the “still true?” check and the nightly tidy-up of the memory model. They are kept up to date but off by default: your memory works without them.</p>
     <label class="small"><input type="checkbox" id="labs-on" style="width:auto"> Show Labs features</label> <span class="small" id="labs-msg"></span></section>
@@ -266,11 +276,13 @@
       <div id="m-list"></div></div>
     <p class="small muted hidden" id="m-ev"><span id="m-ev-n"></span> <button class="mbtn" id="m-forget">Forget source messages</button></p>
   </section>
-  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Memories that live in the cloud</h2></div>
-    <p class="small muted">Claude.ai, ChatGPT and Grok keep their memory online. One click copies a ready question and opens the site: paste it in a new chat, copy the answer, paste it below.</p>
+  <section class="card" style="margin:0 36px 14px" id="cloud-card"><div class="card-h"><h2>ChatGPT, Claude on the web, Grok</h2><span class="muted small">two copy-and-paste steps, once per app</span></div>
+    <p class="small"><b>1. Bring what they know.</b> Copies a question and opens the site: paste it in a new chat, then paste the answer below.</p>
     <div class="me-actions"><button class="mbtn" data-cloud="https://claude.ai/new">Ask Claude</button><button class="mbtn" data-cloud="https://chatgpt.com/">Ask ChatGPT</button><button class="mbtn" data-cloud="https://grok.com/">Ask Grok</button><span class="muted small" id="c-msg"></span></div>
     <textarea id="c-text" placeholder="Paste the answer here" style="width:100%;min-height:90px;box-sizing:border-box"></textarea>
-    <button class="mbtn primary" id="c-go">Review</button></section>
+    <button class="mbtn primary" id="c-go">Review</button>
+    <p class="small" style="margin-top:16px"><b>2. Give them your memory.</b> Copies a short “about me” block. Paste it in ChatGPT → Settings → Personalization → Custom instructions, or Claude → Settings → Profile.</p>
+    <div class="me-actions"><button class="mbtn primary" id="c-block">Copy “for your memory”</button><span class="muted small" id="c-block-msg"></span></div></section>
   <section class="imp-grid">
     <div class="card"><div class="card-h"><h2>From ChatGPT</h2></div>
       <p class="small muted">ChatGPT → Settings → Data controls → Export data. You get an email with a .zip: pick that file (or the conversations.json inside). Only things you said about yourself are proposed.</p>

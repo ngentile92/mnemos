@@ -73,7 +73,10 @@ def init_home(home: Path, contexts: list[str], owner: str = "me") -> list[str]:
             if not d.exists():
                 d.mkdir(parents=True)
                 made.append(str(d))
-    (home / "skills" / "shared").mkdir(parents=True, exist_ok=True)
+    shared = home / "skills" / "shared"
+    if not shared.exists() or not any(shared.iterdir()):  # a brand-new memory starts with 3 example skills
+        from .starter_skills import install as _starters
+        made += [str(shared / n) for n in _starters(home)]
     tok = home / "token"
     if not tok.exists():
         tok.write_text(secrets.token_urlsafe(32))
@@ -418,6 +421,38 @@ tokens by hand.</p></body>""",
         out = local_welcome.finish(home, b.get("name"))  # ValueError -> 400 with the message
         router.router.reload_now()
         return out
+    async def _skill_examples(_b):
+        from .starter_skills import install as _starters
+        return {"added": _starters(home)}
+    ui.hooks[("POST", "skills/examples")] = _skill_examples
+
+    async def _cloud_block(_b):
+        """'For your memory' block for cloud apps (Claude / ChatGPT preferences), at most 1500 characters (#196)."""
+        about: dict = {}
+        parts: list[str] = []
+        for c in [c for c in servers if c != "shared"] + ["shared"]:
+            try:
+                r = await ui.call(c, "memory_profile", {})
+            except Exception:  # noqa: BLE001
+                continue
+            about = about or r.get("about") or {}
+            txt = str(r.get("profile") or "").strip()
+            if txt and txt not in parts:
+                parts.append(txt)
+        head = "About me (from my Mnemos memory). Use it silently; do not repeat it back."
+        if about.get("name"):
+            head += f"\nMy name: {about['name']}."
+        return {"block": (head + "\n" + "\n".join(parts))[:1500].rstrip()}
+    ui.hooks[("GET", "cloud/block")] = _cloud_block
+    from . import local_ftue
+
+    async def _ftue(_b):
+        return local_ftue.summary(home)
+
+    async def _ftue_mark(b):
+        return local_ftue.mark(home, str(b.get("step") or ""))
+    ui.hooks[("GET", "ftue")] = _ftue
+    ui.hooks[("POST", "ftue")] = _ftue_mark
     ui.hooks[("GET", "welcome")] = _welcome
     ui.hooks[("POST", "welcome")] = _welcome_set
     ui.hooks[("POST", "labs")] = _labs_set

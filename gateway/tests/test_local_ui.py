@@ -81,13 +81,13 @@ def test_skills_create_list_read(client, home):
     assert client.post("/api/skills/save", json={"context": "personal", "name": "../x", "description": "bad", "body": ""},
                        headers=W).status_code == 400
     for _ in range(30):
-        sk = client.get("/api/skills", params={"context": "personal"}).json()["skills"]
+        sk = [s for s in client.get("/api/skills", params={"context": "personal"}).json()["skills"] if s["owner"] == "personal"]
         if sk:
             break
         time.sleep(0.25)
     assert sk[0]["name"] == "email-style" and sk[0]["editable"]
     assert "no jargon" in client.get("/api/skill", params={"context": "personal", "name": "email-style"}).json()["text"]
-    assert client.get("/api/skills", params={"context": "work"}).json()["skills"] == []  # isolated
+    assert all(s["owner"] == "shared" for s in client.get("/api/skills", params={"context": "work"}).json()["skills"])  # isolated (starter skills are shared)
 
 
 def test_entity_graph():

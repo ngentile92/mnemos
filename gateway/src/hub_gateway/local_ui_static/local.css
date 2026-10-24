@@ -55,3 +55,7 @@ details.adv:not([open]) { padding-bottom: 12px; }
 .hm-stats{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}.hm-stat{flex:1;min-width:120px;padding:12px;border:1px solid var(--line);border-radius:12px;color:inherit;text-decoration:none}
 .hm-stat b{display:block;font-size:26px}.hm-stat span{font-size:13px;opacity:.75}
 .hm-apps{display:flex;gap:6px;flex-wrap:wrap}.hm-next{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.hm-next p{margin:0;flex:1}
+.hm-steps{list-style:none;padding:0;margin:10px 0;display:flex;flex-direction:column;gap:10px}.hm-steps li{display:flex;gap:10px;align-items:flex-start}
+.hm-tick{flex:none;width:24px;height:24px;border-radius:50%;border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.hm-steps li.done .hm-tick{background:var(--ok,#34d399);color:#000;border-color:transparent}.hm-steps li.done .hm-tick::after{content:"✓"}.hm-steps li.done .hm-tick{font-size:0}
+.hm-steps li.done .hm-tick::after{font-size:13px}.hm-say{font-weight:600}

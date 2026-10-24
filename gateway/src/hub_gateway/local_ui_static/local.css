@@ -49,7 +49,7 @@ details.adv:not([open]) { padding-bottom: 12px; }
 .welcome .me-actions{margin-top:16px}.wl-spaces{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
 .wl-spaces span{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);border-radius:99px;font-size:13px}
 .wl-spaces i{width:9px;height:9px;border-radius:50%;display:inline-block}
-.tab-sep{width:1px;align-self:stretch;background:var(--line);margin:6px 4px}.tab.sec{opacity:.7;font-size:.92em}.tab.sec.active{opacity:1}
+
 /* Home (0.16): is it working, in five seconds */
 .hm-card{margin:14px 36px 0;max-width:820px}#view-home{padding-bottom:20px}
 .hm-stats{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}.hm-stat{flex:1;min-width:120px;padding:12px;border:1px solid var(--line);border-radius:12px;color:inherit;text-decoration:none}
@@ -59,3 +59,23 @@ details.adv:not([open]) { padding-bottom: 12px; }
 .hm-tick{flex:none;width:24px;height:24px;border-radius:50%;border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:12px}
 .hm-steps li.done .hm-tick{background:var(--ok,#34d399);color:#000;border-color:transparent}.hm-steps li.done .hm-tick::after{content:"✓"}.hm-steps li.done .hm-tick{font-size:0}
 .hm-steps li.done .hm-tick::after{font-size:13px}.hm-say{font-weight:600}
+
+/* 0.17 polish: grouped navigation, one style for every control, real empty states */
+.tabs{flex-wrap:wrap;align-items:center}
+.tab-more{position:relative;margin-left:auto}
+.tab-more>summary{list-style:none;cursor:pointer}.tab-more>summary::-webkit-details-marker{display:none}
+.tab-more>summary::after{content:" ▾";opacity:.7}
+.tab-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:20;display:flex;flex-direction:column;gap:2px;min-width:170px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.45)}
+.tab-menu .tab{display:block}
+input[type=text],input[type=search],input[type=password],input:not([type]),textarea,select{background:rgba(255,255,255,.04);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;outline:none;transition:border-color .15s,background .15s}
+input[type=text]:focus,input[type=search]:focus,input[type=password]:focus,input:not([type]):focus,textarea:focus,select:focus{border-color:rgba(124,92,255,.7);background:rgba(255,255,255,.06)}
+select{appearance:none;-webkit-appearance:none;padding-right:26px;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 13px) 52%,calc(100% - 9px) 52%;background-size:4px 4px;background-repeat:no-repeat}
+select option{background:#151a2e;color:var(--txt)}
+input[type=checkbox],input[type=radio]{accent-color:#7c5cff;width:15px;height:15px;vertical-align:-2px;margin:0 6px 0 0}
+label:has(>input[type=checkbox]){display:inline-flex;align-items:center;gap:2px}
+.empty{padding:28px 16px;text-align:center;color:var(--muted);font-size:13px;line-height:1.5}
+.empty b{display:block;color:var(--txt);font-size:14px;margin-bottom:4px}
+.mbtn.danger{color:#f87171;border-color:rgba(248,113,113,.35);background:transparent}
+.muted{color:#9aa3bd}
+a.mbtn,a.mbtn:hover{text-decoration:none}
+.card-h a{color:#a78bfa;text-decoration:none}.card-h a:hover{text-decoration:underline}

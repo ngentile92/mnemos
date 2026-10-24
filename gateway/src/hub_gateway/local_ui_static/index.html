@@ -18,15 +18,16 @@
   <nav class="tabs hidden" id="tabs" role="tablist">
     <a href="#home" class="tab active" data-view="home" role="tab">Home</a>
     <a href="#memoria" class="tab" data-view="memoria" role="tab">Memory</a>
+    <a href="#native" class="tab" data-view="native" role="tab">What each AI knows</a>
     <a href="#apps" class="tab" data-view="apps" role="tab">Apps</a>
-    <a href="#skills" class="tab" data-view="skills" role="tab">Skills</a>
-    <span class="tab-sep" aria-hidden="true"></span>
-    <a href="#spaces" class="tab sec" data-view="spaces" role="tab">Spaces</a>
-    <a href="#import" class="tab sec" data-view="import" role="tab">Import</a>
-    <a href="#native" class="tab sec" data-view="native" role="tab">App memories</a>
-    <a href="#graph" class="tab sec" data-view="graph" role="tab">Graph</a>
-    <a href="#settings" class="tab sec" data-view="settings" role="tab">Settings</a>
-    <a href="#settings" class="badge" id="eng-badge" title="Which engine finds facts and cleans up your memory" style="align-self:center;margin-left:6px"></a>
+    <a href="#import" class="tab" data-view="import" role="tab">Import</a>
+    <details class="tab-more" id="tab-more"><summary class="tab">More</summary><div class="tab-menu">
+      <a href="#spaces" class="tab" data-view="spaces" role="tab">Spaces</a>
+      <a href="#skills" class="tab" data-view="skills" role="tab">Skills</a>
+      <a href="#graph" class="tab" data-view="graph" role="tab">Graph</a>
+      <a href="#settings" class="tab" data-view="settings" role="tab">Settings</a>
+    </div></details>
+    <span id="eng-badge" class="hidden"></span>
   </nav>
 </header>
 <section id="login" class="card login hidden">
@@ -175,8 +176,8 @@
     <p class="small" id="sp-tout"></p></section>
 </main>
 <main id="view-native" class="view hidden">
-  <section class="card" style="margin:14px 36px"><div class="card-h"><h2>App memories</h2><span class="muted small" id="nm-head">read-only</span></div>
-    <p class="small muted">What each AI app keeps in its own files, shown exactly as stored (Mnemos never changes them). Import any section into your Mnemos memory with one click.</p>
+  <section class="card" style="margin:14px 36px"><div class="card-h"><h2>What each AI knows</h2><span class="muted small" id="nm-head">read-only</span></div>
+    <p class="small muted">What each AI app keeps in its own memory files, exactly as stored. Import any part into Mnemos with one click.</p>
     <div class="nm-bar"><div id="nm-apps" class="nm-apps"></div><button class="mbtn" id="nm-refresh">Refresh</button></div>
     <div class="nm-wrap"><div id="nm-files" class="nm-files"></div><div id="nm-view" class="nm-view"><p class="muted small">Pick a file.</p></div></div>
     <p class="small" id="nm-msg"></p></section>
@@ -203,13 +204,13 @@
   
   
   
-  <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Engine</h2><span class="muted small">what does the smart parts</span></div>
+  <section class="card" style="margin:14px 36px"><div class="card-h"><h2>How your memory thinks</h2><span class="muted small">on this Mac unless you add a key</span></div>
     <div id="st-active"></div>
-    <p class="small muted">Order: an API key you enabled for that feature → Ollama (if running) → the built-in model → Apple Intelligence (import only) → simple rules. Search similarity never uses an API.</p>
+    <details><summary class="small muted">Technical details</summary><p class="small muted">Order: an API key you enabled for that feature → Ollama (if running) → the built-in model → Apple Intelligence (import only) → simple rules. Search similarity never uses an API.</p></details>
   </section>
   <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Built-in model</h2><span class="muted small" id="st-bstate"></span></div>
     <p class="small muted">Runs on this Mac (Apple Silicon: uses the GPU). Stored in your Mnemos folder; nothing is sent anywhere.</p>
-    <div id="st-models"></div>
+    <details><summary class="small muted">Technical details</summary><div id="st-models"></div></details>
     <div class="me-actions"><button class="mbtn primary" id="st-dl">Improve my memory (download)</button><button class="mbtn danger hidden" id="st-rm">Remove the model</button><span class="muted small" id="st-bmsg"></span></div>
     <div class="hidden" id="st-progress"><progress id="st-bar" max="1" value="0" style="width:100%"></progress><p class="small muted" id="st-phase"></p></div>
     <p class="small muted" id="st-ollama"></p>

@@ -234,6 +234,22 @@ class UI:
 
     GRAPH_NOTES = 1500  # notes the Graph view reads per space (pinned and hand-written first, then newest)
 
+    async def counts(self) -> dict:
+        """Real number of notes each space owns (straight from the store, no 500 cap; shared counted once)."""
+        out: dict[str, int] = {}
+        for ctx, srv in self.servers.items():
+            loc = getattr(srv, "mnemos_local", None)
+            if not loc:
+                out[ctx] = len((await self.action("list", {"context": ctx, "include_shared": False})).get("items", []))
+                continue
+            store, sc = loc["store"], loc["scope"]
+            n = 0
+            for name, ds_id in sc.listable(include_shared=False):
+                if name in sc.ctx.own_dataset_names:
+                    n += len(await store.list_data(ds_id))
+            out[ctx] = n
+        return {"spaces": out, "total": sum(out.values())}
+
     async def graph_items(self, ctx: str) -> list[dict]:
         """Every note this space can read (own + shared + bridged), straight from the store (not memory_list's 500),
         ranked: pinned, then written by hand or by an AI app (not imported/mined), then newest."""
@@ -534,6 +550,8 @@ class UI:
                     from . import local_labs
                     return j(200, {"contexts": list(self.servers), "labs": local_labs.enabled(self.home),
                                    "labs_forced": local_labs.forced() is not None, "store": self.store_kind()})
+                if path == "memory/counts" and request.method == "GET":
+                    return j(200, await self.counts())
                 if path.startswith("memory/") and request.method == "GET" and path[7:] in ("list", "history", "related"):
                     return j(200, await self.action(path[7:], body))
                 if path == "memory/move" and request.method == "POST":

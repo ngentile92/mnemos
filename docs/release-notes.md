@@ -6,6 +6,16 @@
 
 Newest first. Each `## vX.Y.Z` section is the body of that GitHub Release (`scripts/release_notes.py`).
 
+## v0.16.2
+
+**Connecting your AIs, clearer.**
+
+- **One clear state per app**: Not connected → Installed ✓ (send any message to finish) → Connected ✓, plus a one-line test question to check it.
+- **Problems show in the app's own card**, with one button to fix or retry. A broken Claude Code install is named plainly, and Mnemos adds itself to Claude Code directly.
+- **Old Claude extension off in one click** (backed up, nothing deleted). The optional Claude text now points to Settings → Account → Instructions for Claude, in plain words.
+- **ChatGPT and Grok get their own cards** with the two copy/paste steps.
+- **"What do you know about me?" answers from all your spaces**, not only the app's default one.
+
 ## v0.16.1
 
 **Hotfix: the desktop app no longer gets stuck on "Starting…".**

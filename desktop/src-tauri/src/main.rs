@@ -87,12 +87,12 @@ fn connect_claude() -> Result<String, String> {
     let path = claude_config_path();
     let mut cfg: serde_json::Value = match std::fs::read_to_string(&path) {
         Ok(t) if !t.trim().is_empty() => {
-            serde_json::from_str(&t).map_err(|e| format!("Claude config is not valid JSON ({e}); not touching it"))?
+            serde_json::from_str(&t).map_err(|e| format!("Claude's settings file is not valid ({e}); not touching it"))?
         }
         _ => serde_json::json!({}),
     };
     if !cfg.is_object() {
-        return Err("Claude config is not a JSON object; not touching it".into());
+        return Err("Claude's settings file has an unexpected format; not touching it".into());
     }
     if path.exists() {
         let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
@@ -102,7 +102,7 @@ fn connect_claude() -> Result<String, String> {
     }
     let servers = cfg.as_object_mut().unwrap().entry("mcpServers").or_insert_with(|| serde_json::json!({}));
     if !servers.is_object() {
-        return Err("mcpServers in the Claude config is not an object; not touching it".into());
+        return Err("Claude's settings file has an unexpected format; not touching it".into());
     }
     let map = servers.as_object_mut().unwrap();
     let old: Vec<String> = map
@@ -312,7 +312,7 @@ fn cursor_link() -> Result<String, String> {
 fn connect_cursor() -> Result<String, String> {
     let link = cursor_link()?;
     Command::new("open").arg(&link).status().map_err(|e| format!("could not open Cursor: {e}"))?;
-    Ok("Cursor opened: click Install there. Mnemos then appears in Cursor's MCP list (all your spaces).".into())
+    Ok("Cursor opened: click Install there. Mnemos then appears in Cursor's list of tools (all your spaces).".into())
 }
 
 fn home() -> PathBuf {
@@ -512,7 +512,7 @@ Quit that app, then press Start."));
         .env("MNEMOS_TOKEN", tok)
         .env("MNEMOS_PARENT_PID", std::process::id().to_string())
         .spawn()
-        .map_err(|e| format!("could not start the hub: {e}"))?;
+        .map_err(|e| format!("could not start Mnemos: {e}"))?;
     *g = Some(child);
     Ok(())
 }
@@ -537,7 +537,7 @@ fn stop_hub(hub: State<Hub>) -> Result<(), String> {
 fn setup(contexts: Vec<String>, owner: String, password: String) -> Result<String, String> {
     let ctxs: Vec<String> = contexts.iter().map(|c| c.trim().to_lowercase()).filter(|c| !c.is_empty()).collect();
     if ctxs.is_empty() || !ctxs.iter().all(|c| valid_ctx(c)) {
-        return Err("contexts: lowercase letters, digits and dashes (e.g. personal, work)".into());
+        return Err("spaces: lowercase letters, digits and dashes (e.g. personal, work)".into());
     }
     if password.chars().count() < 8 {
         return Err("password: at least 8 characters".into());

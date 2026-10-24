@@ -99,15 +99,15 @@
   <section class="card hidden" id="empty-cta" style="margin:14px 36px"><h2>Your memory is empty</h2>
     <p class="small muted">Mnemos can look on this computer for what your AI tools already know about you (Claude Code, Cursor, CLAUDE.md, Obsidian, ChatGPT and Claude exports). Nothing is saved until you review it.</p>
     <a class="mbtn primary" href="#import" id="empty-scan">Scan this Mac</a></section>
-  <section class="card me-bar">
-    <select id="me-ctx" aria-label="Context"></select>
-    <input id="me-q" type="search" placeholder="Filter notes…" maxlength="200">
-    <label class="small muted"><input type="checkbox" id="me-shared" checked> show shared (read-only)</label>
-    <button id="me-refresh" class="mbtn">Refresh</button>
-    <span class="muted small me-hint">Every change is versioned (Undo)</span>
+  <section class="card me-bar me-top">
+    <select id="me-ctx" aria-label="Space"></select>
+    <div class="me-search"><input id="me-q" type="search" placeholder="Search your memory…" maxlength="200" aria-label="Search your memory"><kbd id="me-kbd">⌘K</kbd></div>
+    <button id="me-new" class="mbtn primary">New note</button>
+    <button id="me-sugg" class="mbtn">Suggestions <span class="me-cnt" id="me-sugg-n"></span></button>
+    <button id="me-refresh" class="mbtn" title="Refresh" aria-label="Refresh">↻</button>
   </section>
-  <section class="card me-dispute">
-    <div class="card-h"><h2>Add or correct something</h2></div>
+  <section class="card me-dispute hidden" id="me-new-card">
+    <div class="card-h"><h2>New note or correction</h2><button class="mbtn" id="me-new-close">Close</button></div>
     <p class="muted small me-help">Write a fact in one sentence. Mnemos first looks for a note that says otherwise:
       <b>if one does</b>, it proposes a minimal fix you can apply; <b>if none does</b>, you can save it as a new note.
       Nothing is written until you click.</p>
@@ -115,13 +115,19 @@
     <button id="me-dispute-go" class="mbtn primary">Check</button></div>
     <div id="me-proposals"></div>
   </section>
-  <section class="card me-inbox" id="me-inbox-card"><div class="card-h"><h2>Memory health</h2><span class="muted small" id="me-inbox-head"></span>
+  <section class="card me-inbox hidden" id="me-inbox-card"><div class="card-h"><h2>Memory health</h2><span class="muted small" id="me-inbox-head"></span>
     <span class="me-actions" style="margin-left:auto"><button class="mbtn" id="me-hy-run">Check now</button><button class="mbtn hidden" id="me-hy-undo">Undo last cleanup</button></span></div>
     <p class="muted small me-help">Mnemos checks your memory after every import and once a day, and only <b>suggests</b>: nothing changes until you accept. Before applying anything it saves a backup, and “Undo last cleanup” puts everything back.</p>
     <div id="me-hy-groups" class="me-hy-groups"></div>
     <div id="me-inbox"></div></section>
-  <section class="me-grid">
-    <div class="card me-listcard"><div class="card-h"><h2>Notes</h2><span class="muted small" id="me-count"></span></div><div id="me-list"></div></div>
+  <section class="me-grid me-grid3">
+    <aside class="card me-filters" id="me-filters" aria-label="Filters"></aside>
+    <div class="card me-listcard"><div class="card-h"><h2>Notes</h2><span class="muted small" id="me-count"></span></div>
+      <div class="me-bulk hidden" id="me-bulk"><b id="me-bulk-n"></b>
+        <button class="mbtn" id="me-b-pin">Pin</button>
+        <select id="me-b-to" aria-label="Move to"></select><button class="mbtn" id="me-b-move">Move</button>
+        <button class="mbtn danger" id="me-b-forget">Forget</button><button class="mbtn" id="me-b-clear">Clear</button></div>
+      <div id="me-list"></div></div>
     <div class="card me-detailcard"><div id="me-detail"><p class="muted">Pick a note on the left.</p></div></div>
   </section>
   <div id="me-toast" class="me-toast hidden" role="status"></div>

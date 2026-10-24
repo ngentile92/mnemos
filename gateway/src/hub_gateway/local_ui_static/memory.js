@@ -7,6 +7,45 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const CTXS = (window.MNEMOS?.contexts || []).map((c) => c.name);
   let items = [], loaded = false, selId = null, poll = null;
+  // 0.17 redesign: filters (left), dense list with multi-select (middle), detail (right)
+  let shared = localStorage.getItem("mnemos.memshared") !== "0";
+  const F = { show: "all", app: "", origin: "", when: "" };
+  const picked = new Set();
+  const DAY = 864e5;
+  const ageDays = (it) => { const d = Date.parse(it.created_at); return isNaN(d) ? 1e9 : (Date.now() - d) / DAY; };
+  const isImported = (it) => (it.tags || []).some((t) => String(t).startsWith("import")) || /^import/.test(it.source_app || "");
+  const appName = (it) => it.source_app || "unknown app";
+  const TESTS = {
+    show: { all: () => true, pinned: (it) => it.pinned, mine: (it) => it.editable, shared: (it) => !it.editable,
+      old: (it) => it.obsolete || it.validity === "expired" },
+    origin: { "": () => true, imported: isImported, saved: (it) => !isImported(it) },
+    when: { "": () => true, d7: (it) => ageDays(it) <= 7, d30: (it) => ageDays(it) <= 30, older: (it) => ageDays(it) > 30 },
+  };
+  const passes = (it, skip) => (skip === "show" || TESTS.show[F.show](it)) && (skip === "app" || !F.app || appName(it) === F.app)
+    && (skip === "origin" || TESTS.origin[F.origin](it)) && (skip === "when" || TESTS.when[F.when](it));
+  // the hub dashboard shares this file with an older layout: every 0.17 element is optional
+  const on = (id, prop, fn) => { const el = $(id); if (el) el[prop] = fn; };
+  if ($("me-shared") && !$("me-filters")) { $("me-shared").checked = shared; $("me-shared").onchange = (e) => { shared = e.target.checked; localStorage.setItem("mnemos.memshared", shared ? "1" : "0"); load(); }; }
+  function renderFilters() {
+    if (!$("me-filters")) return;
+    const n = (key, test) => items.filter((it) => passes(it, key) && test(it)).length;
+    const opt = (key, val, label, cnt) => `<button class="me-f${F[key] === val ? " on" : ""}" data-fk="${key}" data-fv="${esc(val)}"><span>${esc(label)}</span><span class="me-fn">${cnt}</span></button>`;
+    const apps = [...new Set(items.map(appName))].sort();
+    $("me-filters").innerHTML = `<h3>Show</h3>${opt("show", "all", "All notes", n("show", TESTS.show.all))}${opt("show", "pinned", "Pinned", n("show", TESTS.show.pinned))}
+      ${opt("show", "mine", "Only this space", n("show", TESTS.show.mine))}${shared ? opt("show", "shared", "Shared (read-only)", n("show", TESTS.show.shared)) : ""}${opt("show", "old", "Obsolete or expired", n("show", TESTS.show.old))}
+      <label class="me-fshared small"><input type="checkbox" id="me-shared" ${shared ? "checked" : ""}> Include shared notes</label>
+      <h3>App</h3>${opt("app", "", "Any app", n("app", () => true))}${apps.map((a) => opt("app", a, a, n("app", (it) => appName(it) === a))).join("")}
+      <h3>Origin</h3>${opt("origin", "", "Any", n("origin", () => true))}${opt("origin", "imported", "Imported", n("origin", isImported))}${opt("origin", "saved", "Saved by an AI or you", n("origin", (it) => !isImported(it)))}
+      <h3>When</h3>${opt("when", "", "Any time", n("when", () => true))}${opt("when", "d7", "Last 7 days", n("when", TESTS.when.d7))}${opt("when", "d30", "Last 30 days", n("when", TESTS.when.d30))}${opt("when", "older", "Older", n("when", TESTS.when.older))}
+      ${F.show !== "all" || F.app || F.origin || F.when ? '<button class="mbtn sm me-freset" id="me-freset">Clear filters</button>' : ""}`;
+  }
+  function renderBulk() {
+    if (!$("me-bulk")) return;
+    $("me-bulk").classList.toggle("hidden", !picked.size);
+    $("me-bulk-n").textContent = `${picked.size} selected`;
+    $("me-b-to").innerHTML = CTXS.filter((c) => c !== ctx()).map((c) => `<option>${esc(c)}</option>`).join("");
+    $("me-b-move").classList.toggle("hidden", CTXS.length < 2); $("me-b-to").classList.toggle("hidden", CTXS.length < 2);
+  }
   $("me-ctx").innerHTML = CTXS.map((c) => `<option>${esc(c)}</option>`).join("");
   const saved = localStorage.getItem("mnemos.memctx");
   if (saved && CTXS.includes(saved)) $("me-ctx").value = saved;
@@ -50,11 +89,12 @@
     loaded = true;
     if (!items.length) $("me-list").innerHTML = '<p class="muted"><span class="spin"></span>loading…</p>';
     try {
-      const j = await get("/api/memory/list", { context: ctx(), include_shared: $("me-shared").checked ? "1" : "0" });
+      const j = await get("/api/memory/list", { context: ctx(), include_shared: shared ? "1" : "0" });
       items = j.items || [];
       renderList();
       const cur = keepSel && items.find((i) => i.id === selId);
       if (cur && !$("me-text")) show(cur, false);
+      else if (!cur && window.innerWidth >= 900) { const first = items.find((i) => passes(i)); if (first) show(first, false); }
       clearInterval(poll);
       if (items.some((i) => i.sync === "processing")) poll = setInterval(() => load(), 4000);
     } catch (e) { $("me-list").innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
@@ -77,15 +117,19 @@
     }
     return out + esc(t.slice(last));
   };
-  const row = (it, q, extra = "") => `<div class="me-item${it.id === selId ? " sel" : ""}" data-id="${esc(it.id)}"><div class="m"><span>${esc(when(it.created_at))}</span><span>${esc(it.source_app || "")}</span>${badges(it)}${extra}</div>` +
-      `<div class="t">${hl(it.text, q)}</div></div>`;
+  const short = (s) => { const d = new Date(s); return isNaN(d) ? "" : d.toLocaleDateString([], { day: "numeric", month: "short" }); };
+  const row = (it, q, extra = "") => `<div class="me-item me-row1${it.id === selId ? " sel" : ""}${picked.has(it.id) ? " picked" : ""}" data-id="${esc(it.id)}">` +
+      `${it.editable ? `<input type="checkbox" class="me-pick" data-pick="${esc(it.id)}" ${picked.has(it.id) ? "checked" : ""} aria-label="Select">` : '<span class="me-pick-sp"></span>'}` +
+      `<div class="t">${it.pinned ? "📌 " : ""}${hl(it.text, q)}</div><div class="m">${badges(it).replace('<span class="badge pin">📌 pinned</span>', "").replace("shared · read-only</span>", "shared</span>")}${extra}<span class="me-app">${esc(appName(it))}</span><span class="me-date">${esc(short(it.created_at))}</span></div></div>`;
   function renderList() {
     const q = $("me-q").value.trim();
-    const hits = q ? items.filter((it) => matches(it.text, q)) : items;
-    $("me-count").textContent = q ? `${hits.length} of ${items.length} match “${q}”` : `${items.length}`;
+    renderFilters(); renderBulk();
+    const pool = items.filter((it) => passes(it));
+    const hits = q ? pool.filter((it) => matches(it.text, q)) : pool;
+    $("me-count").textContent = q ? `${hits.length} of ${pool.length} match “${q}”` : pool.length === items.length ? `${items.length}` : `${pool.length} of ${items.length}`;
     const hitIds = new Set(hits.map((h) => h.id));
     const rel = q ? related.filter((r) => !hitIds.has(r.id)).map((r) => items.find((i) => i.id === r.id)).filter(Boolean) : [];
-    $("me-list").innerHTML = (hits.length ? hits.map((it) => row(it, q)).join("") : `<p class="muted">${q ? "No note contains that text." : "No notes."}</p>`) +
+    $("me-list").innerHTML = (hits.length ? hits.map((it) => row(it, q)).join("") : `<div class="empty"><p class="muted">${q ? "No note contains that text." : items.length ? "No note matches these filters." : "No notes yet."}</p></div>`) +
       (rel.length ? `<div class="me-relh small muted">Related by meaning</div>` + rel.map((it) => row(it, "", '<span class="badge">related</span>')).join("") : "") +
       (q && relPending ? '<p class="small muted"><span class="spin"></span>looking for related notes…</p>' : "");
   }
@@ -98,7 +142,7 @@
     if (q.length < 2) return;
     relPending = true; renderList();
     relT = setTimeout(async () => {
-      try { related = ((await get("/api/memory/related", { context: ctx(), q, include_shared: $("me-shared").checked ? "1" : "0" })).results || []).filter((r) => r.id); }
+      try { related = ((await get("/api/memory/related", { context: ctx(), q, include_shared: shared ? "1" : "0" })).results || []).filter((r) => r.id); }
       catch { related = []; }
       relPending = false;
       if ($("me-q").value.trim() === q) renderList();
@@ -234,6 +278,7 @@
     inbox = j.items || []; lastBatch = j.last_batch || null;
     const counts = j.counts || {};
     $("me-inbox-head").textContent = j.running ? "checking…" : j.date ? `checked ${when(j.at || j.date)} · ${inbox.length} to review${j.total > inbox.length ? ` · ${j.total - inbox.length} done` : ""}` : "not checked yet";
+    if ($("me-sugg")) { $("me-sugg-n").textContent = inbox.length ? String(inbox.length) : ""; $("me-sugg").classList.toggle("has", inbox.length > 0); }
     $("me-hy-undo").classList.toggle("hidden", !lastBatch);
     if (lastBatch) $("me-hy-undo").textContent = `Undo last cleanup (${lastBatch.count})`;
     $("me-hy-groups").innerHTML = GROUPS.filter((g) => counts[g[0]]).map((g) => `<div class="me-hy-g${hyFilter === g[0] ? " on" : ""}" data-g="${g[0]}">
@@ -352,10 +397,59 @@
     btn.disabled = false;
   };
 
-  $("me-list").addEventListener("click", (ev) => { const n = ev.target.closest(".me-item"); if (n) show(items.find((i) => i.id === n.dataset.id)); });
+  let lastPick = null;
+  $("me-list").addEventListener("click", (ev) => {
+    const c = ev.target.closest("[data-pick]");
+    if (c) {
+      const ids = [...$("me-list").querySelectorAll("[data-pick]")].map((x) => x.dataset.pick);
+      const on = c.checked;
+      if (ev.shiftKey && lastPick && ids.includes(lastPick)) { const [a, b] = [ids.indexOf(lastPick), ids.indexOf(c.dataset.pick)].sort((x, y) => x - y); ids.slice(a, b + 1).forEach((id) => (on ? picked.add(id) : picked.delete(id))); }
+      else on ? picked.add(c.dataset.pick) : picked.delete(c.dataset.pick);
+      lastPick = c.dataset.pick; renderList(); return;
+    }
+    const n = ev.target.closest(".me-item"); if (n) show(items.find((i) => i.id === n.dataset.id));
+  });
+  $("me-filters")?.addEventListener("click", (ev) => {
+    if (ev.target.id === "me-freset") { Object.assign(F, { show: "all", app: "", origin: "", when: "" }); return renderList(); }
+    const b = ev.target.closest("[data-fk]"); if (!b) return;
+    F[b.dataset.fk] = F[b.dataset.fk] === b.dataset.fv && b.dataset.fk !== "show" ? "" : b.dataset.fv; renderList();
+  });
+  $("me-filters")?.addEventListener("change", (ev) => {
+    if (ev.target.id !== "me-shared") return;
+    shared = ev.target.checked; localStorage.setItem("mnemos.memshared", shared ? "1" : "0");
+    if (!shared && F.show === "shared") F.show = "all"; load();
+  });
+  async function bulk(btn, label, fn, done) {
+    const ids = [...picked].filter((id) => items.some((i) => i.id === id && i.editable));
+    if (!ids.length) return;
+    btn.disabled = true; const t = btn.textContent; btn.innerHTML = `<span class="spin"></span>${esc(t)}`;
+    let ok = 0;
+    for (const id of ids) { try { await fn(items.find((i) => i.id === id)); ok++; } catch { /* counted below */ } }
+    btn.disabled = false; btn.textContent = t; picked.clear();
+    toast(`${done} ${ok}${ok < ids.length ? ` · ${ids.length - ok} not done` : ""} ✓`);
+    await load(); changedFiles();
+  }
+  const changedFiles = () => window.dispatchEvent(new Event("mnemos:memory-changed"));
+  on("me-b-pin", "onclick", (e) => bulk(e.target, "Pin", (it) => post("/api/memory/pin", { context: ctx(), id: it.id, pinned: true }), "Pinned:"));
+  on("me-b-move", "onclick", (e) => { const to = $("me-b-to").value;
+    if (confirm(`Move ${picked.size} notes to ${to}? Each one is copied there and forgotten here; you can undo each forget.`))
+      bulk(e.target, "Move", (it) => post("/api/memory/move", { context: ctx(), id: it.id, to, text: it.text, project: "", confirm: true }), `Moved to ${to}:`); });
+  on("me-b-forget", "onclick", (e) => { if (confirm(`Forget ${picked.size} notes? Each one can be restored from its history.`))
+      bulk(e.target, "Forget", (it) => post("/api/memory/delete", { context: ctx(), id: it.id }), "Forgotten:"); });
+  on("me-b-clear", "onclick", () => { picked.clear(); renderList(); });
+  on("me-new", "onclick", () => { const c = $("me-new-card"); c.classList.toggle("hidden"); if (!c.classList.contains("hidden")) $("me-dispute").focus(); });
+  on("me-new-close", "onclick", () => $("me-new-card").classList.add("hidden"));
+  on("me-sugg", "onclick", () => { $("me-inbox-card").classList.toggle("hidden"); $("me-sugg").classList.toggle("on", !$("me-inbox-card").classList.contains("hidden")); });
+  if ($("me-kbd")) $("me-kbd").textContent = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      if (!location.hash.startsWith("#memoria")) location.hash = "memoria";
+      setTimeout(() => { $("me-q").focus(); $("me-q").select(); }, 30);
+    } else if (e.key === "Escape" && document.activeElement === $("me-q") && $("me-q").value) { $("me-q").value = ""; onFilter(); }
+  });
   $("me-refresh").onclick = () => load();
-  $("me-ctx").onchange = () => { localStorage.setItem("mnemos.memctx", ctx()); selId = null; items = []; $("me-detail").innerHTML = '<p class="muted">Pick a note on the left.</p>'; load(); };
-  $("me-shared").onchange = () => load();
+  $("me-ctx").onchange = () => { localStorage.setItem("mnemos.memctx", ctx()); selId = null; items = []; picked.clear(); $("me-detail").innerHTML = '<p class="muted">Pick a note on the left.</p>'; load(); };
   $("me-q").addEventListener("input", onFilter);
   $("me-dispute").addEventListener("keydown", (e) => { if (e.key === "Enter") $("me-dispute-go").click(); });
   window.addEventListener("mnemos:memoria", () => { if (!loaded) { load(); loadInbox(); } });

@@ -13,3 +13,4 @@ h3{margin:18px 0 4px;font-size:15px}.apps{display:flex;flex-direction:column;gap
 .app .badge{font-size:11px;padding:2px 8px;border-radius:99px;background:#1a2448;color:var(--mut)}.app .badge.on{background:#123a2c;color:var(--ok)}
 .app code{display:block;margin-top:8px;padding:8px;border-radius:8px;background:#0b1020;font-size:11px;word-break:break-all;color:var(--mut);user-select:all}
 .app.cloud{margin-top:8px;opacity:.85}.app p{margin:4px 0 0}
+.warn{color:#f59e0b}

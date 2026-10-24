@@ -163,3 +163,21 @@ def test_stdio_without_context_serves_every_space(home):
         p.kill()
     rec = json.loads((home / "data" / "apps.json").read_text())["apps"]["claude-desktop"]
     assert rec["via"] == "stdio"
+
+
+async def test_first_call_profile_covers_every_allowed_space(home):
+    """'What do you know about me?' must not answer from the app's default space only."""
+    servers = local.build_all(home, 8765)
+    router = local.build_router(home, servers)
+    first, other = list(servers)[0], list(servers)[1]
+    names = {t.name for t in await router.list_tools()}
+    tool = "memory_start" if "memory_start" in names else "memory_profile"
+    save = "memory_remember" if "memory_remember" in names else "memory_save"
+    async with client(router) as c:
+        await c.call_tool(save, {"text": "Ana leads the payments team at her company", "context": other})
+        await c.call_tool(save, {"text": "Ana likes horses", "context": first})
+        out = data(await c.call_tool(tool, {}))
+        assert out["default_space"] == first and {first, other} <= set(out["spaces"])
+        assert "payments" in json.dumps(out["spaces"][other], ensure_ascii=False)
+        one = data(await c.call_tool(tool, {"context": other}))  # an explicit space still answers just that one
+        assert "spaces" not in one

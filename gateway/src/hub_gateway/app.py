@@ -1069,7 +1069,8 @@ def build_server(
         async def memory_start(
             project: Annotated[str | None, Field(description="Solo contexto side: limitar a un proyecto")] = None,
         ) -> dict[str, Any]:
-            """Call this FIRST in every new conversation, before answering. Returns who the user is (their profile)
+            """The user's long-term memory. Call this FIRST on the user's first message in every conversation, before
+            answering, even if they never mention memory. Returns who the user is (their profile)
             and the list of topic files in their memory; read a topic with memory_read when the chat touches it.
             Whenever the user shares something lasting about themselves, save it with memory_remember."""
             login = _current_login(settings)

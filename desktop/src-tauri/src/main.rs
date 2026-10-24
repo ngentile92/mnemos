@@ -199,6 +199,57 @@ struct AppCard {
     connected: bool,
     how: &'static str,     // "button" | "deeplink" | "command" | "remote"
     command: Option<String>,
+    seen: bool,            // the app already talked to Mnemos (a real MCP handshake, from data/apps.json)
+}
+
+/// Apps that completed an MCP handshake with this Mnemos (data/apps.json, written by the hub on `initialize`).
+fn seen_apps() -> Vec<String> {
+    std::fs::read_to_string(home().join("data/apps.json")).ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .and_then(|v| v.get("apps").and_then(|a| a.as_object()).map(|m| m.iter()
+            .filter(|(_, r)| r.get("last_seen").map(|x| !x.is_null()).unwrap_or(false)
+                && !r.get("revoked").and_then(|x| x.as_bool()).unwrap_or(false))
+            .map(|(k, _)| k.clone()).collect()))
+        .unwrap_or_default()
+}
+
+/// Full path of a command-line tool (GUI apps do not get the shell PATH).
+fn find_bin(bin: &str) -> Option<String> {
+    let h = std::env::var("HOME").unwrap_or_default();
+    let mut dirs = vec![format!("{h}/.local/bin"), "/opt/homebrew/bin".into(), "/usr/local/bin".into(), format!("{h}/.npm-global/bin"),
+                        "/Applications/Visual Studio Code.app/Contents/Resources/app/bin".into()];
+    if let Ok(p) = std::env::var("PATH") {
+        dirs.extend(p.split(':').map(String::from));
+    }
+    dirs.iter().map(|d| format!("{d}/{bin}")).find(|p| std::path::Path::new(p).is_file())
+}
+
+/// One click for every local app: Claude Desktop (config entry), Cursor (install link) and the command-line apps
+/// (Claude Code, Codex, VS Code: Mnemos runs their own `mcp add` for you, so nobody needs Terminal).
+#[tauri::command]
+fn connect_app(id: String) -> Result<String, String> {
+    match id.as_str() {
+        "claude-desktop" => connect_claude(),
+        "cursor" => connect_cursor(),
+        "claude-code" | "codex" | "vscode" => {
+            let (prog, args) = stdio_cmd()?;
+            let (bin, name) = match id.as_str() { "claude-code" => ("claude", "Claude Code"), "codex" => ("codex", "Codex"), _ => ("code", "VS Code") };
+            let exe = find_bin(bin).ok_or_else(|| format!("Could not find {name}'s `{bin}` command on this Mac. Open {name} once (or reinstall it), then try again."))?;
+            let mut cmd = Command::new(&exe);
+            match id.as_str() {
+                "claude-code" => { cmd.args(["mcp", "add", "--scope", "user", "mnemos", "--"]).arg(&prog).args(&args); }
+                "codex" => { cmd.args(["mcp", "add", "mnemos", "--"]).arg(&prog).args(&args); }
+                _ => { cmd.arg("--add-mcp").arg(serde_json::json!({"name": "mnemos", "command": prog, "args": args}).to_string()); }
+            }
+            let out = cmd.stdin(Stdio::null()).output().map_err(|e| format!("Could not run {name}: {e}"))?;
+            let text = String::from_utf8_lossy(&out.stderr).to_string() + &String::from_utf8_lossy(&out.stdout);
+            if !out.status.success() && !text.to_lowercase().contains("already exists") {
+                return Err(format!("{name} did not accept Mnemos: {}", text.trim().chars().take(300).collect::<String>()));
+            }
+            Ok(format!("Added Mnemos to {name}. Restart {name} (or start a new session) and send it any message."))
+        }
+        _ => Err(format!("unknown app {id}")),
+    }
 }
 
 fn file_has(p: PathBuf, needle: &str) -> bool {
@@ -228,21 +279,26 @@ fn app_cards() -> Result<Vec<AppCard>, String> {
     let vs = serde_json::json!({"name": "mnemos", "command": prog, "args": args}).to_string();
     let app = |n: &str| std::path::Path::new(&format!("/Applications/{n}.app")).exists() || h.join(format!("Applications/{n}.app")).exists();
     let vs_user = h.join("Library/Application Support/Code/User/mcp.json");
-    Ok(vec![
+    let seen = seen_apps();
+    let mut cards = vec![
         AppCard { id: "claude-desktop", name: "Claude Desktop", installed: app("Claude") || claude_config_path().exists(),
-                  connected: json_has_server(claude_config_path(), "mcpServers"), how: "button", command: None },
+                  connected: json_has_server(claude_config_path(), "mcpServers"), how: "button", command: None, seen: false },
         AppCard { id: "cursor", name: "Cursor", installed: app("Cursor") || h.join(".cursor").exists(),
-                  connected: json_has_server(h.join(".cursor/mcp.json"), "mcpServers"), how: "deeplink", command: None },
+                  connected: json_has_server(h.join(".cursor/mcp.json"), "mcpServers"), how: "deeplink", command: None, seen: false },
         AppCard { id: "claude-code", name: "Claude Code", installed: on_path("claude") || h.join(".claude.json").exists(),
                   connected: json_has_server(h.join(".claude.json"), "mcpServers"), how: "command",
-                  command: Some(format!("claude mcp add --scope user mnemos -- {line}")) },
+                  command: Some(format!("claude mcp add --scope user mnemos -- {line}")), seen: false },
         AppCard { id: "codex", name: "Codex", installed: on_path("codex") || h.join(".codex").exists(),
                   connected: file_has(h.join(".codex/config.toml"), "[mcp_servers.mnemos]"), how: "command",
-                  command: Some(format!("codex mcp add mnemos -- {line}")) },
+                  command: Some(format!("codex mcp add mnemos -- {line}")), seen: false },
         AppCard { id: "vscode", name: "VS Code", installed: app("Visual Studio Code") || on_path("code"),
                   connected: json_has_server(vs_user, "servers"), how: "command",
-                  command: Some(format!("code --add-mcp {}", shell_quote(&vs))) },
-    ])
+                  command: Some(format!("code --add-mcp {}", shell_quote(&vs))), seen: false },
+    ];
+    for c in cards.iter_mut() {
+        c.seen = seen.iter().any(|k| k == c.id);
+    }
+    Ok(cards)
 }
 
 /// Cursor's one-click install link (cursor.com/docs/mcp/install-links): Cursor asks the user to confirm.
@@ -604,7 +660,7 @@ fn main() {
                 api.prevent_close();
             }
         })
-        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude, connect_cursor, app_cards, memory_url, claude_notes, open_claude,
+        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude, connect_cursor, app_cards, connect_app, memory_url, claude_notes, open_claude,
                                                  set_login_item, login_item])
         .build(tauri::generate_context!())
         .expect("error while building Mnemos Desktop");
@@ -626,6 +682,16 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn seen_apps_reads_handshakes() {
+        let d = std::env::temp_dir().join(format!("mnemos-seen-{}", std::process::id()));
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("data/apps.json"), r#"{"apps":{"cursor":{"last_seen":"2026-01-01"},"codex":{"last_seen":"x","revoked":true},"vscode":{}}}"#).unwrap();
+        std::env::set_var("MNEMOS_HOME", &d);
+        assert_eq!(seen_apps(), vec!["cursor".to_string()]);
+        std::env::remove_var("MNEMOS_HOME");
+        let _ = std::fs::remove_dir_all(d);
+    }
     #[test]
     fn base64_and_quote() {
         assert_eq!(b64(b"Man"), "TWFu");

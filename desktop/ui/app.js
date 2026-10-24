@@ -17,59 +17,83 @@ async function refresh() {
 }
 
 async function run(btn, fn) {
-  btn.disabled = true; $("err").textContent = ""; $("ok").textContent = "";
-  try { await fn(); } catch (e) { $("err").textContent = String(e); }
+  btn.disabled = true; $("err").textContent = ""; $("ok").textContent = ""; $("fix").classList.add("hidden");
+  try { await fn(); } catch (e) { showError(String(e)); }
   await refresh();
 }
+// every error says what happened and offers one button that fixes or retries it (#199)
+function showError(msg) {
+  $("err").textContent = msg;
+  const f = $("fix");
+  if (/another Mnemos is already running/i.test(msg)) { f.textContent = "Use the running Mnemos"; f.onclick = (e) => run(e.target, async () => window.__TAURI__.opener.openUrl(await invoke("memory_url"))); }
+  else if (/Port \d+ is used/i.test(msg)) { f.textContent = "Try again"; f.onclick = (e) => run(e.target, () => invoke("start_hub")); }
+  else if (/Could not find .* command/i.test(msg)) { f.textContent = "Check again"; f.onclick = () => { cardsKey = ""; $("err").textContent = ""; f.classList.add("hidden"); refresh(); }; }
+  else { f.textContent = "Try again"; f.onclick = () => { $("err").textContent = ""; f.classList.add("hidden"); cardsKey = ""; refresh(); }; }
+  f.classList.remove("hidden");
+}
 
-const HELP = {
-  "claude-desktop": "Adds Mnemos to Claude Desktop. Then quit Claude (Cmd+Q) and reopen it.",
-  cursor: "Opens Cursor; click Install there.",
-  "claude-code": "Paste this in Terminal once:",
-  codex: "Paste this in Terminal once:",
-  vscode: "Paste this in Terminal once (or VS Code → MCP: Add Server):",
+// Connect apps: only the apps found on this Mac, one button each. A card goes Connect → "Restart <app>" → Connected ✓,
+// and the last step only shows once the app really talked to Mnemos (MCP handshake recorded by the hub).
+const RESTART = {
+  "claude-desktop": "Quit Claude Desktop (Cmd+Q), open it again and send it any message.",
+  cursor: "Click Install in Cursor, then send it any message.",
+  "claude-code": "Start a new Claude Code session and send it any message.",
+  codex: "Start a new Codex session and send it any message.",
+  vscode: "Reload VS Code and send a message in its chat.",
 };
+const pending = new Set();
 let cardsKey = "";
+function btn(text, cls, onclick) { const b = document.createElement("button"); b.textContent = text; if (cls) b.className = cls; b.onclick = onclick; return b; }
+function para(text, cls) { const p = document.createElement("p"); p.className = cls || "muted small"; p.textContent = text; return p; }
+function card(c) {
+  const el = document.createElement("div"); el.className = "app";
+  const head = document.createElement("div"); head.className = "head";
+  const name = document.createElement("b"); name.textContent = c.name;
+  const state = c.connected && c.seen ? "ok" : c.connected || pending.has(c.id) ? "restart" : "new";
+  const badge = document.createElement("span"); badge.className = "badge" + (state === "ok" ? " on" : "");
+  badge.textContent = state === "ok" ? "Connected ✓" : state === "restart" ? "Waiting for the app…" : "Not connected";
+  head.append(name, badge); el.append(head);
+  const a = document.createElement("div"); a.className = "actions";
+  if (state === "new") {
+    a.append(btn(`Connect ${c.name}`, "primary", (e) => run(e.target, async () => {
+      e.target.textContent = "Connecting…";
+      try { $("ok").textContent = await invoke("connect_app", { id: c.id }); pending.add(c.id); }
+      catch (err) { el.dataset.failed = "1"; throw err; }
+      finally { cardsKey = ""; }
+    })));
+  } else if (state === "restart") {
+    el.append(para(RESTART[c.id] || "Restart the app and send it any message."));
+    if (c.id === "claude-desktop") a.append(btn("Open Claude", "", async () => { try { await invoke("open_claude"); } catch (_) { /* not installed */ } }));
+  } else {
+    el.append(para("It can read and save your memory."));
+  }
+  if (a.childElementCount) el.append(a);
+  if (c.command && state !== "ok") {
+    // fallback if the button cannot run the app's command (kept out of sight: nobody should need Terminal)
+    const d = document.createElement("details"); const s = document.createElement("summary"); s.className = "muted small"; s.textContent = "Did not work?";
+    const code = document.createElement("code"); code.textContent = c.command;
+    d.append(s, para("Paste this once in Terminal instead:"), code, btn("Copy", "", async (e) => { try { await navigator.clipboard.writeText(c.command); e.target.textContent = "Copied ✓"; } catch (_) { e.target.textContent = "Select and Cmd+C"; } }));
+    el.append(d);
+  }
+  if (c.id === "claude-desktop" && c.connected) claudeExtras(el);
+  return el;
+}
 async function renderApps() {
   if (!last || !last.initialized) return;
   let cards;
   try { cards = await invoke("app_cards"); } catch (e) { return; }
-  const key = JSON.stringify(cards);
+  const key = JSON.stringify(cards) + [...pending].join();
   if (key === cardsKey) return;
   cardsKey = key;
-  $("apps").replaceChildren(...cards.map((c) => {
-    const el = document.createElement("div");
-    el.className = "app";
-    const head = document.createElement("div"); head.className = "head";
-    const name = document.createElement("b"); name.textContent = c.name;
-    const badge = document.createElement("span");
-    badge.className = "badge" + (c.connected ? " on" : "");
-    badge.textContent = c.connected ? "connected" : c.installed ? "not connected" : "not found on this Mac";
-    head.append(name, badge);
-    const p = document.createElement("p"); p.className = "muted small"; p.textContent = HELP[c.id] || "";
-    el.append(head, p);
-    if (c.how === "button" || c.how === "deeplink") {
-      const b = document.createElement("button");
-      b.textContent = c.connected ? `Reconnect ${c.name}` : `Connect ${c.name}`;
-      b.onclick = (e) => run(e.target, async () => {
-        $("ok").textContent = await invoke(c.how === "button" ? "connect_claude" : "connect_cursor");
-        cardsKey = "";
-      });
-      const a = document.createElement("div"); a.className = "actions"; a.append(b); el.append(a);
-      if (c.id === "claude-desktop") claudeExtras(el);
-    } else if (c.command) {
-      const code = document.createElement("code"); code.textContent = c.command;
-      const b = document.createElement("button"); b.textContent = "Copy";
-      b.onclick = async () => {
-        try { await navigator.clipboard.writeText(c.command); b.textContent = "Copied ✓"; }
-        catch (_) { const r = document.createRange(); r.selectNodeContents(code); getSelection().removeAllRanges(); getSelection().addRange(r); b.textContent = "Press Cmd+C"; }
-        setTimeout(() => { b.textContent = "Copy"; }, 2000);
-      };
-      const a = document.createElement("div"); a.className = "actions"; a.append(b);
-      el.append(code, a);
-    }
-    return el;
-  }));
+  const found = cards.filter((c) => c.installed || c.connected), missing = cards.filter((c) => !c.installed && !c.connected);
+  const nodes = found.map(card);
+  if (!found.length) nodes.push(para("No AI app found on this Mac yet. Install Claude Desktop, Cursor, Claude Code, Codex or VS Code; it shows up here by itself. Using ChatGPT or Claude on the web? See “Later” below.", "small"));
+  if (missing.length) {
+    const d = document.createElement("details"); const s = document.createElement("summary"); s.className = "muted small";
+    s.textContent = `Not on this Mac: ${missing.map((c) => c.name).join(", ")}`; d.append(s, para("Install one and it appears above."));
+    nodes.push(d);
+  }
+  $("apps").replaceChildren(...nodes);
 }
 // Claude Desktop drops MCP server instructions: offer the text for its personal preferences, and flag a second
 // (extension) copy of Mnemos.

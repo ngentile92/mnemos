@@ -79,3 +79,14 @@ label:has(>input[type=checkbox]){display:inline-flex;align-items:center;gap:2px}
 .muted{color:#9aa3bd}
 a.mbtn,a.mbtn:hover{text-decoration:none}
 .card-h a{color:#a78bfa;text-decoration:none}.card-h a:hover{text-decoration:underline}
+
+/* 0.17 import status + stat numbers never inherit link purple */
+.hm-stat b{color:var(--txt)}
+.imp-status{font-size:13px;font-weight:600}.imp-status.ok{color:#5fd39a}.imp-status.todo{color:var(--txt)}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;margin-left:6px;vertical-align:1px}
+.pill.ok{background:rgba(95,211,154,.14);color:#5fd39a}.pill.new{background:rgba(124,108,255,.16);color:#b9b0ff}
+.imp-item.done{opacity:.75}
+.imp-group{border:1px solid var(--line);border-radius:12px;padding:6px 12px;margin:10px 0}
+.imp-group summary{cursor:pointer;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0}
+.imp-group .grp-acts{margin-left:auto;display:flex;gap:6px}.imp-group .grp-acts .mbtn{padding:3px 10px;font-size:12px}
+#d-hist details{margin-top:14px}#d-hist summary{cursor:pointer;color:var(--mut)}

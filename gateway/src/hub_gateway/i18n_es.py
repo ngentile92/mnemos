@@ -7,6 +7,11 @@ to the screen. DESKTOP_*: the Mnemos window (desktop app), including its Rust me
 # ruff: noqa: E501
 
 EXACT: dict[str, str] = {
+ "Remove the notes saved by this import? Each one can still be restored from its history.": "¿Quitar las notas guardadas por esta importación? Cada una se puede recuperar desde su historial.",
+ "Everything is up to date ✓ Nothing new to import.": "Todo al día ✓ No hay nada nuevo para importar.",
+ "New · never imported": "Nueva · nunca importada",
+ "already in your memory": "ya estaba en tu memoria",
+ "Undo": "Deshacer",
  'What each AI knows': 'Qué sabe cada IA',
  'More': 'Más',
  'How your memory thinks': 'Cómo piensa tu memoria',
@@ -448,6 +453,13 @@ EXACT: dict[str, str] = {
 }
 
 PAT: dict[str, str] = {
+ "{n} source has something new to import": "{n} fuente tiene algo nuevo para importar",
+ "{n} sources have something new to import": "{n} fuentes tienen algo nuevo para importar",
+ "Imported ✓ {x} · {n} facts": "Importada ✓ {x} · {n} {n:dato|datos}",
+ "{n} new or changed since {x}": "{n} {n:archivo nuevo o cambiado|archivos nuevos o cambiados} desde {x}",
+ "{n} new · {n} already in your memory": "{n} nuevas · {n} ya estaban en tu memoria",
+ "Import history ({n})": "Historial de importaciones ({n})",
+ "{n} saved · {n} already in your memory": "{n} {n:guardada|guardadas} · {n} ya estaban en tu memoria",
  "Saved {n} ✓": "{n} {n:guardada|guardadas} ✓",
  "Saved {n} notes ✓": "{n} {n:nota guardada|notas guardadas} ✓",
  "{n} skipped (already there)": "{n} {n:salteada (ya estaba)|salteadas (ya estaban)}",

@@ -10,6 +10,11 @@ const ES = /^es\b/i.test(navigator.language || "") ? {
   "Pick your AIs": "Elegí tus IAs", "The AI apps found on this Mac. One click connects each one to your memory (all your spaces).": "Las IAs que encontramos en esta Mac. Un clic conecta cada una a tu memoria (todos tus espacios).",
   "Mnemos is running": "Mnemos está funcionando", "Mnemos is stopped": "Mnemos está detenido", "Starting…": "Iniciando…", "Open my memory": "Abrir mi memoria",
   "Restart the app and send it any message.": "Reiniciá la app y mandale cualquier mensaje.",
+  "Welcome": "Bienvenida", "Three quick things. Nothing leaves this computer.": "Tres cosas rápidas. No sale nada de esta computadora.",
+  "Create my Mnemos": "Crear mi Mnemos", "Start": "Iniciar", "Stop": "Detener", "Your name": "Tu nombre", "Spaces": "Espacios", "Password": "Contraseña",
+  "Repeat password": "Repetí la contraseña", "— what your AIs will call you": "— cómo te van a llamar tus IAs",
+  "— separate memories that never mix": "— memorias separadas que nunca se mezclan",
+  "— used later if you connect from your phone or the web": "— se usa si después te conectás desde el teléfono o la web",
 } : {};
 const T = (s) => ES[s] || s;
 const $ = (id) => document.getElementById(id);
@@ -146,6 +151,7 @@ $("w-go").onclick = async (e) => {
 };
 $("login").onchange = async (e) => { try { e.target.checked = await invoke("set_login_item", { enabled: e.target.checked }); } catch (err) { $("err").textContent = String(err); } };
 invoke("login_item").then((v) => { $("login").checked = v; });
-document.querySelectorAll("h3, p.muted.small, button").forEach((el) => { if (el.childElementCount === 0 && ES[el.textContent.trim()]) el.textContent = ES[el.textContent.trim()]; });
+{ const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = w.nextNode(); n; n = w.nextNode()) { const k = n.nodeValue.trim(); if (k && ES[k] && !n.parentElement.closest("code, pre")) n.nodeValue = n.nodeValue.replace(k, ES[k]); } }
 refresh();
 setInterval(refresh, 2000);

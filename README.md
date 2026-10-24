@@ -5,6 +5,7 @@ Connect a new AI and it knows you from the first message. Everything stays on yo
 
 > **Get it for your Mac:** download **[Mnemos-macos.dmg](https://github.com/ngentile92/mnemos/releases/latest/download/Mnemos-macos.dmg)**
 > and follow the [5-minute install guide](docs/INSTALL-mac.md). No Docker, no API keys, nothing else to install.
+> First open: right-click **Mnemos** → **Open**, or **System Settings → Privacy & Security → Open Anyway** (the app is not notarized by Apple yet).
 
 ## What it does
 
@@ -69,5 +70,6 @@ Grok, y una IA nueva te conoce desde el primer mensaje. Todo queda en tu computa
 
 Para la Mac: descargá [Mnemos-macos.dmg](https://github.com/ngentile92/mnemos/releases/latest/download/Mnemos-macos.dmg)
 y seguí la [guía de instalación](docs/INSTALL-mac.md#instalar-mnemos-en-una-mac-español) (5 minutos, sin Docker ni
-claves). El hub con Docker para servidores está en [docs/HUB.md](docs/HUB.md) (guías en español: `docs/*.es.md`).
+claves). Primera vez: clic derecho sobre **Mnemos** → **Abrir**, o **Ajustes del Sistema → Privacidad y seguridad →
+Abrir igualmente**. El hub con Docker para servidores está en [docs/HUB.md](docs/HUB.md) (guías en español: `docs/*.es.md`).
 Licencia MIT.

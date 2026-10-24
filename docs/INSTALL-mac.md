@@ -12,8 +12,9 @@ The app is not signed by Apple yet, so a normal double-click shows *"cannot be o
 1. Open **Applications**, **right-click** (or Control-click) **Mnemos** → **Open**.
 2. Click **Open** again in the warning.
 
-From then on it opens normally. If you only see *"Move to Trash"*: go to **System Settings → Privacy & Security**,
-scroll down and click **Open Anyway** next to Mnemos.
+From then on it opens normally. On macOS 15 (Sequoia) and later, right-click → Open may only show *"Done"* /
+*"Move to Trash"*: click **Done**, go to **System Settings → Privacy & Security**, scroll down to *"Mnemos was
+blocked…"*, click **Open Anyway** and confirm with your password or Touch ID. Then open Mnemos again.
 
 ## 3. Set it up
 The **Welcome** screen asks for your name, your spaces (*Contexts*: separate memories that never mix, e.g.
@@ -64,7 +65,7 @@ Ollama or API.
 | What you see | What to do |
 |---|---|
 | *"Mnemos cannot be opened because the developer cannot be verified"* | Right-click → **Open** (step 2). Or **System Settings → Privacy & Security → Open Anyway**. |
-| *"Mnemos is damaged and can't be opened"* | The download was quarantined. In Terminal: `xattr -cr /Applications/Mnemos.app`, then open it again. |
+| *"Mnemos is damaged and can't be opened"* | Versions up to 0.17.0 were not signed at all, so macOS calls a downloaded copy "damaged". Get the latest version, or in Terminal run `xattr -cr /Applications/Mnemos.app` and open it again. From 0.17.1 the app carries an ad-hoc signature, so you only see the "unidentified developer" warning (step 2). |
 | *"port 8765 is already in use"* | Another Mnemos (or another app on that port) is running. Quit it from the menu bar icon (**Quit Mnemos**) and open Mnemos again. |
 | Claude does not use Mnemos | Quit Claude with **Cmd+Q** (closing the window is not enough) and reopen. If you moved Mnemos.app after connecting, click **Connect** again. |
 | Claude shows Mnemos twice | An old Mnemos extension (`.mcpb`) is also installed. Remove it in Claude → **Settings → Extensions**. |
@@ -90,8 +91,9 @@ La app todavía no está firmada por Apple, así que un doble clic muestra *"no 
 1. En **Aplicaciones**, **clic derecho** (o Control-clic) sobre **Mnemos** → **Abrir**.
 2. Tocá **Abrir** otra vez en el aviso.
 
-Si solo aparece *"Mover a la papelera"*: **Ajustes del Sistema → Privacidad y seguridad**, bajá y tocá
-**Abrir igualmente** al lado de Mnemos.
+En macOS 15 (Sequoia) o posterior, clic derecho → Abrir puede mostrar solo *"Listo"* / *"Mover a la papelera"*:
+tocá **Listo**, andá a **Ajustes del Sistema → Privacidad y seguridad**, bajá hasta *"Se bloqueó Mnemos…"*, tocá
+**Abrir igualmente** y confirmá con tu contraseña o Touch ID. Después abrí Mnemos de nuevo.
 
 ## 3. Configuralo
 La pantalla **Welcome** pide tu nombre, tus espacios (*Contexts*: memorias separadas que no se mezclan, por ejemplo
@@ -140,7 +142,7 @@ en la carpeta `Mnemos` de tu carpeta personal; hacele backup como a cualquier ca
 | Qué ves | Qué hacer |
 |---|---|
 | *"No se puede abrir Mnemos porque no se puede verificar el desarrollador"* | Clic derecho → **Abrir** (paso 2). O **Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente**. |
-| *"Mnemos está dañado y no se puede abrir"* | La descarga quedó en cuarentena. En Terminal: `xattr -cr /Applications/Mnemos.app` y abrilo de nuevo. |
+| *"Mnemos está dañado y no se puede abrir"* | Hasta la 0.17.0 la app no tenía ninguna firma, así que macOS dice que una copia descargada está "dañada". Bajá la última versión, o en Terminal ejecutá `xattr -cr /Applications/Mnemos.app` y abrila de nuevo. Desde la 0.17.1 la app tiene firma ad-hoc y solo ves el aviso de "desarrollador no identificado" (paso 2). |
 | *"port 8765 is already in use"* | Hay otro Mnemos (u otra app en ese puerto) abierto. Cerralo desde el ícono de la barra de menú (**Quit Mnemos**) y abrí Mnemos de nuevo. |
 | Claude no usa Mnemos | Cerrá Claude con **Cmd+Q** (cerrar la ventana no alcanza) y abrilo. Si moviste Mnemos.app después de conectar, tocá **Connect** otra vez. |
 | Claude muestra Mnemos dos veces | Hay una extensión vieja de Mnemos (`.mcpb`). Sacala en Claude → **Settings → Extensions**. |

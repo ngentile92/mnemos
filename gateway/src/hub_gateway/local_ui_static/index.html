@@ -16,7 +16,8 @@
     <div><h1>Mnemos</h1><p class="sub">Your memory, on this computer</p></div>
   </div>
   <nav class="tabs hidden" id="tabs" role="tablist">
-    <a href="#memoria" class="tab active" data-view="memoria" role="tab">Memory</a>
+    <a href="#home" class="tab active" data-view="home" role="tab">Home</a>
+    <a href="#memoria" class="tab" data-view="memoria" role="tab">Memory</a>
     <a href="#apps" class="tab" data-view="apps" role="tab">Apps</a>
     <a href="#skills" class="tab" data-view="skills" role="tab">Skills</a>
     <span class="tab-sep" aria-hidden="true"></span>
@@ -46,7 +47,17 @@
   <div class="me-actions"><button id="wl-go" class="mbtn primary">Start</button><span id="wl-err" class="err small"></span></div>
 </section>
 <div id="app" class="hidden">
-<main id="view-memoria" class="view">
+<main id="view-home" class="view">
+  <section class="card hm-card" id="hm-status"><div class="card-h"><h2 id="hm-title">Checking…</h2><span class="muted small" id="hm-sub"></span></div>
+    <div class="hm-stats"><a href="#memoria" class="hm-stat"><b id="hm-n">–</b><span>memories</span></a>
+      <a href="#apps" class="hm-stat"><b id="hm-a">–</b><span>apps connected</span></a>
+      <a href="#skills" class="hm-stat"><b id="hm-s">–</b><span>skills</span></a></div>
+    <div id="hm-apps" class="hm-apps"></div></section>
+  <section class="card hm-card" id="hm-next"><h3 class="small muted" style="margin:0 0 6px">Next step</h3><div id="hm-next-body"></div></section>
+  <section class="card hm-card hidden" id="hm-tip"><h3 class="small muted" style="margin:0 0 6px">A suggestion for your memory</h3><div id="hm-tip-body"></div></section>
+  <section class="card hm-card"><div class="card-h"><h3 class="small muted" style="margin:0">Latest</h3><a href="#apps" class="small">All activity</a></div><div id="hm-feed" class="ap-feed"></div></section>
+</main>
+<main id="view-memoria" class="view hidden">
   
   <section class="card hidden" id="files-view" style="margin:14px 36px"><div class="card-h"><h2>Memory files</h2><span class="muted small" id="fv-head"></span></div>
     <p class="small muted">One folder per space. Click a file to read or edit it; every save is a new version you can restore.</p>
@@ -292,5 +303,6 @@
 <script src="/ui/files.js"></script>
 <script src="/ui/sync.js"></script>
 <script src="/ui/native.js"></script>
+<script src="/ui/home.js"></script>
 </body>
 </html>

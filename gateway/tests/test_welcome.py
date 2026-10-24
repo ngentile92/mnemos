@@ -46,8 +46,23 @@ def test_ui_welcome_and_tabs():
     assert w.count("<input") == 1 and "context" not in w.lower()
     nav = html.split('id="tabs"')[1].split("</nav>")[0]
     main = [t for t in nav.split("<a ")[1:] if 'class="tab"' in t or 'class="tab active"' in t]
-    assert [t.split(">")[1].split("<")[0] for t in main] == ["Memory", "Apps", "Skills"]
+    assert [t.split(">")[1].split("<")[0] for t in main] == ["Home", "Memory", "Apps", "Skills"]
     for word in ("Docker", "Reach", "Labs", "secret", "store"):
         assert word not in nav
     js = (STATIC / "local.js").read_text()
     assert "needsWelcome" in js and '"/api/welcome"' in js
+
+
+def test_home_view():
+    html = (STATIC / "index.html").read_text()
+    assert 'id="view-home" class="view"' in html and '/ui/home.js' in html
+    for el in ("hm-n", "hm-a", "hm-next-body", "hm-tip", "hm-feed"):
+        assert f'id="{el}"' in html
+    js = (STATIC / "home.js").read_text()
+    assert "Not now" in js and "sessionStorage" in js and ".find(" in js  # one suggestion at a time
+    assert 'view-memoria" class="view hidden"' in html
+    assert '|| "home"' in (STATIC / "local.js").read_text()
+
+
+def test_init_default_owner_is_not_a_name(tmp_path):
+    assert local_welcome.status(_home(tmp_path, owner="me"))["name"] == ""

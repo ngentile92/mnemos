@@ -16,7 +16,7 @@
   async function start() {
     const m = location.hash.match(/^#k=([\w-]+)/);
     if (m) {
-      history.replaceState(null, "", location.pathname + "#memoria");
+      history.replaceState(null, "", location.pathname + "#home");
       try { await api("/api/login", { token: m[1] }); } catch { /* fall through to the password form */ }
     }
     let s;
@@ -42,7 +42,7 @@
     $("wl-spaces").innerHTML = w.spaces.filter((x) => x.name !== "shared").map((x) => `<span><i style="background:${esc(x.color)}"></i>${esc(x.label)}</span>`).join("");
     const go = async () => {
       $("wl-err").textContent = ""; $("wl-go").disabled = true;
-      try { await api("/api/welcome", { name: $("wl-name").value }); $("welcome").classList.add("hidden"); location.hash = "#memoria"; boot(s); }
+      try { await api("/api/welcome", { name: $("wl-name").value }); $("welcome").classList.add("hidden"); location.hash = "#home"; boot(s); }
       catch (e) { $("wl-err").textContent = e.message; }
       $("wl-go").disabled = false;
     };
@@ -82,8 +82,8 @@
   }
   const loaded = {};
   function route() {
-    const v = (location.hash.slice(1).split(/[?&]/)[0] || "memoria").replace(/^k=.*/, "memoria");
-    let view = ["memoria", "graph", "skills", "spaces", "native", "apps", "import", "settings"].includes(v) ? v : "memoria";
+    const v = (location.hash.slice(1).split(/[?&]/)[0] || "home").replace(/^k=.*/, "home");
+    let view = ["home", "memoria", "graph", "skills", "spaces", "native", "apps", "import", "settings"].includes(v) ? v : "home";
     document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.id !== "view-" + view));
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
     if (!loaded[view]) {

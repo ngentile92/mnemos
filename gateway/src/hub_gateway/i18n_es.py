@@ -643,6 +643,8 @@ SERVER: dict[str, str] = {
 }
 
 DESKTOP_EXACT: dict[str, str] = {
+ "Mnemos is taking too long to start.": "Mnemos está tardando demasiado en arrancar.",
+ "Restart Mnemos": "Reiniciar Mnemos",
  "Select and Cmd+C": "Seleccioná y Cmd+C",
  "Press Cmd+C": "Tocá Cmd+C",
  "Connected ✓": "Conectada ✓",

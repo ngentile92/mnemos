@@ -445,13 +445,18 @@ fn port_taken() -> bool {
 }
 
 /// A Mnemos answers on our port (its /health says mode "local"), not just any app that took 8765.
+/// The server only answers its own Host (with the port) and the Bearer token it was started with.
+fn health_request(tok: &str) -> String {
+    format!("GET /health HTTP/1.0\r\nHost: 127.0.0.1:{PORT}\r\nAuthorization: Bearer {tok}\r\n\r\n")
+}
+
 fn healthy() -> bool {
     use std::io::Read;
     let addr: SocketAddr = ([127, 0, 0, 1], PORT).into();
     let Ok(mut s) = TcpStream::connect_timeout(&addr, Duration::from_millis(300)) else { return false };
     let _ = s.set_read_timeout(Some(Duration::from_millis(800)));
     let _ = s.set_write_timeout(Some(Duration::from_millis(300)));
-    if s.write_all(b"GET /health HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n").is_err() {
+    if s.write_all(health_request(&token().unwrap_or_default()).as_bytes()).is_err() {
         return false;
     }
     let mut buf = Vec::new();
@@ -692,6 +697,13 @@ mod tests {
         std::env::remove_var("MNEMOS_HOME");
         let _ = std::fs::remove_dir_all(d);
     }
+    #[test]
+    fn health_request_authenticates() {
+        let r = health_request("abc");
+        assert!(r.contains(&format!("Host: 127.0.0.1:{PORT}\r\n")));
+        assert!(r.contains("Authorization: Bearer abc\r\n"));
+    }
+
     #[test]
     fn base64_and_quote() {
         assert_eq!(b64(b"Man"), "TWFu");

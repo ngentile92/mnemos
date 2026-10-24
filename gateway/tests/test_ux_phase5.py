@@ -30,3 +30,19 @@ def test_activity_summaries_translated_but_not_quotes():
         assert "trSum(e.summary)" in (S / f).read_text()
     from hub_gateway import i18n_es as L
     assert L.EXACT["read what it knows about you"] and L.EXACT["Connect"] == "Conectar"
+
+
+def test_final_pass_strings_translated():
+    from hub_gateway import i18n_es
+    for k in ["(not found on this computer)", "can read", "On", "file", "files",
+              "Shared holds what every space should know: your name, language, how you like answers. Every space and every app can read it. Notes only get there when you choose “Promote to shared”."]:
+        assert k in i18n_es.EXACT, k
+    assert "key: {x} (never changes)" in i18n_es.PAT
+
+
+def test_final_pass_css_and_labels():
+    from pathlib import Path
+    st = Path(__file__).resolve().parents[1] / "src/hub_gateway/local_ui_static"
+    css = (st / "local.css").read_text()
+    assert "label.small input[type=checkbox]" in css and ".sp-row .sp-label{width:100%" in css
+    assert "spLabel(s)" in (st / "sync.js").read_text()

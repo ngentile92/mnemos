@@ -90,3 +90,12 @@ a.mbtn,a.mbtn:hover{text-decoration:none}
 .imp-group summary{cursor:pointer;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0}
 .imp-group .grp-acts{margin-left:auto;display:flex;gap:6px}.imp-group .grp-acts .mbtn{padding:3px 10px;font-size:12px}
 #d-hist details{margin-top:14px}#d-hist summary{cursor:pointer;color:var(--mut)}
+
+/* visual pass (0.17) */
+.me-inbox{margin:0 36px 14px}
+.me-bar label{display:inline-flex;gap:6px;align-items:center;white-space:nowrap;margin:0}
+.sy-ctl{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.sy-ctl label{display:inline-flex;gap:6px;align-items:center;margin:0}.sy-ctl input{width:auto}
+.sy-ctl .sy-onl{margin-left:auto;font-weight:600}
+#sync-list .me-item{border-color:var(--line);margin-bottom:8px;cursor:default}
+#sync-list .me-item .m b{font-size:14px;color:var(--txt)}

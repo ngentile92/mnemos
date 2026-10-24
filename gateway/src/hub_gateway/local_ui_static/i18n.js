@@ -418,6 +418,7 @@
  "full-history mining needs a model: Settings → Improve my memory (or Ollama)": "leer todo el historial necesita un modelo: Ajustes → Mejorar mi memoria (u Ollama)",
  "group": "grupo",
  "hide shared": "ocultar compartido",
+ "home folder": "carpeta personal",
  "if none does": "si no la hay",
  "if one does": "si la hay",
  "installed": "instalado",

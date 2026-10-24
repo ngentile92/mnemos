@@ -7,6 +7,7 @@ to the screen. DESKTOP_*: the Mnemos window (desktop app), including its Rust me
 # ruff: noqa: E501
 
 EXACT: dict[str, str] = {
+ "home folder": "carpeta personal",
  "Remove the notes saved by this import? Each one can still be restored from its history.": "¿Quitar las notas guardadas por esta importación? Cada una se puede recuperar desde su historial.",
  "Everything is up to date ✓ Nothing new to import.": "Todo al día ✓ No hay nada nuevo para importar.",
  "New · never imported": "Nueva · nunca importada",

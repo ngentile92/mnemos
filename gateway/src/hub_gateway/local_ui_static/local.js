@@ -236,7 +236,7 @@
         : s.status === "changed" ? `<span class="pill new">${s.new_files} new or changed since ${esc(dDate(s.last_import))}</span>`
         : '<span class="pill new">New · never imported</span>';
       $("d-sources").innerHTML = dSources.length ? dSources.map((s, i) => `<label class="imp-item${s.status === "imported" ? " done" : ""}"><input type="checkbox" data-i="${i}" ${s.status === "imported" ? "" : "checked"}>
-        <span style="flex:1"><b>${esc(s.label)}</b> ${pill(s)}<br><span class="small muted">${s.count} ${esc(s.unit)} · ${kb(s.bytes)} · ${esc(s.where)}</span></span>
+        <span style="flex:1"><b>${esc(s.label)}</b> ${pill(s)}<br><span class="small muted">${s.count} ${esc(s.count === 1 ? s.unit.replace(/s$/, "") : s.unit)} · ${kb(s.bytes)} · ${esc(String(s.where).split(", ").map((w) => (w === "~" ? "home folder" : w)).join(", "))}</span></span>
         <select data-c="${i}" aria-label="Context">${dCtxs.length > 1 ? `<option value="auto" ${s.context === "auto" ? "selected" : ""}>Sort by content</option>` : ""}${dCtxs.map((c) => `<option ${c === s.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>`).join("")
         : '<p class="muted small">Nothing found on this computer. Use the options below.</p>';
       $("d-go-row").classList.toggle("hidden", !dSources.length);

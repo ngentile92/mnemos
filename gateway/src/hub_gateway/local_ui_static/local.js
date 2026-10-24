@@ -99,6 +99,7 @@
       if (view === "skills") loadSkills();
     }
     if (view === "settings") { loadEngine(); loadFtue(); }
+    if (view === "import" && window.mnemosImportOpen) window.mnemosImportOpen();
     window.dispatchEvent(new CustomEvent("mnemos:view", { detail: view }));
   }
 
@@ -222,20 +223,39 @@
     const b = $("d-scan"); b.disabled = true; b.innerHTML = '<span class="spin"></span>Looking…';
     try {
       const r = await api("/api/discover/scan"); dSources = r.sources; dCtxs = r.contexts;
+      const sm = r.summary || { todo: dSources.length, up_to_date: false };
       $("d-sum").textContent = `Found ${dSources.length} source${dSources.length === 1 ? "" : "s"}`;
+      $("d-status").className = "imp-status " + (dSources.length && sm.up_to_date ? "ok" : "todo");
+      $("d-status").textContent = !dSources.length ? "" : sm.up_to_date ? "Everything is up to date ✓ Nothing new to import."
+        : `${sm.todo} source${sm.todo === 1 ? " has" : "s have"} something new to import`;
       const en = r.engine || { kind: "rules" };
       $("d-llm").textContent = en.kind === "api" ? `Facts are found with ${en.name}: the selected text is sent to that provider.`
         : en.kind === "rules" ? "Simple extraction (first-person facts and instruction files). For better results: Settings → Improve my memory."
         : `Facts are found with ${en.name}, on this computer.`;
-      $("d-sources").innerHTML = dSources.length ? dSources.map((s, i) => `<label class="imp-item"><input type="checkbox" data-i="${i}" checked>
-        <span style="flex:1"><b>${esc(s.label)}</b> · ${s.count} ${esc(s.unit)} · ${kb(s.bytes)}<br><span class="small muted">${esc(s.where)}</span></span>
+      const pill = (s) => s.status === "imported" ? `<span class="pill ok">Imported ✓ ${esc(dDate(s.last_import))} · ${s.saved} facts</span>`
+        : s.status === "changed" ? `<span class="pill new">${s.new_files} new or changed since ${esc(dDate(s.last_import))}</span>`
+        : '<span class="pill new">New · never imported</span>';
+      $("d-sources").innerHTML = dSources.length ? dSources.map((s, i) => `<label class="imp-item${s.status === "imported" ? " done" : ""}"><input type="checkbox" data-i="${i}" ${s.status === "imported" ? "" : "checked"}>
+        <span style="flex:1"><b>${esc(s.label)}</b> ${pill(s)}<br><span class="small muted">${s.count} ${esc(s.unit)} · ${kb(s.bytes)} · ${esc(s.where)}</span></span>
         <select data-c="${i}" aria-label="Context">${dCtxs.length > 1 ? `<option value="auto" ${s.context === "auto" ? "selected" : ""}>Sort by content</option>` : ""}${dCtxs.map((c) => `<option ${c === s.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>`).join("")
         : '<p class="muted small">Nothing found on this computer. Use the options below.</p>';
       $("d-go-row").classList.toggle("hidden", !dSources.length);
     } catch (e) { alert("Scan failed: " + e.message); }
     b.disabled = false; b.textContent = "Scan again";
   }
+  const dDate = (iso) => { try { return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" }); } catch { return ""; } };
+  async function dHistory() {
+    let h = []; try { h = (await api("/api/discover/history")).history || []; } catch { return; }
+    $("d-hist").innerHTML = h.length ? `<details><summary class="small">Import history (${h.length})</summary>${h.slice(0, 10).map((x) => `<div class="imp-item"><span style="flex:1">${esc(dDate(x.at))} · ${esc((x.sources || []).join(", "))}<br><span class="small muted">${x.saved} saved · ${x.skipped} already in your memory${x.undone ? ` · undone (${x.removed || 0} removed)` : ""}</span></span>${x.undone || !x.saved ? "" : `<button class="mbtn" data-undo="${esc(x.batch)}">Undo</button>`}</div>`).join("")}</details>` : "";
+  }
+  $("d-hist").addEventListener("click", async (ev) => {
+    const b = ev.target.closest("[data-undo]"); if (!b) return;
+    if (!confirm("Remove the notes saved by this import? Each one can still be restored from its history.")) return;
+    b.disabled = true; try { await api("/api/discover/undo", { batch: b.dataset.undo }); } catch (e) { alert(e.message); }
+    dHistory();
+  });
   $("d-scan").onclick = dScan;
+  window.mnemosImportOpen = () => { if (!dSources.length) dScan(); dHistory(); };
   $("d-go").onclick = async () => {
     const chosen = [...$("d-sources").querySelectorAll("input:checked")].map((c) => ({ id: dSources[+c.dataset.i].id, context: $("d-sources").querySelector(`select[data-c="${c.dataset.i}"]`).value }));
     if (!chosen.length) return;
@@ -255,20 +275,25 @@
     dRes = r; $("d-progress").classList.add("hidden"); $("d-review").classList.remove("hidden");
     const sec = r.sources.reduce((a, s) => a + s.secrets_dropped, 0);
     $("d-rsum").textContent = `${r.new} new · ${r.duplicates} already known${sec ? ` · ${sec} left out (looked like secrets)` : ""}${r.timed_out ? " · stopped early (time limit)" : ""}`;
-    let last = "";
-    $("d-list").innerHTML = r.items.length ? r.items.map((it, i) => {
-      const head = it.source_label !== last ? `<h3 class="small" style="margin:14px 0 4px">${esc(it.source_label)} → ${esc(it.context)}</h3>` : "";
-      last = it.source_label;
-      return head + `<label class="imp-item${it.duplicate ? " dup" : ""}"><input type="checkbox" data-i="${i}" ${it.duplicate ? "" : "checked"}>
-        <span>${esc(it.text)}${it.duplicate ? ` <span class="badge obs">${esc(it.duplicate)}</span>` : ""}${it.route ? `<br><span class="small muted">→ ${esc(it.context)} · ${esc(it.route.reason || "")}${it.route.review ? " · review" : ""}</span>` : ""}</span>
-        ${it.route ? `<select class="d-sp" data-i="${i}" aria-label="Space">${dCtxs.map((c) => `<option ${c === it.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>` : ""}</label>`;
-    }).join("") : '<p class="muted">No durable facts found in those sources.</p>';
+    const groups = {};
+    r.items.forEach((it, i) => { (groups[it.source_label] = groups[it.source_label] || []).push(i); });
+    const row = (i) => { const it = r.items[i];
+      return `<label class="imp-item${it.duplicate ? " dup" : ""}"><input type="checkbox" data-i="${i}" ${it.duplicate ? "" : "checked"}>
+        <span>${esc(it.text)}${it.duplicate ? ` <span class="badge obs">already in your memory</span>` : ""}${it.route ? `<br><span class="small muted">→ ${esc(it.context)} · ${esc(it.route.reason || "")}${it.route.review ? " · review" : ""}</span>` : ""}</span>
+        ${it.route ? `<select class="d-sp" data-i="${i}" aria-label="Space">${dCtxs.map((c) => `<option ${c === it.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>` : ""}</label>`; };
+    const names = Object.keys(groups);
+    $("d-list").innerHTML = names.length ? names.map((n, gi) => { const ix = groups[n], nw = ix.filter((i) => !r.items[i].duplicate).length;
+      return `<details class="imp-group" ${names.length === 1 ? "open" : ""}><summary><b>${esc(n)}</b> <span class="small muted">${nw} new · ${ix.length - nw} already in your memory</span>
+        <span class="grp-acts"><button class="mbtn" data-g="${gi}" data-on="1">Select all new</button><button class="mbtn" data-g="${gi}" data-on="0">Select none</button></span></summary>${ix.map(row).join("")}</details>`; }).join("")
+      : '<p class="muted">No durable facts found in those sources.</p>';
+    $("d-list").querySelectorAll("[data-g]").forEach((b) => { b.onclick = (ev) => { ev.preventDefault();
+      b.closest("details").querySelectorAll("input[type=checkbox]").forEach((c) => { c.checked = b.dataset.on === "1" && !dRes.items[+c.dataset.i].duplicate; }); }; });
   }
   $("d-list").addEventListener("change", (ev) => { const t = ev.target; if (t.classList.contains("d-sp")) dRes.items[+t.dataset.i].context = t.value; });
-  $("d-all").onclick = () => $("d-list").querySelectorAll("input").forEach((c) => { c.checked = !dRes.items[+c.dataset.i].duplicate; });
-  $("d-none").onclick = () => $("d-list").querySelectorAll("input").forEach((c) => { c.checked = false; });
+  $("d-all").onclick = () => $("d-list").querySelectorAll("input[type=checkbox]").forEach((c) => { c.checked = !dRes.items[+c.dataset.i].duplicate; });
+  $("d-none").onclick = () => $("d-list").querySelectorAll("input[type=checkbox]").forEach((c) => { c.checked = false; });
   $("d-save").onclick = async (e) => {
-    const notes = [...$("d-list").querySelectorAll("input:checked")].map((c) => { const it = dRes.items[+c.dataset.i]; return { text: it.text, context: it.context, source: it.source }; });
+    const notes = [...$("d-list").querySelectorAll("input:checked")].map((c) => { const it = dRes.items[+c.dataset.i]; return { text: it.text, context: it.context, source: it.source, source_id: it.source_id }; });
     if (!notes.length) return;
     const b = e.target; b.disabled = true; b.innerHTML = `<span class="spin"></span>Saving ${notes.length}…`;
     try {
@@ -276,7 +301,8 @@
       $("d-review").classList.add("hidden"); $("d-done").classList.remove("hidden");
       $("d-done").innerHTML = `<p>Saved ${r.saved} notes ✓${r.skipped ? ` · ${r.skipped} skipped (already there)` : ""}${r.failed ? ` · ${r.failed} failed` : ""}. They are tagged “import-auto”.</p>
         <button class="mbtn" id="d-undo">Undo this import</button>`;
-      $("d-undo").onclick = async (ev) => { ev.target.disabled = true; const u = await api("/api/discover/undo", { batch: r.batch }); $("d-done").innerHTML = `<p>Removed ${u.removed} notes (each one can still be restored from its history).</p>`; };
+      $("d-undo").onclick = async (ev) => { ev.target.disabled = true; const u = await api("/api/discover/undo", { batch: r.batch }); $("d-done").innerHTML = `<p>Removed ${u.removed} notes (each one can still be restored from its history).</p>`; dHistory(); };
+      dHistory(); dScan();
     } catch (err) { alert("Not saved: " + err.message); }
     b.disabled = false; b.textContent = "Save selected";
   };

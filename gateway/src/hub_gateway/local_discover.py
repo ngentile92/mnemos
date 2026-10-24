@@ -547,13 +547,14 @@ async def preview(sources: list[dict], existing: dict[str, list[str]], progress:
                 new += pv["new"]
                 for it in pv["items"][:MAX_PER_SOURCE]:
                     items.append({**it, "context": c, "route": rmap.get(it["text"]), "source": src["kind"],
-                                  "source_label": src["label"]})
+                                  "source_label": src["label"], "source_id": src["id"]})
             pv = {"new": new}
         else:
             pool = existing.get(ctx, []) + [it["text"] for it in items if it["context"] == ctx]
             pv = li.preview(kept[:MAX_PER_SOURCE * 3], pool)
             for it in pv["items"][:MAX_PER_SOURCE]:
-                items.append({**it, "context": ctx, "source": src["kind"], "source_label": src["label"]})
+                items.append({**it, "context": ctx, "source": src["kind"], "source_label": src["label"],
+                              "source_id": src["id"]})
         stats.append({"id": src["id"], "label": src["label"], "messages": len(msgs), "candidates": len(kept),
                       "new": pv["new"], "secrets_dropped": sum(1 for t in cands if has_secret(t)),
                       "filtered": len(cands) - len(kept)})
@@ -582,15 +583,19 @@ class Discover:
         self.sources: dict[str, dict] = {}
         self.job: dict[str, Any] = {"state": "idle"}
         self.task: asyncio.Task | None = None
+        self.previewed: list[str] = []
 
     def _home(self) -> Path:
         return Path(self.home_dir or os.environ.get("MNEMOS_SCAN_HOME") or Path.home())
 
     async def scan(self, _body: dict) -> dict:
+        from . import local_imports
         found = await asyncio.to_thread(scan, self._home(), list(self.ui.servers))
+        found = local_imports.annotate(self.ui.home, found)
         self.sources = {s["id"]: s for s in found}
         llm = await asyncio.to_thread(self.engine.llm, "import")
-        return {"sources": public(found), "contexts": list(self.ui.servers), "llm": llm.name if llm else None,
+        return {"sources": public(found), "summary": local_imports.summary(found), "contexts": list(self.ui.servers),
+                "llm": llm.name if llm else None,
                 "engine": {"kind": llm.kind, "name": llm.name} if llm else {"kind": "rules", "name": "Rules"}}
 
     async def start(self, body: dict) -> dict:
@@ -611,6 +616,7 @@ class Discover:
         want = {c for s in chosen for c in ([*self.ui.servers] if s["context"] == "auto" else [s["context"]])}
         existing = {c: await self.ui._existing(c) for c in want}
         self.job = {"state": "running", "phase": "Starting", "done": 0, "total": len(chosen)}
+        self.previewed = [s["id"] for s in chosen]
 
         async def run() -> None:
             try:
@@ -630,12 +636,16 @@ class Discover:
         batch = "imp-" + hashlib.sha1(f"{time.time()}".encode()).hexdigest()[:8]
         saved = skipped = 0
         errors: list[str] = []
+        saved_by: dict[str, int] = {}
+        skipped_by: dict[str, int] = {}
         for n in (body.get("notes") or [])[:li.MAX_CANDIDATES]:
             n = n if isinstance(n, dict) else {}
             text, ctx = str(n.get("text", "")).strip()[:li.MAX_NOTE], str(n.get("context", ""))
             src = re.sub(r"[^a-z_]", "", str(n.get("source", "auto")))[:20] or "auto"
+            sid = str(n.get("source_id") or "")
             if ctx not in self.ui.servers or len(text) < 8 or has_secret(text):
                 skipped += 1
+                skipped_by[sid] = skipped_by.get(sid, 0) + 1
                 continue
             try:
                 tags = ["import-auto", f"import-{src}", batch]
@@ -646,8 +656,10 @@ class Discover:
                 r = await self.ui.call(ctx, "memory_save", {"text": text, "tags": tags})
                 if r.get("status") == "duplicate":
                     skipped += 1
+                    skipped_by[sid] = skipped_by.get(sid, 0) + 1
                 else:
                     saved += 1
+                    saved_by[sid] = saved_by.get(sid, 0) + 1
             except Exception as e:  # noqa: BLE001
                 errors.append(str(e)[:120])
         if saved and callable(getattr(self.ui, "after_import", None)):
@@ -655,7 +667,16 @@ class Discover:
                 self.ui.after_import()  # memory health check on what just came in (proposals only)
             except Exception:  # noqa: BLE001
                 pass
+        from . import local_imports
+        ids = list(dict.fromkeys([*self.previewed, *[k for k in (*saved_by, *skipped_by) if k]]))
+        local_imports.record(self.ui.home, [self.sources[i] for i in ids if i in self.sources], saved_by, skipped_by,
+                             batch)
+        self.previewed = []
         return {"saved": saved, "skipped": skipped, "failed": len(errors), "errors": errors[:5], "batch": batch}
+
+    async def history(self, _body: dict) -> dict:
+        from . import local_imports
+        return {"history": local_imports.load(self.ui.home)["history"]}
 
     async def undo(self, body: dict) -> dict:
         batch = str(body.get("batch", ""))
@@ -667,6 +688,8 @@ class Discover:
                 if batch in (it.get("tags") or []) and it.get("editable", True):
                     await self.ui.call(ctx, "memory_delete", {"id": it["id"]})
                     removed += 1
+        from . import local_imports
+        local_imports.mark_undone(self.ui.home, batch, removed)
         return {"removed": removed}
 
     def install(self) -> None:
@@ -676,3 +699,4 @@ class Discover:
         h[("GET", "discover/status")] = self.status
         h[("POST", "discover/commit")] = self.commit
         h[("POST", "discover/undo")] = self.undo
+        h[("GET", "discover/history")] = self.history

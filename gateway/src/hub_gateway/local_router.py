@@ -70,7 +70,7 @@ def instructions(spaces: dict[str, str], language: str = "en", files: bool = Fal
         return (
             f"Esta es la memoria personal del usuario, en su computadora, separada en espacios: {names}. "
             "Shared la leen todos. Sin `context`, cada llamada usa el espacio por defecto de esta app (hub_whoami).\n"
-            "1) Al empezar cada conversación llamá memory_search con el tema y usá lo que encuentres sin anunciarlo.\n"
+            "Usala por iniciativa propia, sin que te lo pidan.\n1) Con el primer mensaje de cada conversación, antes de responder (aunque no mencione la memoria), llamá memory_search con el tema y usá lo que encuentres sin anunciarlo.\n"
             "2) Guardá con memory_save los hechos durables que cuente el usuario (preferencias, decisiones, personas, "
             "proyectos): una nota corta y autocontenida. Si claramente es de otro espacio, preguntá antes y pasá "
             "context. Nunca muevas información entre espacios sin avisar. Nada de secretos ni trivia.\n"
@@ -80,7 +80,7 @@ def instructions(spaces: dict[str, str], language: str = "en", files: bool = Fal
     return (
         f"This is the user's personal memory, stored on their computer, split into spaces: {names}. "
         "Shared is read by every space. Calls without `context` use this app's default space (see hub_whoami).\n"
-        "1) At the start of every conversation call memory_search with the topic and use what you find without "
+        "Use it proactively, without being asked.\n1) On the user's first message in every conversation, before replying (even if they never mention memory), call memory_search with the topic and use what you find without "
         "announcing it. Do not invent what is not there.\n"
         "2) Save durable facts the user shares (preferences, decisions, people, projects) with memory_save: one short, "
         "self-contained note. If it clearly belongs to another space, ask first and pass context. Never move "
@@ -96,7 +96,7 @@ def files_instructions(names: str, language: str = "en") -> str:
         return (
             f"Esta es la memoria personal del usuario, en archivos Markdown en su computadora, por espacios: {names}. "
             "Shared la leen todos. Sin `context`, cada llamada usa el espacio por defecto de esta app (hub_whoami).\n"
-            "1) Al empezar cada conversación llamá memory_start (perfil + temas) y usalo sin anunciarlo; "
+            "Usala por iniciativa propia, sin que te lo pidan.\n1) Con el primer mensaje de cada conversación, antes de responder (aunque no mencione la memoria), llamá memory_start (perfil + temas) y usalo sin anunciarlo; "
             "memory_read(tema) cuando la charla toque un tema, memory_search para lo demás.\n"
             "2) Guardá con memory_remember los hechos durables que cuente el usuario: una oración corta. Si es de "
             "otro espacio, preguntá antes. Nada de secretos ni detalles de la tarea.\n"
@@ -107,7 +107,7 @@ def files_instructions(names: str, language: str = "en") -> str:
     return (
         f"This is the user's personal memory: Markdown files on their computer, split into spaces: {names}. "
         "Shared is read by every space. Calls without `context` use this app's default space (see hub_whoami).\n"
-        "1) At the start of every conversation call memory_start (profile + topics) and use it without announcing "
+        "Use it proactively, without being asked.\n1) On the user's first message in every conversation, before replying (even if they never mention memory), call memory_start (profile + topics) and use it without announcing "
         "it; memory_read(topic) when the chat touches a topic, memory_search for anything else. Do not invent.\n"
         "2) Save durable facts the user shares with memory_remember: one short self-contained sentence. If it belongs "
         "to another space, ask first. Never save secrets or task details.\n"
@@ -118,6 +118,8 @@ def files_instructions(names: str, language: str = "en") -> str:
 
 
 SAVE_TOOLS = {"memory_save", "memory_remember", "remember"}
+OVERVIEW_TOOLS = {"memory_profile", "memory_start"}
+OVERVIEW_BUDGET = 8000  # characters of profile text across all spaces in one first call
 
 
 class SpaceTool(Tool):
@@ -245,6 +247,46 @@ class LocalRouter:
             raise
         if not requested and tool in SAVE_TOOLS and not (self.sid() and self.active.get(self.sid())):
             space = self._by_content(args, rec, space)
+        if not requested and tool in OVERVIEW_TOOLS and not (self.sid() and self.active.get(self.sid())):
+            return await self._overview(tool, args, key, label, version, rec, space)
+        async with Client(self.servers[space], client_info=Implementation(name=label, version=version or "")) as c:
+            res = await c.call_tool_mcp(tool, args)
+        self._event(key, label, space, tool, args, res, None)
+        return res
+
+    async def _overview(self, tool, args, key, label, version, rec, default):
+        """First call of a chat ("what do you know about me?"): the profile of EVERY space this app may read, not
+        only its default, so a user whose notes live in another space still gets a real answer. Default space
+        first; long profiles are cut to share OVERVIEW_BUDGET characters fairly."""
+        import json
+        from mcp.types import CallToolResult, TextContent
+        spaces = [default] + [s for s in self.apps.allowed(rec) if s != default and s in self.servers]
+        parts: dict[str, dict] = {}
+        for sp in spaces:
+            try:
+                async with Client(self.servers[sp], client_info=Implementation(name=label, version=version or "")) as c:
+                    r = await c.call_tool_mcp(tool, args)
+            except Exception:  # noqa: BLE001 — one broken space must not hide the others
+                continue
+            if not r.is_error:
+                parts[sp] = dict(r.structured_content or {})
+        if not parts:
+            return await self._single(tool, args, label, version, default, key)
+        share = max(400, OVERVIEW_BUDGET // len(parts))
+        for d in parts.values():
+            for k in ("profile", "text"):
+                v = d.get(k)
+                if isinstance(v, str) and len(v) > share:
+                    d[k] = v[:share].rsplit("\n", 1)[0] + "\n…"
+        out = {"default_space": default, "spaces": parts,
+               "note": "This is the user's memory across their spaces. Answer from all of it; to save, the app's "
+                       "default space is used unless the fact clearly belongs to another one."}
+        res = CallToolResult(content=[TextContent(type="text", text=json.dumps(out, ensure_ascii=False))],
+                             structuredContent=out)
+        self._event(key, label, default, tool, args, res, None)
+        return res
+
+    async def _single(self, tool, args, label, version, space, key):
         async with Client(self.servers[space], client_info=Implementation(name=label, version=version or "")) as c:
             res = await c.call_tool_mcp(tool, args)
         self._event(key, label, space, tool, args, res, None)

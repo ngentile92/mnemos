@@ -73,7 +73,7 @@
  "Copied ✓ — paste it in your AI": "Copiado ✓ — pegalo en tu IA",
  "Copied.": "Copiado.",
  "Copies a question and opens the site: paste it in a new chat, then paste the answer below.": "Copia una pregunta y abre el sitio: pegala en un chat nuevo y después pegá la respuesta abajo.",
- "Copies a short “about me” block. Paste it in ChatGPT → Settings → Personalization → Custom instructions, or Claude → Settings → Profile.": "Copia un bloque corto «sobre mí». Pegalo en ChatGPT → Configuración → Personalización → Instrucciones personalizadas, o en Claude → Configuración → Perfil.",
+ "Copies a short “about me” block. Paste it in ChatGPT → Settings → Personalization → Custom instructions, or Claude → Settings → Account → Instructions for Claude.": "Copia un bloque corto «sobre mí». Pegalo en ChatGPT → Configuración → Personalización → Instrucciones personalizadas, o en Claude → Configuración → Cuenta → Instrucciones para Claude.",
  "Copy": "Copiar",
  "Copy the answer and paste it here.": "Copiá la respuesta y pegala acá.",
  "Copy the question": "Copiar la pregunta",
@@ -627,7 +627,7 @@
 };
   const HTML = {
  "<b>1. Bring what they know.</b> Copies a question and opens the site: paste it in a new chat, then paste the answer below.": "<b>1. Traé lo que saben.</b> Copia una pregunta y abre el sitio: pegala en un chat nuevo y después pegá la respuesta abajo.",
- "<b>2. Give them your memory.</b> Copies a short “about me” block. Paste it in ChatGPT → Settings → Personalization → Custom instructions, or Claude → Settings → Profile.": "<b>2. Dales tu memoria.</b> Copia un bloque corto «sobre mí». Pegalo en ChatGPT → Configuración → Personalización → Instrucciones personalizadas, o en Claude → Configuración → Perfil.",
+ "<b>2. Give them your memory.</b> Copies a short “about me” block. Paste it in ChatGPT → Settings → Personalization → Custom instructions, or Claude → Settings → Account → Instructions for Claude.": "<b>2. Dales tu memoria.</b> Copia un bloque corto «sobre mí». Pegalo en ChatGPT → Configuración → Personalización → Instrucciones personalizadas, o en Claude → Configuración → Cuenta → Instrucciones para Claude.",
  "<b>Advanced</b> <span class=\"muted small\">reach from the web and phone, memory store, Labs</span>": "<b>Avanzado</b> <span class=\"muted small\">acceso desde la web y el teléfono, almacenamiento, Labs</span>",
  "<b>Your computer has to be on, awake and running Mnemos.</b> When it sleeps or Mnemos is closed, those apps cannot reach your memory (they will say so). Apps on this computer are not affected.": "<b>Tu computadora tiene que estar prendida, despierta y con Mnemos abierto.</b> Si se duerme o Mnemos está cerrado, esas apps no llegan a tu memoria (te lo van a decir). Las apps de esta computadora no se ven afectadas.",
  "A <b>dot</b> is a person, project, place, tool or topic named in your notes; its <b>size</b> is how much it matters (how many notes mention it).": "Un <b>punto</b> es una persona, proyecto, lugar, herramienta o tema de tus notas; su <b>tamaño</b> es cuánto importa (cuántas notas lo mencionan).",

@@ -54,6 +54,8 @@ def app_key(client_name: str | None) -> tuple[str, str]:
     hit = LABELS.get(raw.lower())
     if hit:
         return hit
+    if raw.lower().startswith("local-agent-mode"):  # Claude Desktop's agent mode declares this name
+        return LABELS["claude-desktop"]
     key = _KEY_RE.sub("-", raw.lower()).strip("-")[:40] or "unknown"
     return key, raw
 

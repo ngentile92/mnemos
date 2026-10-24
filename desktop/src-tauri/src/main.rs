@@ -119,29 +119,63 @@ fn connect_claude() -> Result<String, String> {
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
     let moved = if old.is_empty() { String::new() } else { format!(" Replaced the older entries: {}.", old.join(", ")) };
     let dup = if claude_extensions().is_empty() { String::new() } else {
-        " Also remove the Mnemos extension in Claude → Settings → Extensions: with both, Claude sees two memories.".to_string()
+        " Also remove the old Mnemos extension: use the button below.".to_string()
     };
     Ok(format!("Added Mnemos to Claude Desktop (all your spaces).{moved}{dup} Quit and reopen Claude Desktop to use it."))
 }
 
-/// Mnemos extensions (.mcpb) installed in Claude Desktop. With the `mnemos` config entry as well, Claude sees two
-/// memories (an old extension may even run an older Mnemos), so the app asks the user to remove the extension.
+/// Settings folder where Claude Desktop keeps each extension's on/off switch (`{"isEnabled": bool}`).
+fn claude_ext_settings() -> PathBuf {
+    claude_config_path().with_file_name("Claude Extensions Settings")
+}
+
+/// Mnemos extensions (.mcpb) installed and still switched on in Claude Desktop. With the `mnemos` config entry as
+/// well, Claude sees two memories (an old extension may even run an older Mnemos).
 fn claude_extensions() -> Vec<String> {
     let dir = claude_config_path().with_file_name("Claude Extensions");
     std::fs::read_dir(dir)
         .map(|rd| rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string())
-            .filter(|n| n.to_lowercase().contains("mnemos")).collect())
+            .filter(|n| n.to_lowercase().contains("mnemos"))
+            .filter(|n| {
+                let f = claude_ext_settings().join(format!("{n}.json"));
+                let on = std::fs::read_to_string(f).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+                    .and_then(|v| v.get("isEnabled").and_then(|b| b.as_bool()));
+                on != Some(false)
+            })
+            .collect())
         .unwrap_or_default()
 }
 
-/// Claude Desktop does not pass MCP server instructions to the model, so the save rules only reach it through
-/// tool descriptions. Its personal preferences (Settings → Profile) are read in every chat: this text goes there.
-const CLAUDE_PREFS: &str = "I use Mnemos as my long-term memory. At the start of every chat call memory_start (memory_profile on older setups). \
-Whenever I share something lasting about myself (likes, people, work, projects, decisions, goals), save it right away \
-with memory_remember (memory_save on older setups) in one short sentence, without asking. Search it with memory_search when my past or preferences matter.";
+/// One click: switch the old Mnemos extension off (Claude's own on/off flag, the same as its toggle in
+/// Settings → Extensions). Each settings file is backed up first; nothing is deleted, so it can be turned back on.
+#[tauri::command]
+fn disable_claude_extension() -> Result<String, String> {
+    let dir = claude_ext_settings();
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    for id in claude_extensions() {
+        let f = dir.join(format!("{id}.json"));
+        let mut v = match std::fs::read_to_string(&f) {
+            Ok(t) => {
+                let bak = dir.join(format!("{id}.json.mnemos-backup"));
+                if !bak.exists() { std::fs::write(&bak, &t).map_err(|e| e.to_string())?; }
+                serde_json::from_str::<serde_json::Value>(&t).unwrap_or_else(|_| serde_json::json!({}))
+            }
+            Err(_) => serde_json::json!({}),
+        };
+        if !v.is_object() { v = serde_json::json!({}); }
+        v["isEnabled"] = serde_json::json!(false);
+        std::fs::write(&f, serde_json::to_string_pretty(&v).unwrap() + "\n").map_err(|e| e.to_string())?;
+    }
+    Ok("Turned off the old Mnemos extension. Quit and reopen Claude Desktop.".into())
+}
 
-/// Opens Claude Desktop so the user can remove an old Mnemos extension (Settings → Extensions). Mnemos never edits
-/// Claude's extension files itself.
+/// Claude Desktop does not pass MCP server instructions to the model (only tool descriptions reach it), so this
+/// optional text can go in Settings → Account → Instructions for Claude. Plain words, no tool names.
+const CLAUDE_PREFS: &str = "I use Mnemos as my long-term memory. At the start of every chat, check it for what you know about me. \
+Whenever I share something lasting about myself (likes, people, work, projects, decisions, goals), save it to Mnemos \
+right away in one short sentence, without asking. Look things up there whenever my past or preferences matter.";
+
+/// Opens Claude Desktop (to restart it, or to manage extensions by hand).
 #[tauri::command]
 fn open_claude() -> Result<(), String> {
     std::process::Command::new("/usr/bin/open").args(["-a", "Claude"]).status().map_err(|e| e.to_string())?;
@@ -224,6 +258,41 @@ fn find_bin(bin: &str) -> Option<String> {
     dirs.iter().map(|d| format!("{d}/{bin}")).find(|p| std::path::Path::new(p).is_file())
 }
 
+/// A command that exists but cannot run (not executable, or a tiny placeholder left by a broken npm install).
+fn broken_bin(path: &str) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    let real = std::fs::canonicalize(path).unwrap_or_else(|_| PathBuf::from(path));
+    match std::fs::metadata(&real) {
+        Ok(m) => m.permissions().mode() & 0o111 == 0 || m.len() < 1024 && !std::fs::read(&real).map(|b| b.starts_with(b"#!")).unwrap_or(false),
+        Err(_) => true,
+    }
+}
+
+/// Claude Code without its CLI: add the user-scope server straight to ~/.claude.json (top-level `mcpServers`),
+/// backing the file up first and touching nothing else.
+fn claude_code_direct(prog: &str, args: &[String]) -> Result<(), String> {
+    let p = PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".claude.json");
+    let mut cfg: serde_json::Value = match std::fs::read_to_string(&p) {
+        Ok(t) if !t.trim().is_empty() => serde_json::from_str(&t).map_err(|e| format!("Claude Code's settings file is not valid ({e}); not touching it"))?,
+        _ => serde_json::json!({}),
+    };
+    if !cfg.is_object() {
+        return Err("Claude Code's settings file has an unexpected format; not touching it".into());
+    }
+    if p.exists() {
+        let bak = p.with_extension("json.mnemos-backup");
+        std::fs::copy(&p, &bak).map_err(|e| e.to_string())?;
+    }
+    let servers = cfg.as_object_mut().unwrap().entry("mcpServers").or_insert_with(|| serde_json::json!({}));
+    if !servers.is_object() {
+        return Err("Claude Code's settings file has an unexpected format; not touching it".into());
+    }
+    servers.as_object_mut().unwrap().insert("mnemos".into(), serde_json::json!({"type": "stdio", "command": prog, "args": args, "env": {}}));
+    let tmp = p.with_extension("json.mnemos-tmp");
+    std::fs::write(&tmp, serde_json::to_string_pretty(&cfg).unwrap() + "\n").map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &p).map_err(|e| e.to_string())
+}
+
 /// One click for every local app: Claude Desktop (config entry), Cursor (install link) and the command-line apps
 /// (Claude Code, Codex, VS Code: Mnemos runs their own `mcp add` for you, so nobody needs Terminal).
 #[tauri::command]
@@ -234,6 +303,14 @@ fn connect_app(id: String) -> Result<String, String> {
         "claude-code" | "codex" | "vscode" => {
             let (prog, args) = stdio_cmd()?;
             let (bin, name) = match id.as_str() { "claude-code" => ("claude", "Claude Code"), "codex" => ("codex", "Codex"), _ => ("code", "VS Code") };
+            if id == "claude-code" && find_bin(bin).map(|b| broken_bin(&b)).unwrap_or(true) {
+                claude_code_direct(&prog, &args)?;
+                return Ok(if find_bin(bin).is_some() {
+                    "Claude Code isn't installed correctly (its claude command cannot run), so Mnemos added itself to Claude Code's settings directly. To fix Claude Code, reinstall it: npm install -g @anthropic-ai/claude-code".to_string()
+                } else {
+                    "Added Mnemos to Claude Code's settings. Start a new Claude Code session and send any message.".to_string()
+                });
+            }
             let exe = find_bin(bin).ok_or_else(|| format!("Could not find {name}'s `{bin}` command on this Mac. Open {name} once (or reinstall it), then try again."))?;
             let mut cmd = Command::new(&exe);
             match id.as_str() {
@@ -665,7 +742,7 @@ fn main() {
                 api.prevent_close();
             }
         })
-        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude, connect_cursor, app_cards, connect_app, memory_url, claude_notes, open_claude,
+        .invoke_handler(tauri::generate_handler![status, start_hub, stop_hub, setup, connect_claude, connect_cursor, app_cards, connect_app, memory_url, claude_notes, open_claude, disable_claude_extension,
                                                  set_login_item, login_item])
         .build(tauri::generate_context!())
         .expect("error while building Mnemos Desktop");

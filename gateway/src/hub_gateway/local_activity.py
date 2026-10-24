@@ -16,14 +16,17 @@ from typing import Any
 
 MAX_ROWS = 5000
 READS = {"memory_search", "memory_answer", "memory_list", "memory_entity", "memory_history", "skills_list",
-         "skills_get", "hub_whoami", "memory_dispute", "memory_profile"}
+         "skills_get", "hub_whoami", "memory_dispute", "memory_profile", "memory_start", "memory_read"}
 VERBS = {"memory_search": "searched", "memory_answer": "asked", "memory_list": "listed notes",
          "memory_entity": "looked up", "memory_history": "read the history of a note", "skills_list": "listed skills",
          "skills_get": "read the skill", "hub_whoami": "checked its spaces", "hub_use_context": "switched to",
          "memory_save": "saved", "memory_update": "corrected a note", "memory_delete": "deleted a note",
          "memory_undo": "undid a change", "memory_promote": "copied a note to shared", "memory_pin": "pinned a note",
          "memory_mark_obsolete": "marked a note out of date", "memory_set_validity": "set dates on a note",
-         "memory_dispute": "checked a correction", "memory_profile": "read your profile"}
+         "memory_dispute": "checked a correction", "memory_profile": "read your profile",
+         # one-URL router tools (0.16)
+         "memory_start": "read what it knows about you", "memory_read": "read notes", "memory_remember": "saved",
+         "memory_edit": "corrected a note", "memory_forget": "forgot a note"}
 
 
 def _short(s: Any, n: int = 80) -> str:
@@ -35,7 +38,7 @@ def describe(tool: str, args: dict, result: dict | None) -> tuple[str, str]:
     """(kind, summary) for one call. kind: read | write."""
     kind = "read" if tool in READS else "write"
     verb = VERBS.get(tool, tool)
-    if tool == "memory_save":
+    if tool in ("memory_save", "memory_remember"):
         if (result or {}).get("status") == "duplicate":
             return kind, f"tried to save a duplicate: “{_short(args.get('text'))}”"
         flag = " (looks like task detail)" if (result or {}).get("filter") else ""

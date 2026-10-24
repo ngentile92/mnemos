@@ -19,7 +19,7 @@
     <a href="#home" class="tab active" data-view="home" role="tab">Home</a>
     <a href="#memoria" class="tab" data-view="memoria" role="tab">Memory</a>
     <a href="#native" class="tab" data-view="native" role="tab">What each AI knows</a>
-    <a href="#apps" class="tab" data-view="apps" role="tab">Apps</a>
+    <a href="#apps" class="tab" data-view="apps" role="tab">Connect</a>
     <a href="#import" class="tab" data-view="import" role="tab">Import</a>
     <details class="tab-more" id="tab-more"><summary class="tab">More</summary><div class="tab-menu">
       <a href="#spaces" class="tab" data-view="spaces" role="tab">Spaces</a>
@@ -38,14 +38,40 @@
   <p id="login-err" class="err small"></p>
 </section>
 <section id="welcome" class="card welcome hidden" aria-labelledby="wl-h">
-  <h2 id="wl-h">Welcome to Mnemos</h2>
-  <p class="muted">One memory for all your AI apps. Tell them your name once; they will remember it.</p>
-  <label class="small" for="wl-name">What should your AIs call you?</label>
-  <input id="wl-name" maxlength="60" autocomplete="name" placeholder="Your name (optional)">
-  <p class="small muted" style="margin-top:14px">Your memory keeps things apart in separate spaces:</p>
-  <div id="wl-spaces" class="wl-spaces"></div>
-  <p class="small muted">You can rename them later in Spaces.</p>
-  <div class="me-actions"><button id="wl-go" class="mbtn primary">Start</button><span id="wl-err" class="err small"></span></div>
+  <ol class="wl-steps" id="wl-steps" aria-label="Steps">
+    <li data-s="1">You</li><li data-s="2">What your AIs know</li><li data-s="3">Connect</li><li data-s="4">Try it</li></ol>
+  <div class="wl-pane" id="wl-p1">
+    <h2 id="wl-h">Welcome to Mnemos</h2>
+    <p class="muted">One memory for all your AI apps. Tell them your name once; they will remember it.</p>
+    <label class="small" for="wl-name">What should your AIs call you?</label>
+    <input id="wl-name" maxlength="60" autocomplete="name" placeholder="Your name (optional)">
+    <p class="small muted" style="margin-top:14px">Your memory keeps things apart in separate spaces:</p>
+    <div id="wl-spaces" class="wl-spaces"></div>
+    <p class="small muted">You can rename them later in Spaces.</p>
+    <div class="me-actions"><button id="wl-go" class="mbtn primary">Continue</button><span id="wl-err" class="err small"></span></div>
+  </div>
+  <div class="wl-pane hidden" id="wl-p2">
+    <h2>Bring what your AIs already know</h2>
+    <p class="muted small">Mnemos looked on this computer for what your AI tools keep about you. Files are only read, never changed; anything that looks like a password is left out.</p>
+    <div id="wl-src" class="wl-src"></div>
+    <div class="hidden" id="wl-prog"><progress id="wl-bar" max="1" value="0" style="width:100%"></progress><p class="small muted" id="wl-phase"></p></div>
+    <div class="me-actions"><button id="wl-save" class="mbtn primary">Save all</button><a class="mbtn" href="#import" id="wl-review">Review first</a>
+      <button id="wl-skip2" class="mbtn ghost">Skip</button><span id="wl-msg2" class="small"></span></div>
+  </div>
+  <div class="wl-pane hidden" id="wl-p3">
+    <h2>Connect your AIs</h2>
+    <p class="muted small">In the Mnemos window, press <b>Connect</b> next to each AI app you use and restart it. Each one turns <b>Connected ✓</b> here by itself after its first message.</p>
+    <div id="wl-apps" class="wl-apps"></div>
+    <p class="small muted">ChatGPT, Claude.ai and Grok keep their memory in the cloud: two copy-and-paste steps in Import keep them in sync.</p>
+    <div class="me-actions"><button id="wl-go3" class="mbtn primary">Continue</button><button id="wl-skip3" class="mbtn ghost">I'll do it later</button></div>
+  </div>
+  <div class="wl-pane hidden" id="wl-p4">
+    <h2>The moment it knows you</h2>
+    <p class="muted small">Open any connected AI in a new chat and ask:</p>
+    <div class="wl-ask"><b id="wl-q">What do you know about me?</b><button id="wl-copy" class="mbtn primary">Copy the question</button></div>
+    <div class="wl-wait" id="wl-wait"><span class="spin"></span><span id="wl-wait-t">Waiting for an AI to read your memory…</span></div>
+    <div class="me-actions"><button id="wl-done" class="mbtn primary">Go to Home</button></div>
+  </div>
 </section>
 <div id="app" class="hidden">
 <main id="view-home" class="view">

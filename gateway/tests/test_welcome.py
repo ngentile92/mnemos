@@ -47,7 +47,7 @@ def test_ui_welcome_and_tabs():
     nav = html.split('id="tabs"')[1].split("</nav>")[0]
     top = nav.split('id="tab-more"')[0]
     main = [t for t in top.split("<a ")[1:] if 'class="tab"' in t or 'class="tab active"' in t]
-    assert [t.split(">")[1].split("<")[0] for t in main] == ["Home", "Memory", "What each AI knows", "Apps", "Import"]
+    assert [t.split(">")[1].split("<")[0] for t in main] == ["Home", "Memory", "What each AI knows", "Connect", "Import"]
     for word in ("Docker", "Reach", "Labs", "secret", "store"):
         assert word not in nav
     js = (STATIC / "local.js").read_text()

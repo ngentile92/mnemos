@@ -6,6 +6,10 @@ Codex        ~/.codex/AGENTS.md, ~/.codex/memories/**, AGENTS.md files in code f
 Cursor       ~/.cursor/rules/*.mdc, ~/.cursor/plugins/local/*/rules/*.mdc, .cursorrules / .cursor/rules in code folders
 Exports      ChatGPT / Claude.ai data exports (.zip) in ~/Downloads: the conversation list as stored in the export
 
+0.17: a file can also be compared with Mnemos (which lines Mnemos already knows) and edited. Every write needs the
+user's explicit confirm, refuses if the file changed since it was shown, and copies the current file to
+<home>/data/native-backups/ first, so "Restore" can put any earlier version back.
+
 Files Mnemos writes itself (local_sync) are marked as such. Lines that look like secrets are hidden and files with
 secret-like names are never opened. "Import into Mnemos" saves one section as a note (sorted into a space by its
 content unless the user picks one); only paths from the last listing can be read.
@@ -137,6 +141,41 @@ def listing(home: Path | None = None, budget: float = 10.0) -> dict[str, Any]:
             "timed_out": time.monotonic() > deadline}
 
 
+_WORD = re.compile(r"[\w']{3,}", re.UNICODE)
+
+
+def _words(s: str) -> set[str]:
+    return {w.lower() for w in _WORD.findall(s)}
+
+
+def compare_lines(text: str, notes: list[str], threshold: float = 0.5) -> dict[str, Any]:
+    """Each meaningful line (not headings, code fences or very short) → known by Mnemos or only in this file."""
+    nsets = [(n, _words(n)) for n in notes if n]
+    out, fence = [], False
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("```"):
+            fence = not fence
+            continue
+        if fence or not line or _HEAD.match(line) or line.startswith(("---", "<!--")) or "[hidden by Mnemos" in line:
+            continue
+        clean = re.sub(r"^([-*+]|\d+[.)])\s+", "", line)
+        w = _words(clean)
+        if len(w) < 3:
+            continue
+        best, score = "", 0.0
+        for n, ns in nsets:
+            if not ns:
+                continue
+            sc = len(w & ns) / len(w)  # share of the line's words found in the note
+            if sc > score:
+                best, score = n, sc
+        out.append({"text": clean, "known": score >= threshold, "score": round(score, 2),
+                    "match": best[:200] if score >= threshold else ""})
+    k = sum(1 for x in out if x["known"])
+    return {"lines": out, "known": k, "only_here": len(out) - k}
+
+
 class Native:
     def __init__(self, ui: Any, home_dir: Path | None = None, engine: Any = None) -> None:
         self.ui, self.home_dir, self.engine = ui, home_dir, engine
@@ -158,10 +197,16 @@ class Native:
         path, i = str(b.get("path", "")), int(b.get("section", -1))
         if path not in self.allowed:
             raise ValueError("list the app memories again first")
-        secs = sections(await asyncio.to_thread(_text, Path(path)))  # re-read: the file may have changed
-        if not 0 <= i < len(secs):
-            raise ValueError("that section is gone (refresh)")
-        text = secs[i]["text"].strip()[:4000]
+        body = await asyncio.to_thread(_text, Path(path))  # re-read: the file may have changed
+        if b.get("line"):  # one line from "Compare with Mnemos": it must still be in the file
+            text = str(b["line"]).strip()[:4000]
+            if text not in body:
+                raise ValueError("that line is gone (refresh)")
+        else:
+            secs = sections(body)
+            if not 0 <= i < len(secs):
+                raise ValueError("that section is gone (refresh)")
+            text = secs[i]["text"].strip()[:4000]
         if len(text) < 8 or "[hidden by Mnemos" in text:
             raise ValueError("nothing to import (or it contains a hidden secret)")
         ctx = str(b.get("context") or "auto")
@@ -174,6 +219,94 @@ class Native:
         saved = await self.ui.call(r["space"], "memory_save", {"text": text, "tags": ["import-native", f"via-{app}"]})
         return {"saved": saved.get("status") != "duplicate", "id": saved.get("id"), "context": r["space"], "route": r}
 
+    # ------------------------------------------------ 0.17: compare, edit (backup first), restore
+    def _editable(self, path: str) -> Path:
+        if path not in self.allowed:
+            raise ValueError("list the app memories again first")
+        p = Path(path)
+        if not p.is_file() or "mnemos" in p.name.lower():
+            raise ValueError("this file can't be edited here")
+        return p
+
+    def _bdir(self) -> Path:
+        d = Path(self.ui.home) / "data" / "native-backups"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _index(self) -> dict:
+        try:
+            return json.loads((self._bdir() / "index.json").read_text())
+        except (OSError, ValueError):
+            return {}
+
+    def _backup(self, p: Path, why: str) -> dict:
+        import shutil
+        stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        dst = self._bdir() / f"{stamp}-{p.name}"
+        shutil.copy2(p, dst)
+        idx = self._index()
+        rec = {"file": dst.name, "at": dt.datetime.now().isoformat(timespec="seconds"), "why": why}
+        idx.setdefault(str(p), []).insert(0, rec)
+        idx[str(p)] = idx[str(p)][:20]
+        (self._bdir() / "index.json").write_text(json.dumps(idx, indent=1))
+        return rec
+
+    @staticmethod
+    def _write(p: Path, text: str) -> None:
+        import os
+        tmp = p.with_name(f".{p.name}.mnemos-tmp")
+        tmp.write_text(text)
+        os.replace(tmp, p)
+
+    async def save(self, b: dict) -> dict:
+        import asyncio
+        p = self._editable(str(b.get("path", "")))
+        if b.get("confirm") is not True:
+            raise ValueError("confirm the change first")
+        text = str(b.get("text", ""))
+        if len(text) > MAX_FILE_BYTES:
+            raise ValueError("too long")
+        if "[hidden by Mnemos" in text:
+            raise ValueError("the file has hidden secret lines: edit it in its own app")
+        if b.get("modified") and _stamp(p) != b["modified"]:
+            raise ValueError("the file changed since it was shown: refresh and try again")
+        rec = await asyncio.to_thread(self._backup, p, "before edit")
+        await asyncio.to_thread(self._write, p, text if text.endswith("\n") else text + "\n")
+        return {"saved": True, "backup": rec, "modified": _stamp(p)}
+
+    async def backups(self, b: dict) -> dict:
+        return {"backups": self._index().get(str(b.get("path", "")), [])}
+
+    async def restore(self, b: dict) -> dict:
+        import asyncio
+        p = self._editable(str(b.get("path", "")))
+        if b.get("confirm") is not True:
+            raise ValueError("confirm the change first")
+        rec = next((r for r in self._index().get(str(p), []) if r["file"] == b.get("file")), None)
+        if not rec:
+            raise ValueError("that backup is gone")
+        old = (self._bdir() / rec["file"]).read_text()
+        cur = await asyncio.to_thread(self._backup, p, "before restore")
+        await asyncio.to_thread(self._write, p, old)
+        return {"restored": rec["at"], "backup": cur, "modified": _stamp(p)}
+
+    async def compare(self, b: dict) -> dict:
+        """Which lines of this file Mnemos already knows (word overlap with any note in any space)."""
+        import asyncio
+        path = str(b.get("path", ""))
+        if path not in self.allowed:
+            raise ValueError("list the app memories again first")
+        notes: list[str] = []
+        for ctx in self.ui.servers:
+            r = await self.ui.action("list", {"context": ctx, "include_shared": True})
+            notes += [str(i.get("text", "")) for i in r.get("items", [])]
+        text = await asyncio.to_thread(_text, Path(path))
+        return compare_lines(text, notes)
+
     def install(self) -> None:
+        self.ui.hooks[("POST", "native/save")] = self.save
+        self.ui.hooks[("POST", "native/backups")] = self.backups
+        self.ui.hooks[("POST", "native/restore")] = self.restore
+        self.ui.hooks[("POST", "native/compare")] = self.compare
         self.ui.hooks[("GET", "native")] = self.get
         self.ui.hooks[("POST", "native/import")] = self.import_one

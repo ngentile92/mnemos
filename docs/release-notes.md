@@ -6,6 +6,17 @@
 
 Newest first. Each `## vX.Y.Z` section is the body of that GitHub Release (`scripts/release_notes.py`).
 
+## v0.17.0
+
+**A redesigned Mnemos: clearer screens, and a first run that gets you to "it knows me" fast.**
+
+- **Simpler navigation**: Home, Memory, What each AI knows, Connect, Import, with the rest under More. Settings without jargon, styled controls, friendly empty states.
+- **Import that remembers**: every source shows Imported ✓ (date · N facts), New, or N new files; review grouped by source, duplicates marked "already in your memory", and an import history with Undo.
+- **New Memory screen**: ⌘K search, filters with counts (Show / App / Source / When), a dense list with multi-select and confirmed bulk actions, and a detail panel with plain-language history.
+- **What each AI knows**: see each app's own memory files, compare them with Mnemos, import what's missing, or edit them with a diff (a backup is made first; nothing changes without your click), with Restore for earlier versions.
+- **First run in four steps**: you → Save all → connect an app → ask it, and Mnemos confirms when your AI actually read your memory. Existing memories skip the welcome.
+- **Polish everywhere**, fully in English and Spanish.
+
 ## v0.16.2
 
 **Connecting your AIs, clearer.**

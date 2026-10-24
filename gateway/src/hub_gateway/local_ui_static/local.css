@@ -170,3 +170,9 @@ div.nm-ok{display:flex;gap:10px;align-items:center;margin:8px 0}div.nm-ok input{
 .mbtn.ghost{background:none;border-color:transparent;color:var(--muted)}
 .ap-ev{grid-template-columns:minmax(118px,auto) 130px 1fr!important}.ap-ev>span:first-child{white-space:nowrap}
 .welcome .me-actions{align-items:center}
+
+/* final pass (0.17): checkboxes inside small labels stay small; Spaces rows don't overlap */
+label.small:has(>input[type=checkbox]),label.small:has(>input[type=radio]){display:flex;align-items:center;gap:8px}
+label.small input[type=checkbox],label.small input[type=radio]{display:inline-block;width:15px!important;height:15px;flex:none;margin:0}
+.sp-row{grid-template-columns:auto 190px 1fr auto!important}.sp-row .sp-label{width:100%;box-sizing:border-box}
+#sp-bridges{display:flex;flex-wrap:wrap;gap:10px 28px}.sp-br{display:inline-flex!important;align-items:center;gap:6px;margin:0!important}

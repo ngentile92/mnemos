@@ -301,8 +301,8 @@
         : s.status === "changed" ? `<span class="pill new">${esc(T(`${s.new_files} new or changed since ${dDate(s.last_import)}`))}</span>`
         : `<span class="pill new">${esc(T("New · never imported"))}</span>`;
       $("d-sources").innerHTML = dSources.length ? dSources.map((s, i) => `<label class="imp-item${s.status === "imported" ? " done" : ""}"><input type="checkbox" data-i="${i}" ${s.status === "imported" ? "" : "checked"}>
-        <span style="flex:1"><b>${esc(s.label)}</b> ${pill(s)}<br><span class="small muted">${s.count} ${esc(s.count === 1 ? s.unit.replace(/s$/, "") : s.unit)} · ${kb(s.bytes)} · ${esc(String(s.where).split(", ").map((w) => (w === "~" ? "home folder" : w)).join(", "))}</span></span>
-        <select data-c="${i}" aria-label="Context">${dCtxs.length > 1 ? `<option value="auto" ${s.context === "auto" ? "selected" : ""}>Sort by content</option>` : ""}${dCtxs.map((c) => `<option ${c === s.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>`).join("")
+        <span style="flex:1"><b>${esc(s.label)}</b> ${pill(s)}<br><span class="small muted">${s.count} ${esc((window.tr || ((x) => x))(s.count === 1 ? s.unit.replace(/s$/, "") : s.unit))} · ${kb(s.bytes)} · ${esc(String(s.where).split(", ").map((w) => (w === "~" ? (window.tr || ((x) => x))("home folder") : w)).join(", "))}</span></span>
+        <select data-c="${i}" aria-label="Context">${dCtxs.length > 1 ? `<option value="auto" ${s.context === "auto" ? "selected" : ""}>${esc((window.tr || ((x) => x))("Sort by content"))}</option>` : ""}${dCtxs.map((c) => `<option ${c === s.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>`).join("")
         : '<p class="muted small">Nothing found on this computer. Use the options below.</p>';
       $("d-go-row").classList.toggle("hidden", !dSources.length);
     } catch (e) { alert("Scan failed: " + e.message); }
@@ -463,7 +463,7 @@
     $("eng-badge").textContent = "Engine: " + LABEL[top.kind];
     $("eng-badge").title = `Import: ${a.import.name} · Cleanup: ${a.hygiene.name} · Search: ${a.search.name}`;
     $("st-active").innerHTML = [["Finding facts", a.import], ["Cleaning up", a.hygiene], ["Searching", a.search]]
-      .map(([k, e]) => `<div class="me-actions"><span class="small"><b>${esc(k)}</b> · ${esc(WHERE[e.kind] || e.kind)}</span><span class="muted small" title="${esc(e.name)}"></span></div>`).join("");
+      .map(([k, e]) => `<div class="me-actions"><span class="small"><b>${esc(k)}</b> · ${esc((window.tr || ((x) => x))(WHERE[e.kind] || e.kind))}</span><span class="muted small" title="${esc(e.name)}"></span></div>`).join("");
     $("st-models").innerHTML = b.models.map((m) => `<p class="small">${m.present ? "✓" : "○"} ${esc(m.name)} · ${gb(m.size)} · ${esc(m.license || "")} <span class="muted">(${m.role === "llm" ? "facts and cleanup" : "search and duplicates"})</span></p>`).join("");
     const busy = d.state === "downloading";
     $("st-bstate").textContent = !b.runtime ? "not included in this install" : b.ready ? "installed" : b.upgrade ? (busy ? "upgrading to the better model — the previous one keeps working meanwhile" : "previous model in use — download the better one") : busy ? "downloading" : b.choice === "declined" ? "not downloaded (you said not now)" : "not downloaded";

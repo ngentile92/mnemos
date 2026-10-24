@@ -7,6 +7,16 @@ to the screen. DESKTOP_*: the Mnemos window (desktop app), including its Rust me
 # ruff: noqa: E501
 
 EXACT: dict[str, str] = {
+ 'conversations': 'conversaciones',
+ 'conversation': 'conversación',
+ 'files': 'archivos',
+ 'file': 'archivo',
+ '(not found on this computer)': '(no está en esta computadora)',
+ 'not found on this computer': 'no está en esta computadora',
+ 'On': 'Activado',
+ 'on': 'activado',
+ 'can read': 'puede leer',
+ 'Shared holds what every space should know: your name, language, how you like answers. Every space and every app can read it. Notes only get there when you choose “Promote to shared”.': 'Compartido guarda lo que todos los espacios deberían saber: tu nombre, idioma, cómo te gustan las respuestas. Todos los espacios y todas las apps pueden leerlo. Las notas solo llegan ahí cuando elegís «Pasar a compartidas».',
  'Your AIs already know you ✓ Next: see what each AI keeps on its own and bring in anything missing.': 'Tus IAs ya te conocen ✓ Próximo paso: mirá lo que cada IA guarda por su cuenta y traé lo que falte.',
  'Connect apps': 'Conectar apps',
  'searched': 'buscó',
@@ -598,6 +608,7 @@ EXACT: dict[str, str] = {
 }
 
 PAT: dict[str, str] = {
+ 'key: {x} (never changes)': 'clave: {x} (no cambia nunca)',
  '→ {n} notes': '→ {n} {n:nota|notas}',
  '{n} already in Mnemos': '{n} ya en Mnemos',
  '{n} only in this file': '{n} solo en este archivo',

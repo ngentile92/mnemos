@@ -5,10 +5,11 @@
   if (!$("sync-card")) return;
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const api = (path, body) => window.MNEMOS_API(path, body);
+  const spLabel = (name) => { const x = (((window.MNEMOS_SPACES || {}).spaces) || []).find((y) => y.name === name); return (x && x.label) || name; };
   function render(j) {
     $("sync-list").innerHTML = j.targets.map((t) => `<div class="me-item" data-t="${esc(t.id)}"><div class="m"><b>${esc(t.label)}</b>
       <span class="muted small">${esc(t.path)}${t.installed ? "" : " · not found on this computer"}</span></div>
-      <div class="small sy-ctl"><span class="muted">Spaces</span>${j.spaces.map((s) => `<label><input type="checkbox" class="sy-sp" value="${esc(s)}" ${t.spaces.includes(s) ? "checked" : ""}> ${esc(s)}</label>`).join("")}
+      <div class="small sy-ctl"><span class="muted">Spaces</span>${j.spaces.map((s) => `<label><input type="checkbox" class="sy-sp" value="${esc(s)}" ${t.spaces.includes(s) ? "checked" : ""}> ${esc(spLabel(s))}</label>`).join("")}
       <label class="sy-onl"><input type="checkbox" class="sy-on" ${t.on ? "checked" : ""}> On</label>
       ${t.written_at ? `<span class="muted"> · updated ${esc(t.written_at.replace("T", " ").slice(0, 16))}</span>` : ""}
       ${t.backup ? `<span class="muted"> · backup kept</span>` : ""}</div></div>`).join("");

@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "gateway/src/hub_gateway/i18n_es.py"
 WEB = ROOT / "gateway/src/hub_gateway/local_ui_static/i18n.js"
 DESK = ROOT / "desktop/ui/i18n.js"
-WEB_SKIP = ("textarea, input, pre, code, #me-list, #me-detail, #s-detail .t, #fv-text, #fv-list, .imp-item, .me-inote, "
+WEB_SKIP = ("textarea, input, pre, code, #me-list .t, #me-detail .me-note, .me-app, .ut, #s-detail .t, #fv-text, #fv-list, .imp-item, .me-inote, "
             ".me-note, #nm-view, #pf-text, #g-node, .ap-ev span:last-child")
 DESK_SKIP = "textarea, input, pre, code"
 ENGINE = r'''"use strict";

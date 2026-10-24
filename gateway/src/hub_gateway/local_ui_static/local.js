@@ -232,9 +232,10 @@
       $("d-llm").textContent = en.kind === "api" ? `Facts are found with ${en.name}: the selected text is sent to that provider.`
         : en.kind === "rules" ? "Simple extraction (first-person facts and instruction files). For better results: Settings → Improve my memory."
         : `Facts are found with ${en.name}, on this computer.`;
-      const pill = (s) => s.status === "imported" ? `<span class="pill ok">Imported ✓ ${esc(dDate(s.last_import))} · ${s.saved} facts</span>`
-        : s.status === "changed" ? `<span class="pill new">${s.new_files} new or changed since ${esc(dDate(s.last_import))}</span>`
-        : '<span class="pill new">New · never imported</span>';
+      const T = window.tr || ((x) => x);
+      const pill = (s) => s.status === "imported" ? `<span class="pill ok">${esc(T(`Imported ✓ ${dDate(s.last_import)} · ${s.saved} facts`))}</span>`
+        : s.status === "changed" ? `<span class="pill new">${esc(T(`${s.new_files} new or changed since ${dDate(s.last_import)}`))}</span>`
+        : `<span class="pill new">${esc(T("New · never imported"))}</span>`;
       $("d-sources").innerHTML = dSources.length ? dSources.map((s, i) => `<label class="imp-item${s.status === "imported" ? " done" : ""}"><input type="checkbox" data-i="${i}" ${s.status === "imported" ? "" : "checked"}>
         <span style="flex:1"><b>${esc(s.label)}</b> ${pill(s)}<br><span class="small muted">${s.count} ${esc(s.count === 1 ? s.unit.replace(/s$/, "") : s.unit)} · ${kb(s.bytes)} · ${esc(String(s.where).split(", ").map((w) => (w === "~" ? "home folder" : w)).join(", "))}</span></span>
         <select data-c="${i}" aria-label="Context">${dCtxs.length > 1 ? `<option value="auto" ${s.context === "auto" ? "selected" : ""}>Sort by content</option>` : ""}${dCtxs.map((c) => `<option ${c === s.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>`).join("")
@@ -279,7 +280,7 @@
     r.items.forEach((it, i) => { (groups[it.source_label] = groups[it.source_label] || []).push(i); });
     const row = (i) => { const it = r.items[i];
       return `<label class="imp-item${it.duplicate ? " dup" : ""}"><input type="checkbox" data-i="${i}" ${it.duplicate ? "" : "checked"}>
-        <span>${esc(it.text)}${it.duplicate ? ` <span class="badge obs">already in your memory</span>` : ""}${it.route ? `<br><span class="small muted">→ ${esc(it.context)} · ${esc(it.route.reason || "")}${it.route.review ? " · review" : ""}</span>` : ""}</span>
+        <span>${esc(it.text)}${it.duplicate ? ` <span class="badge obs">${esc((window.tr || ((x) => x))("already in your memory"))}</span>` : ""}${it.route ? `<br><span class="small muted">→ ${esc(it.context)} · ${esc(it.route.reason || "")}${it.route.review ? " · review" : ""}</span>` : ""}</span>
         ${it.route ? `<select class="d-sp" data-i="${i}" aria-label="Space">${dCtxs.map((c) => `<option ${c === it.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>` : ""}</label>`; };
     const names = Object.keys(groups);
     $("d-list").innerHTML = names.length ? names.map((n, gi) => { const ix = groups[n], nw = ix.filter((i) => !r.items[i].duplicate).length;

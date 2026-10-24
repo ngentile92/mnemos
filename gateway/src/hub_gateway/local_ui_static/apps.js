@@ -66,7 +66,7 @@
     catch (e) { $("ap-feed").innerHTML = `<p class="small muted">${esc(e.message)}</p>`; return; }
     $("ap-feed").innerHTML = r.events.length ? r.events.map((e) => `<div class="ap-ev"><span class="muted">${esc(when(e.ts))}</span>
         <b>${esc(e.label)}</b><span class="k-${esc(e.kind)}">${esc(e.summary)}${e.space ? ` <span class="ap-pill">${esc(label(e.space))}</span>` : ""}</span></div>`).join("")
-      : '<p class="small muted">Nothing yet. What your AI apps read or save shows up here.</p><div class="me-actions"><button class="mbtn" onclick="document.getElementById(\'ap-refresh\').click()">Refresh</button></div>';
+      : '<p class="small muted">Nothing yet. What your AI apps read or save shows up here.</p>';
   }
   $("ap-filter").onchange = feed;
   $("ap-refresh").onclick = load;

@@ -8,8 +8,8 @@
   function render(j) {
     $("sync-list").innerHTML = j.targets.map((t) => `<div class="me-item" data-t="${esc(t.id)}"><div class="m"><b>${esc(t.label)}</b>
       <span class="muted small">${esc(t.path)}${t.installed ? "" : " · not found on this computer"}</span></div>
-      <div class="small">${j.spaces.map((s) => `<label style="margin-right:10px"><input type="checkbox" class="sy-sp" value="${esc(s)}" style="width:auto" ${t.spaces.includes(s) ? "checked" : ""}> ${esc(s)}</label>`).join("")}
-      <label style="margin-left:12px"><input type="checkbox" class="sy-on" style="width:auto" ${t.on ? "checked" : ""}> On</label>
+      <div class="small sy-ctl"><span class="muted">Spaces</span>${j.spaces.map((s) => `<label><input type="checkbox" class="sy-sp" value="${esc(s)}" ${t.spaces.includes(s) ? "checked" : ""}> ${esc(s)}</label>`).join("")}
+      <label class="sy-onl"><input type="checkbox" class="sy-on" ${t.on ? "checked" : ""}> On</label>
       ${t.written_at ? `<span class="muted"> · updated ${esc(t.written_at.replace("T", " ").slice(0, 16))}</span>` : ""}
       ${t.backup ? `<span class="muted"> · backup kept</span>` : ""}</div></div>`).join("");
     $("sync-list").querySelectorAll("[data-t]").forEach((row) => {

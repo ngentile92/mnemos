@@ -26,7 +26,7 @@ def test_router_tools_are_described():
 
 
 def test_activity_summaries_translated_but_not_quotes():
-    for f in ("home.js", "apps.js"):
+    for f in ("apps.js",):
         assert "trSum(e.summary)" in (S / f).read_text()
     from hub_gateway import i18n_es as L
     assert L.EXACT["read what it knows about you"] and L.EXACT["Connect"] == "Conectar"

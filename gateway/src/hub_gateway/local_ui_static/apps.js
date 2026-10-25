@@ -18,7 +18,7 @@
     $("ap-default").innerHTML = data.spaces.map((s) => `<option value="${esc(s)}" ${s === data.default_space ? "selected" : ""}>${esc(label(s))}</option>`).join("");
     $("ap-filter").innerHTML = '<option value="">All apps</option>' + data.apps.map((a) => `<option value="${esc(a.key)}">${esc(a.label)}</option>`).join("");
     if (!data.apps.length) {
-      $("ap-list").innerHTML = '<p class="small muted">No AI app has used your memory yet. In the Mnemos window, press Connect next to an app, restart it and send it any message.</p><div class="me-actions"><a class="mbtn primary" href="#home">Show me the next step</a></div>';
+      $("ap-list").innerHTML = '<p class="small muted">No AI app has used your memory yet. Connect one above.</p>';
       return;
     }
     $("ap-list").innerHTML = data.apps.map((a, i) => {

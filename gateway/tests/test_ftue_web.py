@@ -49,10 +49,7 @@ def test_ftue_timing_local_only(tmp_path):
 
 def test_ui_pieces():
     html = (STATIC / "index.html").read_text()
-    for el in ("hm-demo", "hm-demo-skip", "c-block", "s-examples", "ft-out"):
+    for el in ("c-block", "s-examples", "ft-out"):
         assert f'id="{el}"' in html
-    home = (STATIC / "home.js").read_text()
-    assert '"aha"' in home and '"skipped"' in home
     js = (STATIC / "local.js").read_text()
     assert "/api/cloud/block" in js and "s-try" in js and "/api/skills/examples" in js
-    assert "Show me the next step" in (STATIC / "apps.js").read_text()

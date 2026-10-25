@@ -7,6 +7,19 @@ to the screen. DESKTOP_*: the Mnemos window (desktop app), including its Rust me
 # ruff: noqa: E501
 
 EXACT: dict[str, str] = {
+ 'Your map': 'Tu mapa',
+ 'AIs': 'IAs',
+ '⚙ Settings': '⚙ Ajustes',
+ '← Settings': '← Ajustes',
+ 'Bring in more': 'Traer más',
+ 'Personal, Work… memories that never mix': 'Personal, Trabajo… memorias que nunca se mezclan',
+ "each app's own memory files": 'los archivos de memoria propios de cada app',
+ 'scan this Mac, export files, folders of notes': 'revisar esta Mac, archivos exportados, carpetas de notas',
+ 'reusable instructions for your AIs': 'instrucciones reutilizables para tus IAs',
+ 'built-in model, Apple Intelligence, API key': 'modelo incorporado, Apple Intelligence, clave de API',
+ 'auto-capture, built-in memory for coding apps, activity': 'captura automática, memoria incorporada para apps de código, actividad',
+ 'Connect the AIs you use: each one brings what it already knows about you.': 'Conectá las IAs que usás: cada una trae lo que ya sabe de vos.',
+ 'No AI app has used your memory yet. Connect one above.': 'Ninguna IA usó tu memoria todavía. Conectá una arriba.',
  'Connect an AI': 'Conectá una IA',
  'each one turns Connected ✓ by itself': 'cada una pasa a Conectada ✓ sola',
  'Fill your memory from your past chats': 'Llená tu memoria con tus chats anteriores',
@@ -779,6 +792,8 @@ PAT: dict[str, str] = {
 }
 
 HTML: dict[str, str] = {
+ "<b>Advanced</b> <span class=\"muted small\">auto-capture, built-in memory for coding apps, activity</span>": "<b>Avanzado</b> <span class=\"muted small\">captura automática, memoria incorporada para apps de código, actividad</span>",
+ "<b>How your memory thinks</b> <span class=\"muted small\">built-in model, Apple Intelligence, API key</span>": "<b>Cómo piensa tu memoria</b> <span class=\"muted small\">modelo incorporado, Apple Intelligence, clave de API</span>",
  'In the Mnemos window, press <b>Connect</b> next to each AI app you use and restart it. Each one turns <b>Connected ✓</b> here by itself after its first message.': 'En la ventana de Mnemos, tocá <b>Conectar</b> al lado de cada app de IA que usás y reiniciala. Cada una pasa a <b>Conectada ✓</b> acá sola después de su primer mensaje.',
  "Download a small private AI model (<b id=\"eo-size\"></b>, once) so Mnemos finds better facts when importing, spots duplicates that use different words, and catches notes that disagree. It runs on this Mac: nothing is sent anywhere. Without it Mnemos keeps working with simple rules.": "Descargá un modelo de IA chico y privado (<b id=\"eo-size\"></b>, una sola vez) para que Mnemos encuentre mejores datos al importar, detecte duplicados escritos distinto y notas que se contradicen. Corre en esta Mac: no se envía nada. Sin él, Mnemos sigue funcionando con reglas simples.",
  "Write a fact in one sentence. Mnemos first looks for a note that says otherwise: <b>if one does</b>, it proposes a minimal fix you can apply; <b>if none does</b>, you can save it as a new note. Nothing is written until you click.": "Escribí un dato en una oración. Mnemos primero busca una nota que diga otra cosa: <b>si la hay</b>, propone un arreglo mínimo que podés aplicar; <b>si no la hay</b>, podés guardarlo como nota nueva. No se escribe nada hasta que hagas clic.",

@@ -16,7 +16,7 @@
   async function start() {
     const m = location.hash.match(/^#k=([\w-]+)/);
     if (m) {
-      history.replaceState(null, "", location.pathname + "#home");
+      history.replaceState(null, "", location.pathname);
       try { await api("/api/login", { token: m[1] }); } catch { /* fall through to the password form */ }
     }
     let s;
@@ -52,7 +52,7 @@
       document.querySelectorAll("#wl-steps li").forEach((li) => { const k = +li.dataset.s; li.className = k === n ? "on" : k < n ? "done" : ""; });
       if (n === 2) scan(); if (n === 3) apps(); if (n === 4) { started = new Date().toISOString(); aha(); }
     };
-    const finish = (hash) => { clearTimeout(poll); $("welcome").classList.add("hidden"); location.hash = hash || "#home"; boot(s); };
+    const finish = (hash) => { clearTimeout(poll); $("welcome").classList.add("hidden"); location.hash = hash || ""; boot(s); };
     $("wl-name").value = w.name || "";
     $("wl-spaces").innerHTML = w.spaces.filter((x) => x.name !== "shared").map((x) => `<span><i style="background:${esc(x.color)}"></i>${esc(T(x.label))}</span>`).join("");
     const go = async () => {
@@ -102,7 +102,7 @@
       poll = setTimeout(apps, 3000);
     }
     $("wl-go3").onclick = () => step(4);
-    $("wl-skip3").onclick = () => finish("#home");
+    $("wl-skip3").onclick = () => finish("");
     // step 4: copy the question; tick when any AI reads the memory
     $("wl-copy").onclick = async (e) => { try { await navigator.clipboard.writeText($("wl-q").textContent); e.target.textContent = T("Copied ✓"); } catch { /* visible */ } };
     async function aha() {
@@ -116,7 +116,7 @@
       }
       poll = setTimeout(aha, 3000);
     }
-    $("wl-done").onclick = () => finish("#home");
+    $("wl-done").onclick = () => finish("");
   }
   function showLogin() {
     $("login").classList.remove("hidden");
@@ -149,13 +149,24 @@
     loadEngine();
   }
   const loaded = {};
-  function route() {
-    const v = (location.hash.slice(1).split(/[?&]/)[0] || "home").replace(/^k=.*/, "home");
-    let view = ["home", "memoria", "graph", "skills", "spaces", "native", "apps", "import", "settings"].includes(v) ? v : "home";
+  // v0.18: four places after the first run — Your map, Memory, AIs, Settings. Spaces, Skills, What each AI knows and
+  // Bring in more are pages inside Settings (the Settings tab stays lit there). No hash: your map once there are
+  // notes, otherwise AIs (connect one first). Old links (#home) land on the same default.
+  const VIEWS = ["memoria", "graph", "skills", "spaces", "native", "apps", "import", "settings"];
+  const IN_SETTINGS = ["skills", "spaces", "native", "import"];
+  let firstView = null;
+  async function defaultView() {
+    if (firstView) return firstView;
+    let n = 0; try { n = (await api("/api/memory/counts")).total || 0; } catch { /* treat as empty */ }
+    firstView = n > 0 ? "graph" : "apps";
+    return firstView;
+  }
+  async function route() {
+    const v = location.hash.slice(1).split(/[?&]/)[0];
+    const view = VIEWS.includes(v) ? v : await defaultView();
     document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.id !== "view-" + view));
-    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
-    const more = $("tab-more");
-    if (more) { more.open = false; more.querySelector("summary").classList.toggle("active", ["spaces", "skills", "graph", "settings"].includes(view)); }
+    const lit = IN_SETTINGS.includes(view) ? "settings" : view;
+    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === lit));
     if (!loaded[view]) {
       loaded[view] = true;
       if (view === "memoria") window.dispatchEvent(new Event("mnemos:memoria"));
@@ -166,6 +177,7 @@
     if (view === "import" && window.mnemosImportOpen) window.mnemosImportOpen();
     window.dispatchEvent(new CustomEvent("mnemos:view", { detail: view }));
   }
+  window.MNEMOS_ROUTE = route;
 
   async function loadFtue() {
     let f; try { f = await api("/api/ftue"); } catch { return; }
@@ -464,16 +476,12 @@
 
   
   // ---------------------------------------------------------------- engine: built-in model, Ollama, API key
-  const LABEL = { rules: "Rules", builtin: "Built-in", ollama: "Ollama", api: "API", apple: "Apple" };
   const WHERE = { rules: "Simple rules (instant, on this Mac)", builtin: "Built-in model (on this Mac)", ollama: "Local model (on this Mac)", api: "Your API key (text leaves this Mac)", apple: "Apple Intelligence (on this Mac)" };
   const gb = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + " GB" : Math.round(n / 1e6) + " MB";
   let eng = null, engPoll = null;
   async function loadEngine() {
     try { eng = await api("/api/engine"); } catch { return; }
     const a = eng.active, b = eng.builtin, d = b.download || {};
-    const top = a.import.kind !== "rules" ? a.import : a.hygiene;
-    $("eng-badge").textContent = "Engine: " + LABEL[top.kind];
-    $("eng-badge").title = `Import: ${a.import.name} · Cleanup: ${a.hygiene.name} · Search: ${a.search.name}`;
     $("st-active").innerHTML = [["Finding facts", a.import], ["Cleaning up", a.hygiene], ["Searching", a.search]]
       .map(([k, e]) => `<div class="me-actions"><span class="small"><b>${esc(k)}</b> · ${esc((window.tr || ((x) => x))(WHERE[e.kind] || e.kind))}</span><span class="muted small" title="${esc(e.name)}"></span></div>`).join("");
     $("st-models").innerHTML = b.models.map((m) => `<p class="small">${m.present ? "✓" : "○"} ${esc(m.name)} · ${gb(m.size)} · ${esc(m.license || "")} <span class="muted">(${m.role === "llm" ? "facts and cleanup" : "search and duplicates"})</span></p>`).join("");

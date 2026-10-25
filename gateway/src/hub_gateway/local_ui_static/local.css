@@ -62,11 +62,6 @@ details.adv:not([open]) { padding-bottom: 12px; }
 
 /* 0.17 polish: grouped navigation, one style for every control, real empty states */
 .tabs{flex-wrap:wrap;align-items:center}
-.tab-more{position:relative;margin-left:auto}
-.tab-more>summary{list-style:none;cursor:pointer}.tab-more>summary::-webkit-details-marker{display:none}
-.tab-more>summary::after{content:" ▾";opacity:.7}
-.tab-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:20;display:flex;flex-direction:column;gap:2px;min-width:170px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.45)}
-.tab-menu .tab{display:block}
 input[type=text],input[type=search],input[type=password],input:not([type]),textarea,select{background:rgba(255,255,255,.04);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;outline:none;transition:border-color .15s,background .15s}
 input[type=text]:focus,input[type=search]:focus,input[type=password]:focus,input:not([type]):focus,textarea:focus,select:focus{border-color:rgba(124,92,255,.7);background:rgba(255,255,255,.06)}
 select{appearance:none;-webkit-appearance:none;padding-right:26px;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 13px) 52%,calc(100% - 9px) 52%;background-size:4px 4px;background-repeat:no-repeat}
@@ -178,7 +173,6 @@ label.small input[type=checkbox],label.small input[type=radio]{display:inline-bl
 #sp-bridges{display:flex;flex-wrap:wrap;gap:10px 28px}.sp-br{display:inline-flex!important;align-items:center;gap:6px;margin:0!important}
 /* stacking (0.17.1): the header (with the More menu) sits above every card; blurred cards make their own layers */
 header.top{position:relative;z-index:50}
-.tab-menu{z-index:60;background:#121530;backdrop-filter:none}
 /* graph toolbar: its own class (g-bar is the 6px progress bar) */
 .g-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;overflow:visible}
 /* import rows: one source per full-width row (label:has(input) made them inline) */
@@ -195,3 +189,11 @@ label.imp-item:has(>input) > input{flex:none;margin:0}
 .imp-why{display:grid;gap:6px;margin:8px 0}.imp-why div{display:flex;gap:10px;align-items:baseline;font-size:13px}.imp-why b{min-width:150px}
 .cn-grid{align-items:start}.cn-card .me-actions{margin-top:4px;gap:6px}.cn-card .mbtn{font-size:12px;padding:6px 10px}
 .imp-why div>span:first-child{width:14px;flex:none;text-align:center}
+/* v0.18: Settings hub and its pages */
+.st-links{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.st-links{grid-template-columns:1fr 1fr}}
+.st-link{display:flex;flex-direction:column;gap:3px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;text-decoration:none;color:var(--txt);background:rgba(255,255,255,.02)}
+.st-link:hover{border-color:rgba(124,92,255,.6);background:rgba(124,92,255,.08)}
+.st-back{display:inline-block;margin:14px 36px 0;color:var(--muted);text-decoration:none}
+.st-back:hover{color:var(--txt)}
+details.adv>summary{cursor:pointer;padding:4px 0}

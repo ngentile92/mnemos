@@ -70,7 +70,7 @@
       $("wl-src").innerHTML = `<div class="wl-row"><span class="spin"></span>${esc(T("Looking on this computer…"))}</div>`;
       try { found = (await api("/api/discover/scan")).sources || []; } catch { found = []; }
       $("wl-src").innerHTML = found.length ? found.map((x) => `<div class="wl-row"><span class="ic">✦</span><span><b>${esc(x.label)}</b><br><span class="small muted">${x.count} ${esc(x.count === 1 ? x.unit.replace(/s$/, "") : x.unit)}</span></span><span class="r">${esc(T(x.status === "imported" ? "Imported ✓" : "Ready"))}</span></div>`).join("")
-        : `<div class="wl-row"><span class="ic">∅</span><span>${esc(T("Nothing found on this computer yet. You can import from ChatGPT or Claude later."))}</span></div>`;
+        : `<div class="wl-row"><span class="ic">∅</span><span>${esc(T("Nothing found on this computer yet, and that is normal: Claude and ChatGPT keep their memory in your account. After you connect one, Mnemos shows you how to ask it to fill your memory from your past chats."))}</span></div>`;
       const todo = found.filter((x) => x.status !== "imported");
       $("wl-save").textContent = T(todo.length ? "Save all" : "Continue"); $("wl-review").classList.toggle("hidden", !todo.length);
     }
@@ -305,6 +305,17 @@
         <select data-c="${i}" aria-label="Context">${dCtxs.length > 1 ? `<option value="auto" ${s.context === "auto" ? "selected" : ""}>${esc((window.tr || ((x) => x))("Sort by content"))}</option>` : ""}${dCtxs.map((c) => `<option ${c === s.context ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>`).join("")
         : '<p class="muted small">Nothing found on this computer. Use the options below.</p>';
       $("d-go-row").classList.toggle("hidden", !dSources.length);
+      // little or nothing here: say why per app, and route to "Fill your memory from your past chats"
+      const why = $("d-why");
+      if (r.little && r.apps) {
+        const ic = { found: "✓", empty: "·", absent: "–", cloud: "☁" };
+        why.innerHTML = `<p class="small"><b>${esc(T(dSources.length ? "Only a little to import from this computer." : "Nothing to import from this computer, and that's normal."))}</b> ${esc(T("Here is why, app by app:"))}</p>
+          <div class="imp-why">${r.apps.map((a) => `<div><span>${ic[a.state] || "·"}</span><b>${esc(a.name)}</b><span class="small muted">${esc(T(a.state === "found" ? "Found above." : a.why))}</span></div>`).join("")}</div>
+          <p class="small">${esc(T("Your AIs still know you from your chats with them. Connect one, then ask it to save what it knows into Mnemos."))}</p>
+          <div class="me-actions"><a class="mbtn primary" href="#apps" id="d-fill">${esc(T("Fill my memory from my past chats"))}</a></div>`;
+        why.classList.remove("hidden");
+        if (!dSources.length) $("d-sources").innerHTML = "";
+      } else why.classList.add("hidden");
     } catch (e) { alert("Scan failed: " + e.message); }
     b.disabled = false; b.textContent = "Scan again";
   }
@@ -371,6 +382,7 @@
     } catch (err) { alert("Not saved: " + err.message); }
     b.disabled = false; b.textContent = "Save selected";
   };
+  document.addEventListener("click", (ev) => { if (ev.target.closest("#d-fill")) sessionStorage.setItem("mnFill", "1"); });
   document.querySelectorAll("[data-cloud]").forEach((b) => { b.onclick = async () => {
     try { await navigator.clipboard.writeText(CLOUD_PROMPT); $("c-msg").textContent = "Question copied ✓ — paste it in the chat that just opened"; }
     catch { $("c-msg").textContent = "Copy this question: " + CLOUD_PROMPT; }

@@ -216,6 +216,14 @@
     <p class="small" id="nm-msg"></p></section>
 </main>
 <main id="view-apps" class="view hidden">
+  <section class="card" style="margin:14px 36px" id="cn-card"><div class="card-h"><h2>Connect an AI</h2><span class="muted small">each one turns Connected ✓ by itself</span></div>
+    <div id="cn-grid" class="cn-grid"></div><p class="small" id="cn-msg"></p></section>
+  <section class="card" style="margin:0 36px 14px" id="bs-card"><div class="card-h"><h2>Fill your memory from your past chats</h2><span class="muted small">for when there was little to import</span></div>
+    <p class="small muted">Your AIs already know a lot about you from earlier chats. Once one is connected, ask it to save that into Mnemos: it writes each thing as a note you can review, fix or forget.</p>
+    <ol class="small cn-steps"><li id="bs-who"></li><li>Open a new chat in that AI and paste this request:</li></ol>
+    <pre class="bs-text" id="bs-text"></pre>
+    <div class="me-actions"><button class="mbtn primary" id="bs-copy">Copy the request</button><span id="bs-open"></span><span class="small" id="bs-msg"></span></div>
+    <p class="small muted">The new notes show up in Memory, marked with the app that saved them. Do it once per AI you use.</p></section>
   <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Apps using your memory</h2><span class="muted small" id="ap-head"></span></div>
     <p class="small muted">Every AI app you connected appears here the first time it uses Mnemos. Choose its default space (where it reads and saves unless you ask for another), which spaces it may use, or pause it. New apps use <select id="ap-default" aria-label="Default space for new apps"></select> by default.</p>
     <div id="ap-list" class="ap-list"></div><p class="small" id="ap-msg"></p></section>
@@ -296,6 +304,7 @@
     <p class="small muted">Finds what your AI tools already know about you. Files are only read, never changed; anything that looks like a password or key is left out. You pick the sources and the space, then review every note.</p>
     <div class="me-actions"><button class="mbtn primary" id="d-scan">Scan this Mac</button><span id="d-status" class="imp-status"></span></div>
     <div id="d-sources"></div>
+    <div id="d-why" class="hidden imp-whybox"></div>
     <div class="me-actions hidden" id="d-go-row"><button class="mbtn primary" id="d-go">Find facts in the selected sources</button><span class="muted small" id="d-llm"></span></div>
     <div class="hidden" id="d-progress"><progress id="d-bar" max="1" value="0" style="width:100%"></progress><p class="small muted" id="d-phase"></p></div>
     <div class="hidden" id="d-review"><div class="me-actions"><button class="mbtn primary" id="d-save">Save selected</button><button class="mbtn" id="d-all">Select all new</button><button class="mbtn" id="d-none">Select none</button><span class="muted small" id="d-rsum"></span></div>
@@ -345,6 +354,7 @@
 <script src="/ui/graph.js"></script>
 <script src="/ui/spaces.js"></script>
 <script src="/ui/apps.js"></script>
+<script src="/ui/connect.js"></script>
 <script src="/ui/remote.js"></script>
 <script src="/ui/capture.js"></script>
 <script src="/ui/model.js"></script>

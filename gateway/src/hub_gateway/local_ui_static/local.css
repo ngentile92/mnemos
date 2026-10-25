@@ -184,3 +184,14 @@ header.top{position:relative;z-index:50}
 /* import rows: one source per full-width row (label:has(input) made them inline) */
 label.imp-item:has(>input){display:flex;width:100%;box-sizing:border-box;align-items:center;gap:10px}
 label.imp-item:has(>input) > input{flex:none;margin:0}
+/* Connect an AI + Fill your memory (0.17.1) */
+.cn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.cn-card{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:rgba(255,255,255,.02);display:flex;flex-direction:column;gap:6px}
+.cn-card.on{border-color:rgba(52,211,153,.35)}
+.cn-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cn-steps{margin:4px 0 4px 18px;padding:0;line-height:1.55}
+.cn-url{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.cn-url code{font-size:12px;word-break:break-all}
+.bs-text{white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.5;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:8px 0}
+.imp-why{display:grid;gap:6px;margin:8px 0}.imp-why div{display:flex;gap:10px;align-items:baseline;font-size:13px}.imp-why b{min-width:150px}
+.cn-grid{align-items:start}.cn-card .me-actions{margin-top:4px;gap:6px}.cn-card .mbtn{font-size:12px;padding:6px 10px}
+.imp-why div>span:first-child{width:14px;flex:none;text-align:center}

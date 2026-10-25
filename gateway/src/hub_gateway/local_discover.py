@@ -203,6 +203,39 @@ def scan(home: Path | None = None, contexts: list[str] | None = None, budget: fl
     return found
 
 
+
+# Why the scan found (or did not find) something, per AI app, in plain words. Only checks that folders exist.
+APP_CHECKS = (
+    ("claude-desktop", "Claude (desktop app)", ("Library/Application Support/Claude",), "cloud",
+     "Claude keeps what it remembers in your Claude account, not on this computer, so there is nothing to read here."),
+    ("claude-code", "Claude Code", (".claude/projects", ".claude"), "local", "No Claude Code chats on this computer."),
+    ("cursor", "Cursor", ("Library/Application Support/Cursor", ".config/Cursor", ".cursor"), "local", "No Cursor chats on this computer."),
+    ("codex", "Codex", (".codex",), "local", "No Codex chats on this computer."),
+    ("chatgpt", "ChatGPT", ("Library/Application Support/com.openai.chat",), "cloud",
+     "ChatGPT keeps your chats and memories in your OpenAI account, not on this computer."),
+)
+KIND_APP = {"claude_code": "claude-code", "claude_memory": "claude-code", "claude_md": "claude-code",
+            "cursor_chats": "cursor", "cursor_rules": "cursor", "codex_memory": "codex", "agents_md": "codex",
+            "chatgpt_zip": "chatgpt", "claude_zip": "claude-desktop"}
+
+
+def presence(home: Path, found: list[dict]) -> list[dict]:
+    """[{id, name, state, why}] for the import page: found (sources here), installed-but-empty, cloud-only, or not here."""
+    hit = {KIND_APP.get(s.get("kind"), "") for s in found}
+    out = []
+    for aid, name, rels, where, why_empty in APP_CHECKS:
+        here = any((home / r).exists() for r in rels)
+        if aid in hit:
+            state, why = "found", ""
+        elif where == "cloud":
+            state, why = ("cloud", why_empty)
+        elif here:
+            state, why = "empty", why_empty
+        else:
+            state, why = "absent", "Not installed on this computer."
+        out.append({"id": aid, "name": name, "state": state, "why": why, "installed": here})
+    return out
+
 def public(sources: list[dict]) -> list[dict]:
     """What the UI gets (no file lists)."""
     return [{k: v for k, v in s.items() if k != "paths"} for s in sources]
@@ -595,6 +628,7 @@ class Discover:
         self.sources = {s["id"]: s for s in found}
         llm = await asyncio.to_thread(self.engine.llm, "import")
         return {"sources": public(found), "summary": local_imports.summary(found), "contexts": list(self.ui.servers),
+                "apps": presence(self._home(), found), "little": sum(int(s.get("count") or 0) for s in found) < 3,
                 "llm": llm.name if llm else None,
                 "engine": {"kind": llm.kind, "name": llm.name} if llm else {"kind": "rules", "name": "Rules"}}
 

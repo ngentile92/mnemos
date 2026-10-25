@@ -187,3 +187,38 @@ def cards(home: Path, seen: dict[str, dict], remote: dict | None = None, h: Path
             s = any(seen[kk].get("via") == "remote" for kk in ("claude-desktop", "claude-web") if kk in live)
         out.append({**a, **d[k], "seen": bool(s)})
     return {"ais": out, "remote": {"enabled": bool((remote or {}).get("enabled")), "url": (remote or {}).get("url")}}
+
+
+TAG_AI = {"import-claude": ("claude-desktop", "claude-web"), "import-chatgpt": ("chatgpt",)}
+
+
+def _app_of(source_app: str) -> str:
+    """'codex-mcp-client 0.50.0' or 'claude-ai 0.1.0 via mnemos' -> the AI key ('codex', 'claude-desktop')."""
+    from .local_apps import app_key
+    words = source_app.replace(" via mnemos", "").split()
+    while words:
+        k = app_key(" ".join(words))[0]
+        if k in KEYS:
+            return k
+        words = words[:-1]
+    return ""
+
+
+def known(items: list[dict]) -> dict[str, int]:
+    """How many notes came from each AI: saved by the app itself (source_app) or imported from its files/exports."""
+    from .local_discover import KIND_APP
+    out = dict.fromkeys(KEYS, 0)
+    for it in items:
+        hit: set[str] = set()
+        app = _app_of(str(it.get("source_app") or ""))
+        if app in out:
+            hit.add(app)
+        for t in it.get("tags") or []:
+            hit.update(TAG_AI.get(t, ()))
+            if t.startswith("import-") and KIND_APP.get(t[7:]) in out:
+                hit.add(KIND_APP[t[7:]])
+        if "claude-desktop" in hit:
+            hit.add("claude-web")  # same account, same memory
+        for k in hit:
+            out[k] += 1
+    return out

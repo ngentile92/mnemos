@@ -372,6 +372,16 @@ tokens by hand.</p></body>""",
     async def _connect(b):
         from . import local_connect
         return local_connect.connect(str(b.get("key") or ""), home)  # ValueError -> 400 with the message
+    async def _known(_b):
+        from . import local_connect
+        items: list[dict] = []
+        for c in [c for c in servers if c != "shared"]:
+            try:
+                items += (await ui.action("list", {"context": c, "include_shared": False})).get("items", [])
+            except Exception:  # noqa: BLE001
+                continue
+        return {"known": local_connect.known(items)}
+    ui.hooks[("GET", "ai/known")] = _known
     ui.hooks[("GET", "connect")] = _connect_cards
     ui.hooks[("POST", "connect")] = _connect
     ui.hooks[("POST", "apps/update")] = _app_update

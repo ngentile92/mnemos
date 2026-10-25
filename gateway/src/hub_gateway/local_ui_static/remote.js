@@ -38,7 +38,7 @@
   }
   $("rm-body").addEventListener("click", async (ev) => {
     const id = ev.target.id;
-    if (id === "rm-copy") { try { await navigator.clipboard.writeText(st.url); msg("Copied."); } catch { msg("Select the address and copy it.", true); } }
+    if (id === "rm-copy") { const T = window.tr || ((x) => x); window.MnemosCoach.start({ text: st.url, away: 1, steps: [{ text: T("Open the AI's connector settings.") }, { text: T("Paste the address (⌘V) and connect.") }, { text: T("Type your Mnemos password on the page that opens.") }] }); }
     if (id === "rm-check") { msg("Checking…"); await load(true); msg(st.funnel_on === false ? "Funnel is off in Tailscale." : "Working."); }
     if (id === "rm-off") {
       if (!confirm("Turn off Reach from anywhere? Cloud apps lose access right away; apps on this computer keep working.")) return;

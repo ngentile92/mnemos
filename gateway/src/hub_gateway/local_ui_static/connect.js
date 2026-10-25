@@ -36,7 +36,7 @@
     let head, body = "";
     if (a.seen) {
       head = pill("Connected ✓", "ok");
-      body = `<p class="small muted">${esc(T("It reads and saves your memory on its own."))}</p>`;
+      body = `<p class="small muted">${esc(T("It reads and saves your memory on its own."))}</p><div class="me-actions"><button class="mbtn" data-paste="${esc(a.key)}">${esc(T("Bring what it knows"))}</button></div>`;
       if (a.key === "chatgpt") body += `<p class="small muted">${esc(T("In its Codex and Work modes. In normal chats, use copy and paste."))}</p>`;
     } else if (a.kind !== "cloud" && (a.configured || pending.has(a.key))) {
       head = pill("Waiting for its first message", "wait");
@@ -67,12 +67,6 @@
     const vis = ais.filter(shown).sort((x, y) => rank(x) - rank(y)), rest = ais.filter((a) => !shown(a));
     $("cn-grid").innerHTML = vis.map(card).join("")
       + (rest.length ? `<details class="cn-missing small"><summary class="muted">${esc(T("Not on this Mac:"))} ${rest.map((a) => esc(T(a.name))).join(", ")}</summary><p class="small muted">${esc(T("Install one and it shows up here by itself."))}</p></details>` : "");
-    const conn = ais.filter((a) => a.seen);
-    $("bs-who").innerHTML = conn.length
-      ? esc(T("Connected now:")) + " " + conn.map((a) => `<b>${esc(T(a.name))}</b>`).join(", ")
-      : `<span class="warn">${esc(T("Connect at least one AI above first: it needs to be able to save to your memory."))}</span>`;
-    $("bs-text").textContent = boot();
-    $("bs-open").innerHTML = "";
   }
   async function connect(key, btn) {
     btn.disabled = true; btn.innerHTML = `<span class="spin"></span>${esc(T("Connecting…"))}`; $("cn-msg").textContent = "";
@@ -83,19 +77,25 @@
     } catch (e) { $("cn-msg").textContent = T(e.message); $("cn-msg").className = "small err"; }
     load();
   }
-  async function copy(text, out) {
-    try { await navigator.clipboard.writeText(text); out.textContent = T("Copied ✓"); } catch (_) { out.textContent = T("Select the text and copy it"); }
-    setTimeout(() => { out.textContent = ""; }, 4000);
+  function copy(text) {
+    window.MnemosCoach.start({ text, steps: [{ text: T("Open the AI's connector settings (steps above).") }, { text: T("Paste the address (⌘V) and connect.") }, { text: T("Type your Mnemos password on the page that opens.") }] });
   }
+  function bring(key) {
+    const a = ais.find((x) => x.key === key); if (!a) return;
+    $("bk-title").textContent = T("Bring what {x} knows").replace("{x}", T(a.name));
+    $("bk-modal").classList.remove("hidden");
+    window.MnemosBring.open(a, $("bk-body"), { onDone: () => { closeBring(); load(); } });
+  }
+  function closeBring() { $("bk-modal").classList.add("hidden"); window.MnemosCoach.stop(); }
+  $("bk-close").onclick = closeBring;
+  $("bk-modal").addEventListener("click", (e) => { if (e.target.id === "bk-modal") closeBring(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("bk-modal").classList.contains("hidden")) closeBring(); });
   document.addEventListener("click", (ev) => {
-    const c = ev.target.closest("[data-cncopy]"); if (c) { ev.preventDefault(); copy(c.dataset.cncopy, $("cn-msg")); }
+    const c = ev.target.closest("[data-cncopy]"); if (c) { ev.preventDefault(); copy(c.dataset.cncopy); }
     const k = ev.target.closest("[data-connect]"); if (k) { ev.preventDefault(); connect(k.dataset.connect, k); }
     const pz = ev.target.closest("[data-paste]");
-    if (pz) { ev.preventDefault(); location.hash = "#import"; setTimeout(() => { const c2 = $("cloud-card"); if (c2) c2.scrollIntoView({ block: "start" }); }, 400); }
+    if (pz) { ev.preventDefault(); bring(pz.dataset.paste); }
   });
-  $("bs-copy").onclick = () => copy(boot(), $("bs-msg"));
   window.MNEMOS_BOOTSTRAP = boot;
   window.addEventListener("mnemos:view", (e) => { if (e.detail === "apps") load(); else clearTimeout(poll); });
-  const go = () => { if (location.hash.startsWith("#apps") && sessionStorage.getItem("mnFill")) { sessionStorage.removeItem("mnFill"); setTimeout(() => $("bs-card").scrollIntoView({ block: "start" }), 400); } };
-  window.addEventListener("hashchange", go); go();
 })();

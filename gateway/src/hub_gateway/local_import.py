@@ -109,6 +109,82 @@ def chatgpt_bytes(data: bytes) -> list[str]:
     return from_chatgpt(convs)
 
 
+def _memory_lines(text: str) -> list[str]:
+    """A memory file or summary (Markdown): bullets and sentences, headings dropped."""
+    text = re.sub(r"^#{1,6} .*$", "", str(text), flags=re.M)
+    return [x for x in from_lines(text) if not x.startswith("#")]
+
+
+def _memory_texts(v: Any, depth: int = 0) -> Iterable[str]:
+    """Every memory text inside Claude's memories.json, old shape (a list of rows) or new (an object holding the
+    conversations memory and the memory files, each with its own path and content)."""
+    if depth > 6:
+        return
+    if isinstance(v, str):
+        if len(v) >= 8:
+            yield v
+    elif isinstance(v, list):
+        for x in v:
+            yield from _memory_texts(x, depth + 1)
+    elif isinstance(v, dict):
+        for k, x in v.items():
+            if k in ("uuid", "id", "path", "name", "created_at", "updated_at", "account", "project_uuid", "type"):
+                continue
+            yield from _memory_texts(x, depth + 1)
+
+
+def from_claude_conversations(convs: list[dict]) -> list[str]:
+    """Your own first-person statements from Claude's conversations.json (chat_messages, sender "human")."""
+    out = []
+    for conv in sorted((c for c in convs if isinstance(c, dict)), key=lambda c: str(c.get("updated_at") or ""), reverse=True):
+        title = str(conv.get("name") or "").strip()
+        for m in conv.get("chat_messages") or []:
+            if not isinstance(m, dict) or m.get("sender") != "human":
+                continue
+            text = str(m.get("text") or "") or " ".join(str(c.get("text") or "") for c in m.get("content") or [] if isinstance(c, dict))
+            if len(text) > 4000:
+                continue
+            for snt in _sentences(text):
+                if 15 <= len(snt) <= 300 and _FACT.search(snt) and not _QUESTION.search(snt):
+                    out.append(snt if not title else f"{snt} (from Claude: {title[:60]})")
+    return out
+
+
+def export_bytes(data: bytes) -> tuple[str, list[str]]:
+    """A Claude or ChatGPT data export (.zip, or the JSON inside) -> (source, candidate notes). Claude's saved memory
+    (memories.json) comes first: it is what Claude already knows about you. Then your own statements from chats."""
+    files: dict[str, bytes] = {}
+    if data[:2] == b"PK":
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            for n in z.namelist():
+                base = n.rsplit("/", 1)[-1]
+                if base.endswith(".json") and (base.startswith(("conversations", "memories")) or base == "manifest.json"):
+                    files[base] = z.read(n)
+    else:
+        files["conversations.json"] = data
+
+    def load(b: bytes) -> Any:
+        try:
+            return json.loads(b.decode("utf-8-sig"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return None
+    convs: list[dict] = []
+    for n in sorted(k for k in files if k.startswith("conversations")):
+        v = load(files[n])
+        if isinstance(v, list):
+            convs += [c for c in v if isinstance(c, dict)]
+    mem = load(files["memories.json"]) if "memories.json" in files else None
+    is_claude = mem is not None or any("chat_messages" in c for c in convs[:20])
+    if is_claude:
+        out = [x for t in _memory_texts(mem) for x in _memory_lines(t)] if mem is not None else []
+        return "claude", out + from_claude_conversations(convs)
+    if convs and any("mapping" in c for c in convs[:20]):
+        return "chatgpt", from_chatgpt(convs)
+    if "manifest.json" in files:
+        raise ValueError("this is the first part of a split export: drop the zip that has conversations or memories in it")
+    raise ValueError("this is not a Claude or ChatGPT export (.zip)")
+
+
 def from_markdown(files: list[dict]) -> list[str]:
     """Each file → one note, or one per section when it is long (split at headings)."""
     out = []

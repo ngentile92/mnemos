@@ -455,7 +455,10 @@ class UI:
         if ctx not in self.servers:
             raise ValueError(f"unknown context {ctx!r}")
         source = str(body.get("source", ""))
-        cands = li.chatgpt_bytes(raw) if raw is not None else li.candidates(source, body)
+        if raw is not None:
+            source, cands = li.export_bytes(raw)  # Claude or ChatGPT export: which one is read from the file
+        else:
+            cands = li.candidates(source, body)
         out = li.preview(cands, await self._existing(ctx))
         return {**out, "source": source, "context": ctx}
 

@@ -104,7 +104,7 @@
     $("wl-go3").onclick = () => step(4);
     $("wl-skip3").onclick = () => finish("");
     // step 4: copy the question; tick when any AI reads the memory
-    $("wl-copy").onclick = async (e) => { try { await navigator.clipboard.writeText($("wl-q").textContent); e.target.textContent = T("Copied ✓"); } catch { /* visible */ } };
+    $("wl-copy").onclick = () => window.MnemosCoach.start({ text: $("wl-q").textContent, away: 1, steps: [{ text: T("Open any connected AI and start a new chat.") }, { text: T("Paste (⌘V) and send.") }] });
     async function aha() {
       let ev = []; try { ev = (await api("/api/activity?" + new URLSearchParams({ limit: 50 }))).events || []; } catch { /* none */ }
       const hit = ev.find((x) => x.kind === "read" && Date.parse(x.ts) >= Date.parse(started) - 2000 && x.ok !== 0 && x.ok !== false);
@@ -227,7 +227,8 @@
     const t = ev.target.closest(".s-try");
     if (t) {
       ev.stopPropagation();
-      try { await navigator.clipboard.writeText(skills[+t.dataset.i].try); t.textContent = "Copied ✓ — paste it in your AI"; } catch { t.textContent = skills[+t.dataset.i].try; }
+      const T = window.tr || ((x) => x);
+      window.MnemosCoach.start({ text: skills[+t.dataset.i].try, away: 1, steps: [{ text: T("Open any connected AI and start a new chat.") }, { text: T("Paste (⌘V) and send.") }] });
       return;
     }
     const n = ev.target.closest(".me-item"); if (n) showSkill(skills[+n.dataset.i]);
@@ -266,7 +267,7 @@
       const r = await fetch("/api/import/upload?" + new URLSearchParams({ context: $("i-ctx").value }), { method: "POST", headers: { "X-Mnemos-Write": "1" }, body: f });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
-      showReview({ ...j, source: "chatgpt" });
+      showReview({ ...j, source: j.source || "chatgpt" });
     } catch (err) { alert("Could not read it: " + err.message); }
     btn.disabled = false; btn.textContent = "Review";
   };
@@ -394,19 +395,23 @@
     } catch (err) { alert("Not saved: " + err.message); }
     b.disabled = false; b.textContent = "Save selected";
   };
-  document.addEventListener("click", (ev) => { if (ev.target.closest("#d-fill")) sessionStorage.setItem("mnFill", "1"); });
-  document.querySelectorAll("[data-cloud]").forEach((b) => { b.onclick = async () => {
-    try { await navigator.clipboard.writeText(CLOUD_PROMPT); $("c-msg").textContent = "Question copied ✓ — paste it in the chat that just opened"; }
-    catch { $("c-msg").textContent = "Copy this question: " + CLOUD_PROMPT; }
-    window.open(b.dataset.cloud, "_blank", "noopener");
+  // copy coach: says where to paste, lights the answer box, and a paste anywhere on the page lands there
+  document.querySelectorAll("[data-cloud]").forEach((b) => { b.onclick = () => {
+    const T = window.tr || ((x) => x);
+    window.MnemosCoach.start({ text: window.MnemosBring ? window.MnemosBring.ask() : CLOUD_PROMPT, target: "c-text", away: 1,
+      steps: [{ text: T("Open it and start a new chat."), open: b.dataset.cloud, openLabel: b.textContent }, { text: T("Paste (⌘V) and send.") },
+              { text: T("Copy its whole answer.") }, { text: T("Paste it here (⌘V), anywhere on this page.") }],
+      onPaste: () => setTimeout(() => $("c-go").click(), 50) });
   }; });
   $("c-go").onclick = (e) => previewJSON("claude", { text: $("c-text").value }, e.target);
   $("c-block").onclick = async () => {
     $("c-block-msg").textContent = "";
     try {
       const r = await api("/api/cloud/block");
-      await navigator.clipboard.writeText(r.block);
-      $("c-block-msg").textContent = `Copied ✓ (${r.block.length} characters) — paste it in the app's settings`;
+      const T = window.tr || ((x) => x);
+      await window.MnemosCoach.start({ text: r.block, away: 1, steps: [
+        { text: T("ChatGPT: Settings → Personalization → Custom instructions. Claude: Settings → Profile → Instructions for Claude.") },
+        { text: T("Paste (⌘V) and save.") }] });
     } catch (e) { $("c-block-msg").textContent = "Could not copy: " + e.message; }
   };
   // ------------------------------------------------ full-history mining (background, resumable)

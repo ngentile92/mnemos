@@ -20,7 +20,10 @@ JS = r"""
     const st = getComputedStyle(el); if (st.visibility === 'hidden' || st.display === 'none') return false;
     const r = el.getBoundingClientRect(); return r.width > 2 && r.height > 2 && el.getClientRects().length;
   };
+  // an open dialog covers the page on purpose: then only the dialog and the copy coach count
+  const modal = document.querySelector('.bk-modal:not(.hidden)');
   for (const el of document.querySelectorAll(sel)) {
+    if (modal && !modal.contains(el) && !el.closest('#coach')) continue;
     if (!vis(el) || el.closest('.hidden,[hidden],#g-node,canvas')) continue;
     // check where the user sees it: only scroll when it is outside the window
     // inside a scrolling list (Memory notes): bring the row into that list's view first
@@ -61,7 +64,8 @@ async def main(base, tok, shots=None):
     async with async_playwright() as p:
         b = await p.chromium.launch(args=["--no-sandbox"])
         for w, h in SIZES:
-            pg = await b.new_page(viewport={"width": w, "height": h})
+            ctx = await b.new_context(viewport={"width": w, "height": h}, permissions=["clipboard-read", "clipboard-write"])
+            pg = await ctx.new_page()
             await pg.goto(f"{base}/app#k={tok}")
             await pg.wait_for_timeout(1500)
             for t in TABS:
@@ -75,6 +79,30 @@ async def main(base, tok, shots=None):
                 r = await pg.evaluate(JS)
                 fails += [f"{w}x{h} #{t}: {x}" for x in r["bad"]]
                 print(f"{w}x{h} #{t}: {r['n']} elements, {len(r['bad'])} unreachable", flush=True)
+            # the copy coach: open "Bring what it knows" for a copy-and-paste AI, copy, and check the notice, the
+            # pulsing paste box and the dialog are all clickable, then after a paste the review and its Save button
+            await pg.evaluate("location.hash='apps'"); await pg.wait_for_timeout(2500)
+            if await pg.locator("[data-paste]").count():
+                await pg.locator("[data-paste]").last.click(); await pg.wait_for_timeout(2500)
+                await pg.locator('[data-bk="copy"]').click(); await pg.wait_for_timeout(800)
+                r = await pg.evaluate(JS)
+                vis = await pg.evaluate("!document.getElementById('coach').classList.contains('hidden') && !!document.querySelector('.paste-pulse')")
+                if not vis:
+                    fails.append(f"{w}x{h} coach: no notice or no pulsing paste box after copying")
+                if shots:
+                    await pg.screenshot(path=f"{shots}/reach-coach-{w}.png")
+                fails += [f"{w}x{h} coach: {x}" for x in r["bad"]]
+                print(f"{w}x{h} coach: {r['n']} elements, {len(r['bad'])} unreachable", flush=True)
+                await pg.evaluate("""() => { const d = new DataTransfer(); d.setData('text/plain', ['- I live in Porto and work as a teacher', '- I prefer short answers in Spanish'].join(String.fromCharCode(10)));
+                    document.body.dispatchEvent(new ClipboardEvent('paste', {clipboardData: d, bubbles: true})); }""")
+                await pg.wait_for_timeout(2000)
+                r = await pg.evaluate(JS)
+                if not await pg.locator('[data-bk="save"]').count():
+                    fails.append(f"{w}x{h} coach: a paste anywhere did not reach the review")
+                if shots:
+                    await pg.screenshot(path=f"{shots}/reach-coach-review-{w}.png")
+                fails += [f"{w}x{h} coach review: {x}" for x in r["bad"]]
+                await pg.locator("#bk-close").click()
             await pg.close()
         await b.close()
     for f in fails:

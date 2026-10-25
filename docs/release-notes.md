@@ -6,6 +6,16 @@
 
 Newest first. Each `## vX.Y.Z` section is the body of that GitHub Release (`scripts/release_notes.py`).
 
+## v0.17.1
+
+**Opens cleanly after a download, and fixes from real first tries.**
+
+- **No more "Mnemos is damaged"**: the Mac app is now signed (ad-hoc) and sealed, so a downloaded copy only shows the usual "unidentified developer" prompt. First open: right-click → Open, or System Settings → Privacy & Security → Open Anyway.
+- **Connect an AI**: one card per app (Claude Desktop, ChatGPT, Claude on the web and phone, Cursor, Claude Code, Codex, Grok) with its status and how to connect it. ChatGPT and Claude on the web connect live through Reach from anywhere, or with two copy-and-paste steps.
+- **Fill your memory from your past chats**: if your computer had little to import, copy one request into a connected AI and it saves what it already knows about you as notes you can review.
+- **Empty scan explained**: Import now says, app by app, why nothing was found (for example, Claude and ChatGPT keep their memory in your account) and what to do next.
+- **Everything clickable**: the More menu no longer hides behind the page, the Graph toolbar is fully visible, and import sources line up one per row. A new automatic check keeps every button reachable.
+
 ## v0.17.0
 
 **A redesigned Mnemos: clearer screens, and a first run that gets you to "it knows me" fast.**

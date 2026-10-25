@@ -96,8 +96,10 @@ mi my no not of on or our que se she so su that the their there they this to un 
 which who will with y yo you your al lo le les con por para como pero muy más mas ya hoy ayer también tambien
 monday tuesday wednesday thursday friday saturday sunday january february march april may june july august
 september october november december lunes martes miércoles jueves viernes sábado domingo enero febrero marzo
-abril mayo junio julio agosto septiembre octubre noviembre diciembre note notes user usuario""".split())
+abril mayo junio julio agosto septiembre octubre noviembre diciembre note notes user usuario
+i'm i’m im i've i’ve i'd i’d i'll i’ll""".split())
 _CAP = re.compile(r"\b([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñü'’.-]*(?:\s+(?:de|del|la|van|von|da)?\s*[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñü'’-]*){0,3})")
+_SUBJ = set("is was has had and lives works likes said will can es era tiene vive trabaja y dijo".split())  # "Carlos is…": a name
 _TAG = re.compile(r"(?<![\w#])#([\w-]{2,40})")
 
 
@@ -112,9 +114,13 @@ def entities(text: str) -> set[str]:
         name = " ".join(words)
         if len(name) < 3 or name.lower() in STOP or name.isupper() and len(name) <= 2:
             continue
-        if len(words) == 1 and m.start() > 0 and text[max(0, m.start() - 2):m.start()].strip() in (".", "!", "?", ""):
+        if len(words) == 1 and m.start() > 0 and text[max(0, m.start() - 3):m.start()].strip(" -*•\t").strip()[-1:] in (".", "!", "?", "", "\n"):
             # a single capitalised word that starts a sentence is usually not a name; keep it only if it recurs
             out.add("?" + name)
+            continue
+        if len(words) == 1 and m.start() == 0 and name.lower().endswith(("s", "ed", "ing")) and text[m.end():].lstrip()[:1].islower() \
+                and (text[m.end():].split() or [""])[0].lower() not in _SUBJ:
+            out.add("?" + name)  # "Prefers short answers": a verb that opens a note about you, not a name
             continue
         out.add(name)
     out.update("#" + t.lower() for t in _TAG.findall(text))
@@ -133,7 +139,7 @@ def build_graph(items: list[dict], max_nodes: int = 60, max_edges: int = 160) ->
         if it.get("obsolete"):
             continue
         ents = entities(str(it.get("text", "")))
-        ents.update("#" + str(t).lower() for t in (it.get("tags") or []) if t)
+        ents.update("#" + str(t).lower() for t in (it.get("tags") or []) if t and not str(t).startswith(("import-", "via-")))  # where it came from is not a topic
         per_note[it["id"]] = ents
     spell: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     for nid, ents in list(per_note.items()):  # one name per concept: case/accents-insensitive, most common spelling

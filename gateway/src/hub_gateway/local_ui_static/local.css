@@ -255,3 +255,14 @@ details.adv>summary{cursor:pointer;padding:4px 0}
 body.revealing .g-toolbar{opacity:.35;transition:opacity .6s}
 .g-stage{position:relative}
 .wl-chip:focus{outline:none}.wl-chip:focus-visible{outline:2px solid #7c5cff;outline-offset:2px}
+/* v0.18 map: a calm toolbar, the rest under Options */
+.g-toolbar{flex-wrap:nowrap!important;align-items:center}
+.g-toolbar #g-q{flex:1;min-width:120px}
+.g-toolbar .g-actions{display:flex;gap:8px;align-items:center;margin-left:auto;flex:none}
+.g-more{position:relative}.g-more>summary{list-style:none;cursor:pointer}.g-more>summary::-webkit-details-marker{display:none}
+.g-more>summary::after{content:" ▾";opacity:.7}
+.g-more-pop{position:absolute;right:0;top:calc(100% + 8px);z-index:20;display:flex;flex-direction:column;gap:10px;min-width:240px;padding:14px;border-radius:14px;background:#141834;border:1px solid var(--line);box-shadow:0 16px 40px rgba(0,0,0,.45)}
+.g-more-btns{display:flex;gap:6px;flex-wrap:wrap}
+.rv-count{font-variant-numeric:tabular-nums;font-weight:700;color:var(--txt)}
+.g-empty{display:flex;flex-direction:column;gap:8px;align-items:flex-start;padding:6px 0}.g-empty b{font-size:15px}.g-empty p{margin:0}
+.g-toolbar{position:relative;z-index:30}

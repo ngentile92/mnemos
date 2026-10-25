@@ -121,15 +121,16 @@
 <main id="view-graph" class="view hidden">
   <section class="card me-bar g-toolbar"><select id="g-ctx" aria-label="Space"></select>
     <input id="g-q" type="search" placeholder="Find a person, project or topic…" maxlength="80">
+    <span class="g-actions"><button id="g-grow" class="mbtn" title="Watch your memory grow, oldest first">▶ How it grew</button>
+    <button id="g-pres" class="mbtn" title="Full screen, presentation look (Esc to leave)">✦ Present</button>
+    <details class="g-more"><summary class="mbtn">Options</summary><div class="g-more-pop">
     <label class="small muted">Colour by <select id="g-colour"><option value="type">kind</option><option value="space">space</option><option value="cluster">group</option></select></label>
     <label class="small muted" title="Dragging a thing also moves what it is linked to"><input type="checkbox" id="g-pull" checked style="width:auto"> drag pulls neighbours</label>
     <label class="small muted"><input type="checkbox" id="g-hideshared" style="width:auto"> hide shared</label>
     <label class="small muted"><input type="checkbox" id="g-me" style="width:auto"> show me</label>
-    <span class="g-actions"><button id="g-fit" class="mbtn" title="Fit (or double-click the graph)">Fit</button>
-    <button id="g-grow" class="mbtn" title="Watch your memory grow, oldest first">▶ How it grew</button>
-    <button id="g-pres" class="mbtn" title="Full screen, presentation look (Esc to leave)">✦ Present</button>
+    <div class="g-more-btns"><button id="g-fit" class="mbtn" title="Fit (or double-click the graph)">Fit</button>
     <button id="g-png" class="mbtn" title="Save a PNG of the graph">PNG</button>
-    <button id="g-rec" class="mbtn" title="Record a short video: fly-in + how it grew">● Record</button></span></section>
+    <button id="g-rec" class="mbtn" title="Record a short video: fly-in + how it grew">● Record</button></div></div></details></span></section>
   <section class="card graphcard"><div class="graphwrap"><div id="g-stage" class="g-stage">
     <div id="reveal" class="reveal hidden" role="dialog" aria-labelledby="rv-h"><p class="rv-kicker small" id="rv-kicker">Your map</p>
       <h2 id="rv-h">This is what your AIs know about you</h2><p class="rv-sub" id="rv-sub"></p>

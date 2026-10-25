@@ -115,6 +115,7 @@
     if (!gInit) { gInit = true; if ($("g-ctx").options.length > 2) $("g-ctx").value = "*"; }  // galaxies side by side
     return window.MnemosGraph ? window.MnemosGraph.load() : Promise.resolve();
   }
+  document.addEventListener("click", (e) => { const m = document.querySelector(".g-more[open]"); if (m && !m.contains(e.target)) m.open = false; });  // Options closes like a menu
   // the end of the first run: your map grows in front of you, with what came from each AI
   async function reveal() {
     const T = window.tr || ((x) => x);
@@ -124,8 +125,10 @@
       const k = (await api("/api/ai/known")).known || {}, c = (await api("/api/connect")).ais || [];
       from = c.filter((a) => (k[a.key] || 0) > 0 && a.key !== "claude-web").map((a) => T(a.name));
     } catch { /* none */ }
-    $("rv-sub").textContent = n ? (from.length ? T("{n} things about you, from {x}.").replace("{n}", n).replace("{x}", from.join(" · ")) : T("{n} things about you.").replace("{n}", n))
-      : T("Empty for now: it fills up as you chat with your AIs.");
+    const line = n ? (from.length ? T("{n} things about you, from {x}.").replace("{x}", from.join(" · ")) : T("{n} things about you.")) : T("Empty for now: it fills up as you chat with your AIs.");
+    $("rv-sub").innerHTML = esc(line).replace("{n}", '<span class="rv-count" id="rv-count">0</span>');
+    const cnt = $("rv-count"), t0 = performance.now();
+    if (cnt) (function up(t) { const k = Math.min(1, (t - t0) / 1600); cnt.textContent = Math.round(n * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(up); })(t0);
     $("reveal").classList.remove("hidden");
     document.body.classList.add("revealing");
     if (window.MnemosGraph && n) setTimeout(() => window.MnemosGraph.timelapse(7000), 400);

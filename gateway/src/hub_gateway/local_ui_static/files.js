@@ -22,7 +22,7 @@
     spaces = j.spaces || [];
     const n = spaces.reduce((a, s) => a + s.topics.reduce((b, t) => b + t.notes, 0), 0);
     $("fv-head").textContent = n + " notes";
-    $("fv-list").innerHTML = spaces.map((s) => `<h3 class="small" style="margin:10px 0 4px">${esc(s.space)}${s.editable ? "" : " · read-only"}</h3>` +
+    $("fv-list").innerHTML = spaces.map((s) => `<h3 class="small" style="margin:10px 0 4px">${esc(s.space)}${s.editable ? "" : ' · <span>read-only</span>'}</h3>` +
       s.topics.map((t) => `<div class="me-item" data-file="${esc(t.file)}"><div class="m"><span>${esc(t.title)}</span><span>${t.notes} notes${t.long ? " · long" : ""}</span></div><div>${esc(t.first || "")}</div></div>`).join("")).join("");
     $("fv-list").querySelectorAll("[data-file]").forEach((el) => { el.onclick = () => openFile(el.dataset.file); });
   }

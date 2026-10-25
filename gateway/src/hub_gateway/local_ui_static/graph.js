@@ -9,6 +9,8 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const api = (p) => window.MNEMOS_API(p);
+  const T = (x) => (window.tr || ((y) => y))(x);
+  const F = (x, o) => Object.entries(o).reduce((a, [k, v]) => a.split("{" + k + "}").join(v), T(x));
   const d3 = window.d3;
   const TYPE_C = { person: "#ff6fb5", org: "#ffc145", project: "#8b6cff", tool: "#2fd8ff", place: "#3ef0a4", topic: "#b7f34a", other: "#a5b4d8" };
   const TYPE_L = { person: "people", org: "organisations", project: "projects", tool: "tools", place: "places", topic: "topics", other: "other" };
@@ -32,7 +34,7 @@
 
   const spaceInfo = (n) => ((window.MNEMOS_SPACES || {}).spaces || []).find((s) => s.name === n);
   const spaceColour = (name, i) => (spaceInfo(name) || {}).color || (name === "shared" ? "#e5e7eb" : SPACE_C[i % SPACE_C.length]);
-  const spaceLabel = (name) => (spaceInfo(name) || {}).label || (name === "shared" ? "Shared" : name[0].toUpperCase() + name.slice(1));
+  const spaceLabel = (name) => T((spaceInfo(name) || {}).label || (name === "shared" ? "Shared" : name[0].toUpperCase() + name.slice(1)));
   const colourBy = () => ($("g-colour") || {}).value || "type";
 
   function colourOf(n) {
@@ -290,7 +292,7 @@
     }
     if (pres) {
       c.font = "700 15px Inter, system-ui, sans-serif"; c.textAlign = "right"; c.fillStyle = "rgba(238,241,255,.75)";
-      c.fillText("Mnemos · your memory, on your computer", W - 24, H - 24);
+      c.fillText(T("Mnemos · your memory, on your computer"), W - 24, H - 24);
     }
   }
   function burst(n) {
@@ -429,34 +431,34 @@
     if (!named) {
       const nb = [...adj.get(n.id)].map((id) => byId.get(id)).sort((a, b) => b.count - a.count);
       out.length = 0; inc.length = 0;
-      n._chips = nb.length ? `<p class="muted small">Often together with (${nb.length})</p><div class="g-chips">${nb.slice(0, 24).map((x) => `<a data-id="${esc(x.id)}" style="border-color:${x.colour}">${esc(x.label)}</a>`).join("")}</div>` : "";
+      n._chips = nb.length ? `<p class="muted small">${esc(T("Often together with"))} (${nb.length})</p><div class="g-chips">${nb.slice(0, 24).map((x) => `<a data-id="${esc(x.id)}" style="border-color:${x.colour}">${esc(x.label)}</a>`).join("")}</div>` : "";
     } else n._chips = "";
     const group = (title, ls) => ls.length ? `<p class="muted small">${title} (${ls.length})</p><ul class="nlist small">${ls.slice(0, 20).map(rel).join("")}</ul>` : "";
     const types = G.edges.filter((e) => e.source === n.id && ["is a", "is_a"].includes(e.label)).map((e) => (G.nodes.find((x) => x.id === e.target) || {}).label).filter(Boolean);
     const sp = (n.spaces || []).map((s) => `<span class="ap-pill">${esc(spaceLabel(s))}</span>`).join(" ");
-    box.innerHTML = `<h2>${esc(n.label)}</h2><p class="small muted">${esc(TYPE_L[n.type] ? n.type : "thing")}${types.length ? " · type: " + esc(types.join(", ")) : ""} · in ${n.count} note${n.count > 1 ? "s" : ""} ${sp}${n.bridge ? ' · <b>bridge</b> between spaces' : ""}</p>` +
-      n._chips + group("Outgoing", out) + group("Incoming", inc) +
-      `<p class="muted small">The notes behind it</p>` +
-      (n.notes || []).map((id) => { const t = G.texts[id] || ""; return `<div class="me-inote"><div>${esc(t.slice(0, 280))}${t.length > 280 ? "…" : ""}</div><a class="small g-open" data-q="${esc(t.slice(0, 60))}">open in Notes →</a></div>`; }).join("") +
-      `<p class="small muted">Shift-click another thing to see how they connect.</p>`;
+    box.innerHTML = `<h2>${esc(n.label)}</h2><p class="small muted">${esc(T(TYPE_L[n.type] ? n.type : "thing"))}${types.length ? " · " + esc(T("type:")) + " " + esc(types.join(", ")) : ""} · ${esc(F(n.count > 1 ? "in {n} notes" : "in 1 note", { n: n.count }))} ${sp}${n.bridge ? " · " + esc(T("bridge between spaces")) : ""}</p>` +
+      n._chips + group(T("Outgoing"), out) + group(T("Incoming"), inc) +
+      `<p class="muted small">${esc(T("The notes behind it"))}</p>` +
+      (n.notes || []).map((id) => { const t = G.texts[id] || ""; return `<div class="me-inote"><div>${esc(t.slice(0, 280))}${t.length > 280 ? "…" : ""}</div><a class="small g-open" data-q="${esc(t.slice(0, 60))}">${esc(T("open in Notes →"))}</a></div>`; }).join("") +
+      `<p class="small muted">${esc(T("Shift-click another thing to see how they connect."))}</p>`;
   }
   function summary() {
-    const how = G.source === "model" ? "found by the model" : G.source === "entities" ? "from your memory model" : "names and topics";
+    const how = T(G.source === "model" ? "found by the model" : G.source === "entities" ? "from your memory model" : "names and topics");
     const bld = "";
     progressCard();
     const per = G.notes_by_space ? Object.entries(G.notes_by_space).map(([s, k]) => `${esc(spaceLabel(s))} ${k}`).join(" · ") : "";
-    $("g-node").innerHTML = (nodes.length ? `<p class="muted">${nodes.length} ${how} from ${G.notes} note${G.notes === 1 ? "" : "s"}${per ? ` (${per})` : ""}. Tap one; shift-click a second to see the path.</p>`
-      : '<p class="muted">No names or topics yet: add a few notes first.</p>') + bld;
+    $("g-node").innerHTML = (nodes.length ? `<p class="muted">${esc(F(G.notes === 1 ? "{n} {how} from 1 note" : "{n} {how} from {k} notes", { n: nodes.length, how, k: G.notes }))}${per ? ` (${per})` : ""}. ${esc(T("Tap one; shift-click a second to see the path."))}</p>`
+      : `<div class="g-empty"><b>${esc(T("Your map is empty for now"))}</b><p class="muted">${esc(T("It fills up by itself as your AIs save what they learn about you."))}</p><a class="mbtn primary" href="#apps">${esc(T("Connect an AI"))}</a></div>`) + bld;
     const top = nodes.filter((n) => n.top).sort((a, b) => b.count - a.count);
-    $("g-top").innerHTML = top.length ? `<b class="small">Most important</b><ol class="small">${top.map((n) => `<li><a data-id="${esc(n.id)}">${esc(n.label)}</a> <span class="muted">${n.count}</span></li>`).join("")}</ol>` : "";
+    $("g-top").innerHTML = top.length ? `<b class="small">${esc(T("Most important"))}</b><ol class="small">${top.map((n) => `<li><a data-id="${esc(n.id)}">${esc(n.label)}</a> <span class="muted">${n.count}</span></li>`).join("")}</ol>` : "";
   }
   function legend() {
     const by = colourBy();
     let items;
-    if (by === "space") items = galaxies.map((g) => [g.colour, g.label]).concat(nodes.some((n) => n.bridge) ? [["#ffffff", "bridge: in several spaces"]] : []);
-    else if (by === "cluster") items = [[SPACE_C[0], "groups of things linked to each other"]];
-    else { const used = new Set(nodes.map((n) => n.type)); items = Object.keys(TYPE_C).filter((t) => used.has(t)).map((t) => [TYPE_C[t], TYPE_L[t]]); }
-    $("g-legend").innerHTML = items.map(([c, l]) => `<span><i style="background:${c};box-shadow:0 0 8px ${c}"></i>${esc(l)}</span>`).join("") + `<span class="muted">size = importance</span>`;
+    if (by === "space") items = galaxies.map((g) => [g.colour, g.label]).concat(nodes.some((n) => n.bridge) ? [["#ffffff", T("bridge: in several spaces")]] : []);
+    else if (by === "cluster") items = [[SPACE_C[0], T("groups of things linked to each other")]];
+    else { const used = new Set(nodes.map((n) => n.type)); items = Object.keys(TYPE_C).filter((t) => used.has(t)).map((t) => [TYPE_C[t], T(TYPE_L[t])]); }
+    $("g-legend").innerHTML = items.map(([c, l]) => `<span><i style="background:${c};box-shadow:0 0 8px ${c}"></i>${esc(l)}</span>`).join("") + `<span class="muted">${esc(T("size = importance"))}</span>`;
   }
 
   // ------------------------------------------------------------------ time-lapse, export, presentation

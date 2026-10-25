@@ -6,6 +6,10 @@
 set -euo pipefail
 app="$1"
 xattr -cr "$app"
+# precompile the bundled Python first: otherwise the first run writes __pycache__ into the signed bundle,
+# which breaks the seal ("file added") and macOS treats the app as modified
+py="$app/Contents/Resources/python/bin/python3"
+if [ -x "$py" ]; then "$py" -I -m compileall -q -j 0 "$app/Contents/Resources/python/lib" >/dev/null || true; fi
 n=0
 while IFS= read -r -d '' f; do
   if file -b "$f" | grep -q "Mach-O"; then codesign --force --sign - --timestamp=none "$f"; n=$((n+1)); fi

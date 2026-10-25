@@ -8,7 +8,7 @@ ST = ROOT / "gateway/src/hub_gateway/local_ui_static"
 
 def test_header_above_cards():
     css = (ST / "local.css").read_text()
-    assert "header.top{position:relative;z-index:50}" in css and ".tab-menu{z-index:60" in css
+    assert "header.top{position:relative;z-index:50}" in css and ".tab-menu" not in css  # no More menu since v0.18
 
 
 def test_graph_toolbar_class():

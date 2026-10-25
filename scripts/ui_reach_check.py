@@ -1,6 +1,6 @@
 """Click-reachability check for the local app: on every tab, at desktop sizes, every visible button, link, field,
 select and menu item must be on top at its own center (document.elementFromPoint), so nothing sits behind a header,
-a card, a toolbar or a dropdown. Also opens the More menu and checks its items.
+a card, a toolbar or a dropdown. Every collapsed "Advanced" section is opened first, so what it hides is checked too.
 
 Usage: python scripts/ui_reach_check.py http://127.0.0.1:8765 <token> [shots_dir]
 Needs: pip install playwright && playwright install chromium. Exit 1 lists every unreachable element.
@@ -8,7 +8,8 @@ Needs: pip install playwright && playwright install chromium. Exit 1 lists every
 import asyncio
 import sys
 
-TABS = ["home", "memoria", "native", "apps", "import", "spaces", "skills", "graph", "settings"]
+# the four tabs, then the pages inside Settings
+TABS = ["graph", "memoria", "apps", "settings", "spaces", "native", "import", "skills"]
 SIZES = [(1280, 800), (1512, 982)]
 JS = r"""
 () => {
@@ -67,21 +68,13 @@ async def main(base, tok, shots=None):
                 await pg.evaluate(f"location.hash='{t}'")
                 await pg.wait_for_timeout(2500)
                 await pg.evaluate("scrollTo(0,0)")
+                await pg.evaluate("document.querySelectorAll('.view:not(.hidden) details').forEach((d) => { d.open = true; })")
+                await pg.wait_for_timeout(300)
+                if shots:
+                    await pg.screenshot(path=f"{shots}/reach-{t}-{w}.png")
                 r = await pg.evaluate(JS)
                 fails += [f"{w}x{h} #{t}: {x}" for x in r["bad"]]
                 print(f"{w}x{h} #{t}: {r['n']} elements, {len(r['bad'])} unreachable", flush=True)
-            # the More menu over every tab's content
-            for t in ["import", "graph", "home"]:
-                await pg.evaluate(f"location.hash='{t}'"); await pg.wait_for_timeout(1500); await pg.evaluate("scrollTo(0,0)")
-                await pg.click("#tab-more > summary")
-                await pg.wait_for_timeout(300)
-                if shots and t == "import":
-                    await pg.screenshot(path=f"{shots}/reach-more-{w}.png")
-                r = await pg.evaluate("""() => [...document.querySelectorAll('#tab-more .tab-menu a, #tab-more .tab-menu button')].map((el) => {
-                    const q = el.getBoundingClientRect(); const hit = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2);
-                    return (hit === el || el.contains(hit)) ? '' : (el.innerText.trim() + ' covered by ' + (hit ? hit.tagName + '.' + hit.className : 'nothing')); }).filter(Boolean)""")
-                fails += [f"{w}x{h} More menu over #{t}: {x}" for x in r]
-                await pg.click("#tab-more > summary")
             await pg.close()
         await b.close()
     for f in fails:

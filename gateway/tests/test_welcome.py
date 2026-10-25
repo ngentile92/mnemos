@@ -45,24 +45,19 @@ def test_ui_welcome_and_tabs():
     w = html.split('id="welcome"')[1].split("</section>")[0]
     assert w.count("<input") == 1 and "context" not in w.lower()
     nav = html.split('id="tabs"')[1].split("</nav>")[0]
-    top = nav.split('id="tab-more"')[0]
-    main = [t for t in top.split("<a ")[1:] if 'class="tab"' in t or 'class="tab active"' in t]
-    assert [t.split(">")[1].split("<")[0] for t in main] == ["Home", "Memory", "What each AI knows", "Connect", "Import"]
+    main = [t for t in nav.split("<a ")[1:] if 'class="tab"' in t or 'class="tab active"' in t]
+    assert [t.split(">")[1].split("<")[0] for t in main] == ["Your map", "Memory", "AIs", "⚙ Settings"]  # v0.18: four
     for word in ("Docker", "Reach", "Labs", "secret", "store"):
         assert word not in nav
     js = (STATIC / "local.js").read_text()
     assert "needsWelcome" in js and '"/api/welcome"' in js
 
 
-def test_home_view():
+def test_no_home_view_default_is_map_or_ais():
     html = (STATIC / "index.html").read_text()
-    assert 'id="view-home" class="view"' in html and '/ui/home.js' in html
-    for el in ("hm-n", "hm-a", "hm-next-body", "hm-tip", "hm-feed"):
-        assert f'id="{el}"' in html
-    js = (STATIC / "home.js").read_text()
-    assert "Not now" in js and "sessionStorage" in js and ".find(" in js  # one suggestion at a time
-    assert 'view-memoria" class="view hidden"' in html
-    assert '|| "home"' in (STATIC / "local.js").read_text()
+    assert 'id="view-home"' not in html and "/ui/home.js" not in html and not (STATIC / "home.js").exists()
+    js = (STATIC / "local.js").read_text()
+    assert 'n > 0 ? "graph" : "apps"' in js
 
 
 def test_init_default_owner_is_not_a_name(tmp_path):
@@ -72,5 +67,3 @@ def test_init_default_owner_is_not_a_name(tmp_path):
 def test_name_asked_once_and_demo_only_for_new_memories():
     js = (STATIC / "local.js").read_text()
     assert "if (w.name)" in js  # name from the Mnemos window: no second question
-    home = (STATIC / "home.js").read_text()
-    assert "!!st.welcome" in home

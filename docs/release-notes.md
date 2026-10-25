@@ -6,6 +6,16 @@
 
 Newest first. Each `## vX.Y.Z` section is the body of that GitHub Release (`scripts/release_notes.py`).
 
+## v0.18.0
+
+**Simpler: connect each AI, bring what it knows, see your map.**
+
+- **Four places**: Your map, Memory, AIs and Settings. Spaces, bringing in more, skills and the advanced options now live in Settings.
+- **Connect from the app**: each AI gets a card, desktop apps first. One click adds Mnemos to its settings (with a backup first), and the card turns to Connected by itself when that AI sends its first message. ChatGPT's desktop app shows as connected through the Codex setup (it works in its Codex and Work modes).
+- **Copy and paste, guided**: after every copy, a small guide says what to do next and where to paste, and the spot to paste into lights up. You can also drop a Claude or ChatGPT export (.zip) to bring in what it knows.
+- **A short first run for new memories**: your name, which AIs you use, then for each one: connect it, bring what it knows (asking it is required only when Mnemos has nothing from it yet) and make it use your memory every time. It ends with your map growing in front of you. If you already have notes, you go straight to the new layout.
+- **A calmer map**: search, How it grew and Present up front, the rest under Options; cleaner names (no more verbs or import labels as topics), a friendly empty map, and everything in English and Spanish.
+
 ## v0.17.1
 
 **Opens cleanly after a download, and fixes from real first tries.**

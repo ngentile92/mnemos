@@ -197,3 +197,6 @@ label.imp-item:has(>input) > input{flex:none;margin:0}
 .st-back{display:inline-block;margin:14px 36px 0;color:var(--muted);text-decoration:none}
 .st-back:hover{color:var(--txt)}
 details.adv>summary{cursor:pointer;padding:4px 0}
+.pill.wait{border-color:rgba(124,92,255,.55);color:#c4b5fd}
+.cn-wait{display:flex;align-items:center;gap:8px;margin-top:6px}
+.cn-missing{grid-column:1/-1;margin-top:4px}

@@ -360,6 +360,20 @@ tokens by hand.</p></body>""",
             limit = 100
         return {"events": activity.recent(limit, str(b.get("app") or "") or None)}
     ui.hooks[("GET", "apps")] = _apps
+
+    async def _connect_cards(_b):
+        from . import local_connect
+        try:
+            rem = await remote.status()
+        except Exception:  # noqa: BLE001
+            rem = None
+        return local_connect.cards(home, router.router.apps.load().get("apps", {}), rem)
+
+    async def _connect(b):
+        from . import local_connect
+        return local_connect.connect(str(b.get("key") or ""), home)  # ValueError -> 400 with the message
+    ui.hooks[("GET", "connect")] = _connect_cards
+    ui.hooks[("POST", "connect")] = _connect
     ui.hooks[("POST", "apps/update")] = _app_update
     ui.hooks[("GET", "activity")] = _activity
 

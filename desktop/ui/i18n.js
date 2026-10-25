@@ -25,6 +25,7 @@
  "Claude's settings file has an unexpected format; not touching it": "El archivo de ajustes de Claude tiene un formato inesperado; no lo toco",
  "Click Install in Cursor, then send it any message.": "Tocá Install en Cursor y después mandale cualquier mensaje.",
  "Click Install in Cursor; this card updates by itself.": "Tocá Instalar en Cursor; esta tarjeta se actualiza sola.",
+ "Connect your AIs in your memory: Open my memory → AIs.": "Conectá tus IAs desde tu memoria: Abrir mi memoria → IAs.",
  "Connected ✓": "Conectada ✓",
  "Connecting…": "Conectando…",
  "Copied ✓": "Copiado ✓",

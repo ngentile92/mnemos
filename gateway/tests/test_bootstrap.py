@@ -31,7 +31,7 @@ def test_installed_but_empty_and_found(tmp_path):
 def test_connect_cards_include_chatgpt_and_bootstrap():
     js = (ST / "connect.js").read_text()
     html = (ST / "index.html").read_text()
-    assert 'key: "chatgpt"' in js and 'id="cn-grid"' in html and 'id="bs-card"' in html
+    assert '"chatgpt": "Restart the ChatGPT app' in js and 'id="cn-grid"' in html and 'id="bs-card"' in html
     assert '<script src="/ui/connect.js"></script>' in html
     boots = re.findall(r'(?:en|es): "([^"]+)"', js.split("const BOOT")[1].split("};")[0])
     assert len(boots) == 2

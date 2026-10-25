@@ -56,10 +56,18 @@ jobs:
         run: |
           PY=desktop/src-tauri/target/release/bundle/macos/Mnemos.app/Contents/Resources/python/bin/python3
           env -i HOME="$HOME" PATH=/usr/bin:/bin "$PY" -I -m hub_gateway.local init --home "$RUNNER_TEMP/h" --contexts personal
+      - name: ad-hoc sign the whole bundle (no Apple ID; unsigned or unsealed apps show "damaged" after a download)
+        run: desktop/scripts/adhoc_sign.sh desktop/src-tauri/target/release/bundle/macos/Mnemos.app
       - run: |
           mkdir -p dist
           ditto -c -k --keepParent desktop/src-tauri/target/release/bundle/macos/Mnemos.app dist/Mnemos-macos.app.zip
-          cp desktop/src-tauri/target/release/bundle/dmg/*.dmg dist/Mnemos-macos.dmg
+          desktop/scripts/make_dmg.sh desktop/src-tauri/target/release/bundle/macos/Mnemos.app dist/Mnemos-macos.dmg
+      - name: check the published files carry a valid signature
+        run: |
+          T=$(mktemp -d); ditto -x -k dist/Mnemos-macos.app.zip "$T" && codesign --verify --deep --strict --verbose=2 "$T/Mnemos.app"
+          M=$(hdiutil attach -nobrowse -readonly dist/Mnemos-macos.dmg | awk -F'\t' '/Volumes/{print $NF}')
+          codesign --verify --deep --strict --verbose=2 "$M/Mnemos.app"; codesign -dv "$M/Mnemos.app" 2>&1 | grep -E "Signature=adhoc|Sealed Resources"
+          hdiutil detach "$M"
       - uses: actions/upload-artifact@v7
         with: { name: desktop, path: "dist/*" }
   publish:

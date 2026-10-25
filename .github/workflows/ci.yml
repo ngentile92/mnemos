@@ -154,6 +154,8 @@ jobs:
       - name: build unsigned macOS app + dmg (no Apple signing yet)
         working-directory: desktop
         run: npx -y @tauri-apps/cli@2 build --bundles app,dmg --config src-tauri/tauri.bundle.conf.json
+      - name: ad-hoc sign the whole bundle (same step as the release; a downloaded unsealed app shows "damaged")
+        run: desktop/scripts/adhoc_sign.sh desktop/src-tauri/target/release/bundle/macos/Mnemos.app
       - name: smoke test the packaged app without uv or Python on PATH
         run: |
           set -x
@@ -185,7 +187,14 @@ jobs:
         run: |
           mkdir -p dist
           ditto -c -k --keepParent desktop/src-tauri/target/release/bundle/macos/Mnemos.app dist/Mnemos-macos-unsigned.app.zip
-          cp desktop/src-tauri/target/release/bundle/dmg/*.dmg dist/Mnemos-macos-unsigned.dmg
+          desktop/scripts/make_dmg.sh desktop/src-tauri/target/release/bundle/macos/Mnemos.app dist/Mnemos-macos-unsigned.dmg
+          # what a Safari download looks like: quarantined copy from the zip and from the dmg must still verify
+          T=$(mktemp -d); ditto -x -k dist/Mnemos-macos-unsigned.app.zip "$T"
+          xattr -w com.apple.quarantine "0081;00000000;Safari;" "$T/Mnemos.app"
+          codesign --verify --deep --strict --verbose=2 "$T/Mnemos.app"
+          M=$(hdiutil attach -nobrowse -readonly dist/Mnemos-macos-unsigned.dmg | awk -F'\t' '/Volumes/{print $NF}')
+          codesign --verify --deep --strict --verbose=2 "$M/Mnemos.app"; codesign -dv "$M/Mnemos.app" 2>&1 | grep "Signature=adhoc"
+          codesign -dv "$M/Mnemos.app" 2>&1 | grep "Sealed Resources"; hdiutil detach "$M"
           ls -lh dist
       - name: friend test (install from the dmg, setup, import, save, duplicate, connect Claude, stdio)
         timeout-minutes: 15

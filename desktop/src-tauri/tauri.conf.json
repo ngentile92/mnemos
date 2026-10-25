@@ -34,6 +34,9 @@
       "icons/icon.ico"
     ],
     "category": "Productivity",
-    "shortDescription": "Your AI memory, on your computer"
+    "shortDescription": "Your AI memory, on your computer",
+    "macOS": {
+      "signingIdentity": "-"
+    }
   }
 }

@@ -12,7 +12,7 @@ import datetime as dt
 import json
 from pathlib import Path
 
-STEPS = ("welcome", "first_app", "first_save", "aha", "skipped")
+STEPS = ("welcome", "first_app", "first_save", "aha", "skipped")  # aha: since v0.18, the map at the end of the first run
 
 
 def _file(home: Path) -> Path:

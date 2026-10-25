@@ -18,7 +18,7 @@ from typing import Any, Iterable
 
 MAX_CANDIDATES = 2000
 MAX_NOTE = 2000
-SOURCES = ("chatgpt", "claude", "text", "markdown")
+SOURCES = ("chatgpt", "claude", "grok", "text", "markdown")  # grok: its answer pasted, as lines
 
 # first-person statements worth remembering (English + Spanish)
 _FACT = re.compile(
@@ -250,7 +250,7 @@ def preview(candidates: list[str], existing: list[str]) -> dict[str, Any]:
 def candidates(source: str, body: dict) -> list[str]:
     if source not in SOURCES:
         raise ValueError(f"source must be one of {', '.join(SOURCES)}")
-    if source in ("claude", "text"):
+    if source in ("claude", "grok", "text"):
         return from_lines(str(body.get("text", ""))[:2_000_000])
     if source == "markdown":
         files = body.get("files") or []

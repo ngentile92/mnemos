@@ -17,6 +17,27 @@ jobs:
         run: python scripts/check_versions.py
       - name: example skills are valid
         run: python examples/skills/scripts/validate.py examples/skills
+  ui-reach:
+    # every button, field and menu item on every tab must be clickable (not hidden behind a header, card or menu)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - run: pip install -q -e gateway playwright && python -m playwright install --with-deps chromium
+      - name: demo memory, local server, click-reachability at 1280x800 and 1512x982
+        run: |
+          H="$RUNNER_TEMP/mh"; S="$RUNNER_TEMP/scan"; mkdir -p "$S/.claude"
+          printf "# About me\n- I like short answers\n" > "$S/.claude/CLAUDE.md"
+          python -m hub_gateway.local demo --home "$H"
+          echo '{"done": true}' > "$H/data/welcome.json"
+          MNEMOS_SCAN_HOME="$S" MNEMOS_HYGIENE=0 python -m hub_gateway.local serve --home "$H" --port 8765 > "$RUNNER_TEMP/serve.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
+          mkdir -p "$RUNNER_TEMP/shots"
+          python scripts/ui_reach_check.py http://127.0.0.1:8765 "$(cat "$H/token")" "$RUNNER_TEMP/shots" || { cat "$RUNNER_TEMP/serve.log"; exit 1; }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: { name: ui-reach-shots, path: "${{ runner.temp }}/shots", if-no-files-found: ignore }
   lint-shell-compose:
     runs-on: ubuntu-24.04
     steps:

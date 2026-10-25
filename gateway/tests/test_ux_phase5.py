@@ -6,16 +6,16 @@ from hub_gateway import local_activity as A
 S = Path(__file__).resolve().parents[1] / "src" / "hub_gateway" / "local_ui_static"
 
 
-def test_four_step_welcome():
+def test_first_run_is_one_loop_per_ai():
     h = (S / "index.html").read_text()
-    for i in range(1, 5):
+    for i in range(1, 4):
         assert f'id="wl-p{i}"' in h
-    assert 'id="wl-save"' in h and 'id="wl-copy"' in h and 'id="wl-steps"' in h
-    js = (S / "local.js").read_text()
-    # Save all needs a click and skips duplicates; the aha ticks from a read after step 4 opened
-    assert '$("wl-save").onclick' in js and "filter((it) => !it.duplicate)" in js
-    assert 'x.kind === "read" && Date.parse(x.ts) >= Date.parse(started)' in js
-    assert 'api("/api/ftue", { step: "aha" })' in js
+    assert 'id="wl-pick"' in h and 'id="wl-steps"' in h and 'id="reveal"' in h and '<script src="/ui/onboarding.js">' in h
+    js = (S / "onboarding.js").read_text()
+    # per AI: connect (auto-detected by its first call) → bring what it knows (forced when we have nothing) → use it every time
+    assert "connectStep" in js and "bringStep" in js and "defaultStep" in js and "forced: true" in js
+    assert '"#graph?reveal=1"' in js and 'mark("aha")' in js
+    assert "window.MnemosOnboarding.start(" in (S / "local.js").read_text()
 
 
 def test_router_tools_are_described():

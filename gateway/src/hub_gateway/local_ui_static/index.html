@@ -30,39 +30,23 @@
   <p id="login-err" class="err small"></p>
 </section>
 <section id="welcome" class="card welcome hidden" aria-labelledby="wl-h">
-  <ol class="wl-steps" id="wl-steps" aria-label="Steps">
-    <li data-s="1">You</li><li data-s="2">What your AIs know</li><li data-s="3">Connect</li><li data-s="4">Try it</li></ol>
+  <ol class="wl-dots" id="wl-steps" aria-label="Steps"></ol>
   <div class="wl-pane" id="wl-p1">
     <h2 id="wl-h">Welcome to Mnemos</h2>
-    <p class="muted">One memory for all your AI apps. Tell them your name once; they will remember it.</p>
-    <label class="small" for="wl-name">What should your AIs call you?</label>
-    <input id="wl-name" maxlength="60" autocomplete="name" placeholder="Your name (optional)">
-    <p class="small muted" style="margin-top:14px">Your memory keeps things apart in separate spaces:</p>
-    <div id="wl-spaces" class="wl-spaces"></div>
-    <p class="small muted">You can rename them later in Spaces.</p>
+    <p class="muted">One memory for all your AIs. What should they call you?</p>
+    <input id="wl-name" maxlength="60" autocomplete="name" placeholder="Your name (optional)" aria-label="Your name">
     <div class="me-actions"><button id="wl-go" class="mbtn primary">Continue</button><span id="wl-err" class="err small"></span></div>
   </div>
   <div class="wl-pane hidden" id="wl-p2">
-    <h2>Bring what your AIs already know</h2>
-    <p class="muted small">Mnemos looked on this computer for what your AI tools keep about you. Files are only read, never changed; anything that looks like a password is left out.</p>
-    <div id="wl-src" class="wl-src"></div>
-    <div class="hidden" id="wl-prog"><progress id="wl-bar" max="1" value="0" style="width:100%"></progress><p class="small muted" id="wl-phase"></p></div>
-    <div class="me-actions"><button id="wl-save" class="mbtn primary">Save all</button><a class="mbtn" href="#import" id="wl-review">Review first</a>
-      <button id="wl-skip2" class="mbtn ghost">Skip</button><span id="wl-msg2" class="small"></span></div>
+    <h2>Which AIs do you use?</h2>
+    <p class="muted small">The ones on this Mac are already marked.</p>
+    <div id="wl-pick" class="wl-pick" role="group" aria-label="Your AIs"></div>
+    <div class="me-actions"><button id="wl-go2" class="mbtn primary">Continue</button></div>
   </div>
   <div class="wl-pane hidden" id="wl-p3">
-    <h2>Connect your AIs</h2>
-    <p class="muted small">In the Mnemos window, press <b>Connect</b> next to each AI app you use and restart it. Each one turns <b>Connected ✓</b> here by itself after its first message.</p>
-    <div id="wl-apps" class="wl-apps"></div>
-    <p class="small muted">ChatGPT, Claude.ai and Grok keep their memory in the cloud: two copy-and-paste steps in Import keep them in sync.</p>
-    <div class="me-actions"><button id="wl-go3" class="mbtn primary">Continue</button><button id="wl-skip3" class="mbtn ghost">I'll do it later</button></div>
-  </div>
-  <div class="wl-pane hidden" id="wl-p4">
-    <h2>The moment it knows you</h2>
-    <p class="muted small">Open any connected AI in a new chat and ask:</p>
-    <div class="wl-ask"><b id="wl-q">What do you know about me?</b><button id="wl-copy" class="mbtn primary">Copy the question</button></div>
-    <div class="wl-wait" id="wl-wait"><span class="spin"></span><span id="wl-wait-t">Waiting for an AI to read your memory…</span></div>
-    <div class="me-actions"><button id="wl-done" class="mbtn primary">Go to Home</button></div>
+    <p class="wl-kicker small" id="wl-ai"></p>
+    <h2 id="wl-h3"></h2>
+    <div id="wl-body" class="wl-body"></div>
   </div>
 </section>
 <div id="app" class="hidden">
@@ -146,7 +130,10 @@
     <button id="g-pres" class="mbtn" title="Full screen, presentation look (Esc to leave)">✦ Present</button>
     <button id="g-png" class="mbtn" title="Save a PNG of the graph">PNG</button>
     <button id="g-rec" class="mbtn" title="Record a short video: fly-in + how it grew">● Record</button></span></section>
-  <section class="card graphcard"><div class="graphwrap"><div id="g-stage" class="g-stage"><canvas id="g-canvas" aria-label="Graph of your memory"></canvas></div>
+  <section class="card graphcard"><div class="graphwrap"><div id="g-stage" class="g-stage">
+    <div id="reveal" class="reveal hidden" role="dialog" aria-labelledby="rv-h"><p class="rv-kicker small" id="rv-kicker">Your map</p>
+      <h2 id="rv-h">This is what your AIs know about you</h2><p class="rv-sub" id="rv-sub"></p>
+      <button class="mbtn primary" id="rv-go">Explore your map</button></div><canvas id="g-canvas" aria-label="Graph of your memory"></canvas></div>
     <aside id="g-side" class="nodepanel"><div id="g-legend" class="g-legend"></div><div id="g-node"><p class="muted">Tap a name to see the notes that mention it.</p></div>
       <div id="g-top"></div>
       <details class="howto small"><summary>How to read this</summary><ul>
@@ -342,6 +329,7 @@
 <script src="/ui/coach.js"></script>
 <script src="/ui/bring.js"></script>
 <script src="/ui/connect.js"></script>
+<script src="/ui/onboarding.js"></script>
 <script src="/ui/remote.js"></script>
 <script src="/ui/capture.js"></script>
 <script src="/ui/model.js"></script>

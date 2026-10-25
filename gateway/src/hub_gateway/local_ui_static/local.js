@@ -14,6 +14,7 @@
   window.MNEMOS_API = api;
 
   async function start() {
+    if (document.readyState === "loading") await new Promise((r) => document.addEventListener("DOMContentLoaded", r, { once: true }));  // every screen script loaded
     const m = location.hash.match(/^#k=([\w-]+)/);
     if (m) {
       history.replaceState(null, "", location.pathname);
@@ -24,99 +25,21 @@
     if (await needsWelcome(s)) return showWelcome(s);
     boot(s);
   }
-  // first run: one optional field (the name every AI will use) and one button; people with notes skip it
+  // first run: only for a new memory (people with notes keep their app and get the new navigation); a first run
+  // left half-way comes back where it stopped
   async function needsWelcome(s) {
+    if (window.MnemosOnboarding && window.MnemosOnboarding.active()) { try { window.MNEMOS_WELCOME = await api("/api/welcome"); } catch { window.MNEMOS_WELCOME = { spaces: [] }; } return true; }
     let w; try { w = await api("/api/welcome"); } catch { return false; }
     if (w.done) return false;
     let total = 0;
-    try { for (const c of s.contexts) total += ((await api("/api/memory/list?" + new URLSearchParams({ context: c }))).items || []).length; }
-    catch { return false; }
-    if (total > 0) { api("/api/welcome", {}).catch(() => {}); return false; }  // existing memory: no welcome, no demo
-    if (w.name) {  // the name was already given in the Mnemos window: ask it only once
-      try { await api("/api/welcome", {}); await api("/api/ftue", { step: "welcome" }); } catch { /* still boot */ }
-      return false;
-    }
+    try { total = (await api("/api/memory/counts")).total || 0; } catch { return false; }
+    if (total > 0) { api("/api/welcome", {}).catch(() => {}); return false; }  // existing memory: no first run
     window.MNEMOS_WELCOME = w;
     return true;
   }
-  // first run (0.17): one path in four steps — you · what your AIs know (Save all) · connect · try it (the "aha")
+  // first run (v0.18, onboarding.js): one loop per AI — connect, bring what it knows, use it every time — then your map
   function showWelcome(s) {
-    const w = window.MNEMOS_WELCOME || { spaces: [] };
-    const T = (x) => (window.tr ? window.tr(x) : x);
-    let started = new Date().toISOString();
-    let poll = null;
-    $("welcome").classList.remove("hidden");
-    const step = (n) => {
-      clearTimeout(poll);
-      for (let i = 1; i <= 4; i++) $("wl-p" + i).classList.toggle("hidden", i !== n);
-      document.querySelectorAll("#wl-steps li").forEach((li) => { const k = +li.dataset.s; li.className = k === n ? "on" : k < n ? "done" : ""; });
-      if (n === 2) scan(); if (n === 3) apps(); if (n === 4) { started = new Date().toISOString(); aha(); }
-    };
-    const finish = (hash) => { clearTimeout(poll); $("welcome").classList.add("hidden"); location.hash = hash || ""; boot(s); };
-    $("wl-name").value = w.name || "";
-    $("wl-spaces").innerHTML = w.spaces.filter((x) => x.name !== "shared").map((x) => `<span><i style="background:${esc(x.color)}"></i>${esc(T(x.label))}</span>`).join("");
-    const go = async () => {
-      $("wl-err").textContent = ""; $("wl-go").disabled = true;
-      try { await api("/api/welcome", { name: $("wl-name").value }); api("/api/ftue", { step: "welcome" }).catch(() => {}); step(2); }
-      catch (e) { $("wl-err").textContent = e.message; }
-      $("wl-go").disabled = false;
-    };
-    $("wl-go").onclick = go;
-    $("wl-name").onkeydown = (e) => { if (e.key === "Enter") go(); };
-    $("wl-name").focus();
-    // step 2: scan, then one button saves everything new (duplicates and secrets are skipped)
-    let found = [];
-    async function scan() {
-      $("wl-src").innerHTML = `<div class="wl-row"><span class="spin"></span>${esc(T("Looking on this computer…"))}</div>`;
-      try { found = (await api("/api/discover/scan")).sources || []; } catch { found = []; }
-      $("wl-src").innerHTML = found.length ? found.map((x) => `<div class="wl-row"><span class="ic">✦</span><span><b>${esc(x.label)}</b><br><span class="small muted">${x.count} ${esc(x.count === 1 ? x.unit.replace(/s$/, "") : x.unit)}</span></span><span class="r">${esc(T(x.status === "imported" ? "Imported ✓" : "Ready"))}</span></div>`).join("")
-        : `<div class="wl-row"><span class="ic">∅</span><span>${esc(T("Nothing found on this computer yet, and that is normal: Claude and ChatGPT keep their memory in your account. After you connect one, Mnemos shows you how to ask it to fill your memory from your past chats."))}</span></div>`;
-      const todo = found.filter((x) => x.status !== "imported");
-      $("wl-save").textContent = T(todo.length ? "Save all" : "Continue"); $("wl-review").classList.toggle("hidden", !todo.length);
-    }
-    $("wl-save").onclick = async (e) => {
-      const todo = found.filter((x) => x.status !== "imported");
-      if (!todo.length) return step(3);
-      const b = e.target; b.disabled = true; $("wl-prog").classList.remove("hidden"); $("wl-msg2").textContent = "";
-      try {
-        await api("/api/discover/preview", { sources: todo.map((x) => ({ id: x.id, context: x.context || "auto" })) });
-        let j;
-        for (;;) { await new Promise((r) => setTimeout(r, 900)); j = await api("/api/discover/status"); $("wl-bar").max = j.total || 1; $("wl-bar").value = j.done || 0; $("wl-phase").textContent = T(j.phase || ""); if (j.state !== "running") break; }
-        if (j.state === "error") throw new Error(j.error);
-        const notes = (j.result.items || []).filter((it) => !it.duplicate).map((it) => ({ text: it.text, context: it.context, source: it.source, source_id: it.source_id }));
-        const r = notes.length ? await api("/api/discover/commit", { notes }) : { saved: 0 };
-        $("wl-prog").classList.add("hidden");
-        $("wl-msg2").textContent = T(`Saved ${r.saved} ✓`); $("wl-msg2").className = "small ok";
-        setTimeout(() => step(3), 1100);
-      } catch (err) { $("wl-prog").classList.add("hidden"); $("wl-msg2").textContent = err.message; $("wl-msg2").className = "small err"; }
-      b.disabled = false;
-    };
-    $("wl-review").onclick = (e) => { e.preventDefault(); finish("#import"); };
-    $("wl-skip2").onclick = () => step(3);
-    // step 3: apps tick themselves as they call Mnemos
-    async function apps() {
-      let a = []; try { a = ((await api("/api/apps")).apps || []).filter((x) => !x.revoked); } catch { /* none yet */ }
-      $("wl-apps").innerHTML = a.map((x) => `<div class="wl-row ok"><span class="ic">✓</span><b>${esc(x.label)}</b><span class="r">${esc(T("Connected ✓"))}</span></div>`).join("")
-        + (a.length ? "" : `<div class="wl-row"><span class="spin"></span>${esc(T("Waiting for the first AI app…"))}</div>`);
-      $("wl-go3").textContent = T(a.length ? "Continue" : "Continue anyway");
-      poll = setTimeout(apps, 3000);
-    }
-    $("wl-go3").onclick = () => step(4);
-    $("wl-skip3").onclick = () => finish("");
-    // step 4: copy the question; tick when any AI reads the memory
-    $("wl-copy").onclick = () => window.MnemosCoach.start({ text: $("wl-q").textContent, away: 1, steps: [{ text: T("Open any connected AI and start a new chat.") }, { text: T("Paste (⌘V) and send.") }] });
-    async function aha() {
-      let ev = []; try { ev = (await api("/api/activity?" + new URLSearchParams({ limit: 50 }))).events || []; } catch { /* none */ }
-      const hit = ev.find((x) => x.kind === "read" && Date.parse(x.ts) >= Date.parse(started) - 2000 && x.ok !== 0 && x.ok !== false);
-      if (hit) {
-        $("wl-wait").classList.add("ok");
-        $("wl-wait-t").textContent = `${hit.label} ${T("just read your memory ✓")}`;
-        api("/api/ftue", { step: "aha" }).catch(() => {});
-        return;
-      }
-      poll = setTimeout(aha, 3000);
-    }
-    $("wl-done").onclick = () => finish("");
+    window.MnemosOnboarding.start(s, window.MNEMOS_WELCOME || { spaces: [] }, (hash) => { location.hash = hash || ""; boot(s); });
   }
   function showLogin() {
     $("login").classList.remove("hidden");
@@ -170,7 +93,7 @@
     if (!loaded[view]) {
       loaded[view] = true;
       if (view === "memoria") window.dispatchEvent(new Event("mnemos:memoria"));
-      if (view === "graph") loadGraph();
+      if (view === "graph") loadGraph().then(() => { if (/reveal=1/.test(location.hash)) reveal(); });
       if (view === "skills") loadSkills();
     }
     if (view === "settings") { loadEngine(); loadFtue(); }
@@ -181,7 +104,7 @@
 
   async function loadFtue() {
     let f; try { f = await api("/api/ftue"); } catch { return; }
-    const L = { first_app: "First AI app connected", first_save: "First memory saved by an AI", aha: "Asked in another AI (aha)", skipped: "Skipped the demo" };
+    const L = { first_app: "First AI app connected", first_save: "First memory saved by an AI", aha: "Your map (end of the first run)", skipped: "Skipped the demo" };
     const rows = Object.entries(f.minutes || {}).map(([k, m]) => `<div>${esc(L[k] || k)}: <b>${m} min</b></div>`);
     $("ft-out").innerHTML = f.steps && f.steps.welcome ? (rows.join("") || '<p class="muted">Nothing yet after the welcome.</p>') : '<p class="muted">No first run recorded on this memory.</p>';
   }
@@ -190,7 +113,23 @@
   function loadGraph() {
     if (!$("g-ctx").querySelector('option[value="*"]')) $("g-ctx").insertAdjacentHTML("beforeend", '<option value="*">All spaces</option>');
     if (!gInit) { gInit = true; if ($("g-ctx").options.length > 2) $("g-ctx").value = "*"; }  // galaxies side by side
-    if (window.MnemosGraph) window.MnemosGraph.load();
+    return window.MnemosGraph ? window.MnemosGraph.load() : Promise.resolve();
+  }
+  // the end of the first run: your map grows in front of you, with what came from each AI
+  async function reveal() {
+    const T = window.tr || ((x) => x);
+    let n = 0, from = [];
+    try { n = (await api("/api/memory/counts")).total || 0; } catch { /* 0 */ }
+    try {
+      const k = (await api("/api/ai/known")).known || {}, c = (await api("/api/connect")).ais || [];
+      from = c.filter((a) => (k[a.key] || 0) > 0 && a.key !== "claude-web").map((a) => T(a.name));
+    } catch { /* none */ }
+    $("rv-sub").textContent = n ? (from.length ? T("{n} things about you, from {x}.").replace("{n}", n).replace("{x}", from.join(" · ")) : T("{n} things about you.").replace("{n}", n))
+      : T("Empty for now: it fills up as you chat with your AIs.");
+    $("reveal").classList.remove("hidden");
+    document.body.classList.add("revealing");
+    if (window.MnemosGraph && n) setTimeout(() => window.MnemosGraph.timelapse(7000), 400);
+    $("rv-go").onclick = () => { $("reveal").classList.add("hidden"); document.body.classList.remove("revealing"); history.replaceState(null, "", location.pathname + "#graph"); };
   }
 
   // ------------------------------------------------ skills

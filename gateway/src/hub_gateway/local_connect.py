@@ -189,7 +189,7 @@ def cards(home: Path, seen: dict[str, dict], remote: dict | None = None, h: Path
     return {"ais": out, "remote": {"enabled": bool((remote or {}).get("enabled")), "url": (remote or {}).get("url")}}
 
 
-TAG_AI = {"import-claude": ("claude-desktop", "claude-web"), "import-chatgpt": ("chatgpt",)}
+TAG_AI = {"import-claude": ("claude-desktop", "claude-web"), "import-chatgpt": ("chatgpt",), "import-grok": ("grok",)}
 
 
 def _app_of(source_app: str) -> str:

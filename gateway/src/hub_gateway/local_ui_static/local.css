@@ -226,3 +226,32 @@ details.adv>summary{cursor:pointer;padding:4px 0}
 .bk-drop.over,.bk-drop:hover{border-color:#7c5cff;color:var(--txt)}
 .bk-wait{display:flex;gap:8px;align-items:center;margin-top:10px;color:var(--muted)}
 .bk-list{margin:4px 0 10px;padding-left:18px}
+/* v0.18 first run: one loop per AI, then the map */
+.wl-dots{display:flex;gap:6px;list-style:none;padding:0;margin:0 0 22px}
+.wl-dots:empty{display:none}
+.wl-dots li{flex:1;font-size:11.5px;color:var(--muted);padding-top:10px;border-top:3px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-dots li.on{color:var(--txt);border-color:#7c6cff;font-weight:600}.wl-dots li.done{color:#5fd39a;border-color:#5fd39a}
+.wl-kicker{margin:0 0 4px;color:#a5b4fc;letter-spacing:.04em}
+.wl-pick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0 4px}
+.wl-chip{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02);color:var(--txt);font:inherit;font-size:14px;text-align:left;cursor:pointer}
+.wl-chip:hover{border-color:rgba(124,92,255,.6)}
+.wl-chip .wl-check{width:20px;height:20px;border-radius:6px;border:1px solid var(--line);display:grid;place-items:center;font-size:12px;color:transparent;flex:none}
+.wl-chip.on{border-color:#7c5cff;background:rgba(124,92,255,.14)}
+.wl-chip.on .wl-check{background:linear-gradient(135deg,#7c5cff,#22d3ee);border:0;color:#fff}
+.wl-here{margin-left:auto;font-size:11px;color:var(--muted)}
+.wl-body{margin-top:8px}
+.wl-todo{list-style:none;padding:0;margin:10px 0 14px;display:flex;flex-direction:column;gap:8px}
+.wl-todo li{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--muted)}
+.wl-todo li span{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;border:1px solid var(--line)}
+.wl-todo li.done span{color:#5fd39a;border-color:rgba(95,211,154,.5)}
+.wl-todo li.now{color:var(--txt);font-weight:600}.wl-todo li.now span{background:linear-gradient(135deg,#7c5cff,#22d3ee);border:0;color:#fff}
+/* the map reveal */
+.reveal{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:5;text-align:center;max-width:min(560px,90%);padding:22px 28px 20px;border-radius:18px;
+  background:linear-gradient(180deg,rgba(17,19,48,.92),rgba(17,19,48,.78));border:1px solid rgba(124,92,255,.45);box-shadow:0 20px 60px rgba(0,0,0,.5);animation:rvIn .9s cubic-bezier(.2,.8,.2,1) both}
+.reveal h2{font-size:24px;margin:2px 0 8px;text-transform:none;letter-spacing:-.01em;background:linear-gradient(90deg,#c4b5fd,#67e8f9);-webkit-background-clip:text;background-clip:text;color:transparent}
+.rv-kicker{margin:0;color:#a5b4fc;text-transform:uppercase;letter-spacing:.12em}
+.rv-sub{margin:0 0 14px;color:var(--muted);font-size:14px}
+@keyframes rvIn{from{opacity:0;transform:translate(-50%,14px) scale(.97)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
+body.revealing .g-toolbar{opacity:.35;transition:opacity .6s}
+.g-stage{position:relative}
+.wl-chip:focus{outline:none}.wl-chip:focus-visible{outline:2px solid #7c5cff;outline-offset:2px}

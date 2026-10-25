@@ -65,5 +65,5 @@ def test_init_default_owner_is_not_a_name(tmp_path):
 
 
 def test_name_asked_once_and_demo_only_for_new_memories():
-    js = (STATIC / "local.js").read_text()
-    assert "if (w.name)" in js  # name from the Mnemos window: no second question
+    js = (STATIC / "onboarding.js").read_text()
+    assert 'welcome.name ? "pick" : "name"' in js  # name from the Mnemos window: no second question

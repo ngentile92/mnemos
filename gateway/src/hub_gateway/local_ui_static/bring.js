@@ -15,7 +15,7 @@
     es: "Listá todo lo que tenés guardado sobre mí y todo lo que aprendiste de mí en nuestras conversaciones anteriores. Un dato por línea, en un solo bloque de código, con mis palabras cuando se pueda: quién soy, mi trabajo y proyectos, las personas importantes para mí, mis preferencias, las herramientas que uso, mis objetivos y las instrucciones que te di sobre cómo responder. Sin comentarios, y sin contraseñas, claves ni números privados.",
   };
   const ask = () => ASK[es() ? "es" : "en"];
-  const SRC = { "claude-desktop": "claude", "claude-web": "claude", chatgpt: "chatgpt" };
+  const SRC = { "claude-desktop": "claude", "claude-web": "claude", chatgpt: "chatgpt", grok: "grok" };
   const KIND_APP = { claude_code: "claude-code", claude_memory: "claude-code", claude_md: "claude-code", cursor_chats: "cursor", cursor_rules: "cursor",
     codex_memory: "codex", agents_md: "codex", chatgpt_zip: "chatgpt", claude_zip: "claude-desktop" };
   const OPEN = { chatgpt: "https://chatgpt.com/", "claude-web": "https://claude.ai/new", grok: "https://grok.com/" };
@@ -91,7 +91,10 @@
         }
       };
       const ta = box.querySelector("#bk-paste");
-      if (ta) ta.addEventListener("paste", () => setTimeout(() => review(ta.value), 50));
+      if (ta) {
+        ta.addEventListener("paste", () => setTimeout(() => review(ta.value), 50));
+        let typed; ta.addEventListener("input", () => { clearTimeout(typed); typed = setTimeout(() => review(ta.value), 700); });  // typed or dropped text too
+      }
       const f = box.querySelector("#bk-file"), drop = box.querySelector("#bk-drop");
       if (f) {
         f.onchange = () => f.files[0] && upload(f.files[0]);

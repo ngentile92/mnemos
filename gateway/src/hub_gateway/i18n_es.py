@@ -7,6 +7,30 @@ to the screen. DESKTOP_*: the Mnemos window (desktop app), including its Rust me
 # ruff: noqa: E501
 
 EXACT: dict[str, str] = {
+ 'Copy and paste': 'Copiar y pegar',
+ 'A Mnemos page opens: type your Mnemos password and pick the spaces.': 'Se abre una página de Mnemos: escribí tu contraseña de Mnemos y elegí los espacios.',
+ 'A live connection needs Reach from anywhere (Settings → Advanced).': 'Una conexión en vivo necesita Acceso desde cualquier lugar (Ajustes → Avanzado).',
+ 'Add a custom server, paste the address below and choose OAuth.': 'Agregá un servidor propio, pegá la dirección de abajo y elegí OAuth.',
+ 'Bring what it knows': 'Traer lo que sabe',
+ 'Click Install in Cursor, then send any message there.': 'Tocá Instalar en Cursor y después mandá cualquier mensaje ahí.',
+ 'Connecting…': 'Conectando…',
+ 'In ChatGPT: Settings → Apps → Advanced → turn on Developer mode (business plans).': 'En ChatGPT: Configuración → Apps → Avanzado → activá el modo desarrollador (planes de empresa).',
+ 'In Grok: Connectors → New Connector → Custom.': 'En Grok: Conectores → Nuevo conector → Personalizado.',
+ 'In its Codex and Work modes. In normal chats, use copy and paste.': 'En sus modos Codex y Work. En los chats comunes, usá copiar y pegar.',
+ 'Works in its Codex and Work modes. In normal chats, use copy and paste.': 'Funciona en sus modos Codex y Work. En los chats comunes, usá copiar y pegar.',
+ 'Install one and it shows up here by itself.': 'Instalá una y aparece acá sola.',
+ 'Live connection': 'Conexión en vivo',
+ 'Not on this Mac:': 'No están en esta Mac:',
+ 'Paste the address below.': 'Pegá la dirección de abajo.',
+ 'Quit Claude Desktop (⌘Q), open it again and send any message.': 'Cerrá Claude Desktop (⌘Q), abrilo de nuevo y mandá cualquier mensaje.',
+ 'Restart the ChatGPT app, switch to Codex or Work mode and send any message.': 'Reiniciá la app de ChatGPT, pasá al modo Codex o Work y mandá cualquier mensaje.',
+ 'Start a new Claude Code session and send any message.': 'Abrí una sesión nueva de Claude Code y mandá cualquier mensaje.',
+ 'Start a new Codex session and send any message.': 'Abrí una sesión nueva de Codex y mandá cualquier mensaje.',
+ 'This turns Connected ✓ by itself.': 'Esto pasa a Conectada ✓ solo.',
+ 'Waiting for its first message': 'Esperando su primer mensaje',
+ 'Found on this Mac': 'Está en esta Mac',
+ 'Claude on the web': 'Claude en la web',
+ 'Connect your AIs in your memory: Open my memory → AIs.': 'Conectá tus IAs desde tu memoria: Abrir mi memoria → IAs.',
  'Your map': 'Tu mapa',
  'AIs': 'IAs',
  '⚙ Settings': '⚙ Ajustes',
@@ -814,6 +838,9 @@ HTML: dict[str, str] = {
 }
 
 SERVER: dict[str, str] = {
+ "{x}'s settings file is not valid; Mnemos did not touch it": 'El archivo de configuración de {x} no es válido; Mnemos no lo tocó',
+ "{x}'s settings file has an unexpected format; Mnemos did not touch it": 'El archivo de configuración de {x} tiene un formato inesperado; Mnemos no lo tocó',
+ 'This AI connects through copy and paste': 'Esta IA se conecta copiando y pegando',
  'that line is gone (refresh)': 'esa línea ya no está (actualizá)',
  "this file can't be edited here": 'este archivo no se puede editar acá',
  'confirm the change first': 'confirmá el cambio primero',
@@ -911,6 +938,7 @@ SERVER: dict[str, str] = {
 }
 
 DESKTOP_EXACT: dict[str, str] = {
+ "Connect your AIs in your memory: Open my memory → AIs.": "Conectá tus IAs desde tu memoria: Abrir mi memoria → IAs.",
  'What does Mnemos know about me?': '¿Qué sabe Mnemos de mí?',
  'To check it, send this in a new chat:': 'Para probarlo, mandá esto en un chat nuevo:',
  'Mnemos works in regular Claude chats on this Mac. If Claude says it has no Mnemos, click + → Connectors in that chat and turn Mnemos on. Cowork tasks may not see apps on this Mac.': 'Mnemos funciona en los chats comunes de Claude en esta Mac. Si Claude dice que no tiene Mnemos, tocá + → Conectores en ese chat y activá Mnemos. Las tareas de Cowork pueden no ver las apps de esta Mac.',

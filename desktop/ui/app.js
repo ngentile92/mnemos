@@ -23,7 +23,6 @@ async function refresh() {
   $("where").textContent = `Your memory lives in ${last.home}`;
   $("start").disabled = last.running; $("stop").disabled = !last.running; $("open").disabled = !up;
   $("details").textContent = JSON.stringify(last, null, 1);
-  renderApps();
 }
 
 async function run(btn, fn) {
@@ -37,123 +36,10 @@ function showError(msg) {
   const f = $("fix");
   if (/another Mnemos is already running/i.test(msg)) { f.textContent = T("Use the running Mnemos"); f.onclick = (e) => run(e.target, async () => window.__TAURI__.opener.openUrl(await invoke("memory_url"))); }
   else if (/Port \d+ is used/i.test(msg)) { f.textContent = T("Try again"); f.onclick = (e) => run(e.target, () => invoke("start_hub")); }
-  else if (/Could not find .* command/i.test(msg)) { f.textContent = T("Check again"); f.onclick = () => { cardsKey = ""; $("err").textContent = ""; f.classList.add("hidden"); refresh(); }; }
-  else { f.textContent = T("Try again"); f.onclick = () => { $("err").textContent = ""; f.classList.add("hidden"); cardsKey = ""; refresh(); }; }
+  else { f.textContent = T("Try again"); f.onclick = () => { $("err").textContent = ""; f.classList.add("hidden"); refresh(); }; }
   f.classList.remove("hidden");
 }
 
-// Connect apps: only the apps found on this Mac, one clear state per card:
-// Not connected → [Connect] → Installed ✓ (Mnemos is in the app's settings; send any message there to finish)
-// → Connected ✓ (the app really called Mnemos: recorded by the hub on its first tool call).
-const FINISH = {
-  "claude-desktop": "Installed ✓ — quit Claude Desktop (Cmd+Q), open it again and send any message to finish.",
-  cursor: "Installed ✓ — send any message in Cursor to finish.",
-  "claude-code": "Installed ✓ — start a new Claude Code session and send any message to finish.",
-  codex: "Installed ✓ — start a new Codex session and send any message to finish.",
-  vscode: "Installed ✓ — reload VS Code and send a message in its chat to finish.",
-};
-const CURSOR_CLICK = "Click Install in Cursor; this card updates by itself.";
-const pending = new Set();
-let cardsKey = "";
-const cardMsg = {};
-function btn(text, cls, onclick) { const b = document.createElement("button"); b.textContent = text; if (cls) b.className = cls; b.onclick = onclick; return b; }
-function para(text, cls) { const p = document.createElement("p"); p.className = cls || "muted small"; p.textContent = text; return p; }
-function copyBtn(text) {
-  return btn(T("Copy"), "", async (e) => { try { await navigator.clipboard.writeText(text); e.target.textContent = T("Copied ✓"); } catch (_) { e.target.textContent = T("Select and Cmd+C"); } });
-}
-function card(c) {
-  const el = document.createElement("div"); el.className = "app";
-  const head = document.createElement("div"); head.className = "head";
-  const name = document.createElement("b"); name.textContent = c.name;
-  const state = c.seen ? "ok" : c.connected ? "installed" : pending.has(c.id) ? "waiting" : "new";
-  const badge = document.createElement("span"); badge.className = "badge" + (state === "new" ? "" : " on");
-  badge.textContent = state === "ok" ? T("Connected ✓") : state === "installed" ? T("Installed ✓") : state === "waiting" ? T("Waiting for the app…") : T("Not connected");
-  head.append(name, badge); el.append(head);
-  const a = document.createElement("div"); a.className = "actions";
-  if (state === "new") {
-    a.append(btn(T(`Connect ${c.name}`), "primary", async (e) => {
-      e.target.disabled = true; e.target.textContent = T("Connecting…"); delete cardMsg[c.id];
-      try { const m = await invoke("connect_app", { id: c.id }); pending.add(c.id); if (/isn't installed correctly/.test(m)) cardMsg[c.id] = { text: m, err: false }; }
-      catch (err) { cardMsg[c.id] = { text: String(err), err: true }; }
-      cardsKey = ""; refresh();
-    }));
-  } else if (state === "waiting") {
-    el.append(para(c.id === "cursor" ? T(CURSOR_CLICK) : T(FINISH[c.id] || "Installed ✓ — send any message in the app to finish.")));
-  } else if (state === "installed") {
-    el.append(para(T(FINISH[c.id] || "Installed ✓ — send any message in the app to finish.")));
-    // the explicit test: this question makes the app call Mnemos, which flips the card to Connected ✓
-    const q = T("What does Mnemos know about me?");
-    const code = document.createElement("code"); code.textContent = q;
-    el.append(para(T("To check it, send this in a new chat:")), code, copyBtn(q));
-    if (c.id === "claude-desktop") el.append(para(T("Mnemos works in regular Claude chats on this Mac. If Claude says it has no Mnemos, click + → Connectors in that chat and turn Mnemos on. Cowork tasks may not see apps on this Mac.")));
-    if (c.id === "claude-desktop") a.append(btn(T("Open Claude"), "", async () => { try { await invoke("open_claude"); } catch (_) { /* not installed */ } }));
-  } else {
-    el.append(para(T("It can read and save your memory.")));
-  }
-  if (a.childElementCount) el.append(a);
-  const m = cardMsg[c.id];  // errors and notices show in the card they belong to, with one fix button
-  if (m) {
-    el.append(para(T(m.text), m.err ? "err small" : "small warn"));
-    if (m.err) el.append(btn(T("Try again"), "", () => { delete cardMsg[c.id]; cardsKey = ""; refresh(); }));
-  }
-  if (c.command && state === "new" && m && m.err) {
-    // fallback if the button cannot run the app's command (kept out of sight: nobody should need Terminal)
-    const d = document.createElement("details"); const s = document.createElement("summary"); s.className = "muted small"; s.textContent = T("Details (advanced)");
-    const code = document.createElement("code"); code.textContent = c.command;
-    d.append(s, para(T("Paste this once in Terminal instead:")), code, copyBtn(c.command));
-    el.append(d);
-  }
-  if (c.id === "claude-desktop" && c.connected) claudeExtras(el);
-  return el;
-}
-// ChatGPT and Grok run on their companies' servers: the main path is two copy/paste steps (Import page).
-function cloudCard(name) {
-  const el = document.createElement("div"); el.className = "app";
-  const head = document.createElement("div"); head.className = "head";
-  const b = document.createElement("b"); b.textContent = name;
-  const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = T("Copy and paste");
-  head.append(b, badge);
-  const a = document.createElement("div"); a.className = "actions";
-  a.append(btn(T(`Set up ${name}`), "primary", async () => { try { window.__TAURI__.opener.openUrl((await invoke("memory_url")) + "#import"); } catch (e) { showError(String(e)); } }));
-  el.append(head, para(T(`Two quick steps: ask ${name} what it knows about you, then give it your memory.`)), a,
-    para(T("Keeping it in sync on its own needs remote access (Open my memory → Settings → Advanced).")));
-  return el;
-}
-async function renderApps() {
-  if (!last || !last.initialized) return;
-  let cards;
-  try { cards = await invoke("app_cards"); } catch (e) { return; }
-  const key = JSON.stringify(cards) + [...pending].join();
-  if (key === cardsKey) return;
-  cardsKey = key;
-  const found = cards.filter((c) => c.installed || c.connected), missing = cards.filter((c) => !c.installed && !c.connected);
-  const nodes = found.map(card);
-  nodes.push(...["ChatGPT", "Grok"].map(cloudCard));
-  if (!found.length) nodes.unshift(para("No AI app found on this Mac yet. Install Claude Desktop, Cursor, Claude Code, Codex or VS Code; it shows up here by itself. Using ChatGPT or Claude on the web? See “Later” below.", "small"));
-  if (missing.length) {
-    const d = document.createElement("details"); const s = document.createElement("summary"); s.className = "muted small";
-    s.textContent = `Not on this Mac: ${missing.map((c) => c.name).join(", ")}`; d.append(s, para("Install one and it appears above."));
-    nodes.push(d);
-  }
-  $("apps").replaceChildren(...nodes);
-}
-// Claude Desktop does not pass MCP server instructions to the model. Two extras, each one sentence:
-// an old extension copy of Mnemos (one click turns it off), and an optional, collapsed text for Claude's settings.
-async function claudeExtras(el) {
-  let n; try { n = await invoke("claude_notes"); } catch (_) { return; }
-  if (n.duplicate) {
-    el.append(para(T("Claude also has the old Mnemos extension, so it sees Mnemos twice."), "small warn"));
-    const oa = document.createElement("div"); oa.className = "actions";
-    oa.append(btn(T("Turn off the old extension"), "", (e) => run(e.target, async () => { $("ok").textContent = T(await invoke("disable_claude_extension")); cardsKey = ""; })));
-    el.append(oa);
-  }
-  const text = T(n.preferences);
-  const d = document.createElement("details"); const s = document.createElement("summary"); s.className = "muted small";
-  s.textContent = T("Optional: make Claude save even more on its own");
-  const code = document.createElement("code"); code.textContent = text;
-  d.append(s, para(T("Paste this once in Claude → Settings → Account → Instructions for Claude.")), code, copyBtn(text));
-  el.append(d);
-}
 $("start").onclick = (e) => run(e.target, () => invoke("start_hub"));
 $("stop").onclick = (e) => run(e.target, () => invoke("stop_hub"));
 $("open").onclick = (e) => run(e.target, async () => window.__TAURI__.opener.openUrl(await invoke("memory_url")));

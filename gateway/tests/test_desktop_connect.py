@@ -7,13 +7,11 @@ UI = ROOT / "desktop" / "ui"
 RS = Path(__file__).resolve().parents[2] / "desktop" / "src-tauri" / "src" / "main.rs"
 
 
-def test_connect_flow_is_one_click_with_live_check():
-    js = (UI / "app.js").read_text()
-    assert 'invoke("connect_app"' in js and "Connected ✓" in js and "c.seen" in js
-    assert "Not on this Mac" in js and "No AI app found" in js
-    assert "showError" in js and 'id="fix"' in (UI / "index.html").read_text()
+def test_connect_commands_stay_for_the_headless_checks():
+    # v0.18: the window has no Connect buttons (the web app connects); the Rust commands stay for --connect-claude
     rs = RS.read_text()
     assert "fn connect_app(" in rs and "fn seen_apps(" in rs and "connect_app," in rs
+    assert 'id="fix"' in (UI / "index.html").read_text()
 
 
 def test_first_run_screen_has_no_jargon():
@@ -22,13 +20,6 @@ def test_first_run_screen_has_no_jargon():
     for word in ("MCP", "stdio", "token"):
         assert word not in main
     assert "Tailscale" not in main and "Reach from anywhere" not in main
-
-
-def test_cards_one_state_each_and_cloud_apps_first_class():
-    js = (UI / "app.js").read_text()
-    for t in ('T("Installed ✓")', 'T("Connected ✓")', 'T("Not connected")', 'cloudCard', '"ChatGPT", "Grok"', "cardMsg[c.id]"):
-        assert t in js, t
-    assert "Settings → Account → Instructions for Claude" in js and "Profile" not in js
 
 
 def test_claude_text_has_no_tool_names_and_extension_is_switched_off_with_backup():

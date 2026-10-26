@@ -51,21 +51,48 @@ def session_id() -> str | None:
         return None
 
 
-def with_context(schema: dict, spaces: list[str]) -> dict:
+def _own(spaces: list[str]) -> list[str]:
+    return [s for s in spaces if s != "shared"]
+
+
+def with_context(schema: dict, spaces: list[str], tool: str = "") -> dict:
+    """0.19: with more than one space, saving REQUIRES `context`: the AI picks the space whose description fits
+    (instructions + hub_whoami), so nothing lands in a default by accident. Reads may still omit it."""
     s = copy.deepcopy(schema or {"type": "object", "properties": {}})
     s.setdefault("properties", {})
-    s["properties"] = {"context": {"type": "string", "enum": spaces,
-                                   "description": "Space to use (see hub_whoami). Omit it to use this app's "
-                                                  "default space."}, **s["properties"]}
-    s["required"] = [r for r in s.get("required", []) if r != "context"]
+    choose = tool in SAVE_TOOLS and len(_own(spaces)) > 1
+    desc = ("Space this note belongs to: pick the one whose description fits (hub_whoami). If none clearly fits, "
+            "ask the user." if choose else "Space to use (see hub_whoami). Omit it to use this app's default space.")
+    s["properties"] = {"context": {"type": "string", "enum": spaces, "description": desc}, **s["properties"]}
+    s["required"] = [r for r in s.get("required", []) if r != "context"] + (["context"] if choose else [])
     return s
+
+
+SPACE_LINE = {  # 0.19: one space = nothing to choose; several = the AI picks one for every save
+    ("en", False): "Calls without `context` use this app's default space (see hub_whoami).",
+    ("en", True): "Every save MUST pass `context`: the space whose description fits that fact. If none clearly fits, "
+                  "ask the user. Reads without `context` use this app's default space.",
+    ("es", False): "Sin `context`, cada llamada usa el espacio por defecto de esta app (hub_whoami).",
+    ("es", True): "Cada vez que guardes, pasá `context`: el espacio cuya descripción corresponde a ese dato. Si "
+                  "ninguno corresponde claro, preguntale al usuario. Las lecturas sin `context` usan el espacio por "
+                  "defecto de esta app.",
+}
 
 
 def instructions(spaces: dict[str, str], language: str = "en", files: bool = False) -> str:
     """Short (some clients cut at ~1,300 chars), proactive, and explicit about crossing spaces."""
     names = ", ".join(f"{n} ({d[:70]})" if d and d != n else n for n, d in spaces.items())
-    if files:
-        return files_instructions(names, language)
+    many = len(_own(list(spaces))) > 1
+    text = files_instructions(names, language) if files else _notes_instructions(names, language)
+    lang = "es" if language == "es" else "en"
+    if many:  # "ask before using another space" belonged to the default-space model
+        for old in ("If it clearly belongs to another space, ask first and pass context. ", "If it belongs to another space, ask first. ",
+                    "Si claramente es de otro espacio, preguntá antes y pasá context. ", "Si es de otro espacio, preguntá antes. "):
+            text = text.replace(old, "")
+    return text.replace(SPACE_LINE[(lang, False)], SPACE_LINE[(lang, many)])
+
+
+def _notes_instructions(names: str, language: str = "en") -> str:
     if language == "es":
         return (
             f"Esta es la memoria personal del usuario, en su computadora, separada en espacios: {names}. "
@@ -188,8 +215,9 @@ class LocalRouter:
             self.reloader()
             self.apps.contexts = list(self.servers)  # a space added from the app is usable at once
         self._mtime = self._stat()
-        if self.mcp is not None and self.files_mode() != self._files:
-            self._add_space_tools(self.mcp)
+        if self.mcp is not None and (self.files_mode() != self._files
+                                     or list(self.servers) != getattr(self, "_space_set", list(self.servers))):
+            self._add_space_tools(self.mcp)  # files mode changed, or a space was added/removed (new enum, required)
             self.set_descriptions(dict(self.descriptions))
 
     def maybe_reload(self) -> None:
@@ -246,12 +274,19 @@ class LocalRouter:
         except ToolError as e:
             self._event(key, label, requested, tool, args, None, str(e))
             raise
+        guessed = False
         if not requested and tool in SAVE_TOOLS and not (self.sid() and self.active.get(self.sid())):
             space = self._by_content(args, rec, space)
+            guessed = len(_own(self.apps.allowed(rec))) > 1
         if not requested and tool in OVERVIEW_TOOLS and not (self.sid() and self.active.get(self.sid())):
             return await self._overview(tool, args, key, label, version, rec, space)
         async with Client(self.servers[space], client_info=Implementation(name=label, version=version or "")) as c:
             res = await c.call_tool_mcp(tool, args)
+        if guessed and not res.is_error:  # a client that ignored the required `context`: say where it went
+            from mcp.types import TextContent
+            res.content = [*(res.content or []), TextContent(type="text", text=(
+                f"No space was given, so this was saved in {space!r} by its words. Pass `context` on every save; "
+                f"spaces: {', '.join(_own(self.apps.allowed(rec)))}."))]
         self._event(key, label, space, tool, args, res, None)
         return res
 
@@ -280,8 +315,8 @@ class LocalRouter:
                 if isinstance(v, str) and len(v) > share:
                     d[k] = v[:share].rsplit("\n", 1)[0] + "\n…"
         out = {"default_space": default, "spaces": parts,
-               "note": "This is the user's memory across their spaces. Answer from all of it; to save, the app's "
-                       "default space is used unless the fact clearly belongs to another one."}
+               "note": "This is the user's memory across their spaces. Answer from all of it; to save, pass `context` "
+                       "with the space whose description fits the fact (ask the user when none clearly does)."}
         res = CallToolResult(content=[TextContent(type="text", text=json.dumps(out, ensure_ascii=False))],
                              structuredContent=out)
         self._event(key, label, default, tool, args, res, None)
@@ -346,9 +381,10 @@ class LocalRouter:
                 continue
             ann = t.annotations if isinstance(t.annotations, ToolAnnotations) else None
             mcp.add_tool(SpaceTool(name=t.name, description=t.description or "", remote=t.name,
-                                   parameters=with_context(t.parameters, spaces), annotations=ann, router=self))
+                                   parameters=with_context(t.parameters, spaces, t.name), annotations=ann, router=self))
             names.append(t.name)
         self._space_names = names
+        self._space_set = list(self.servers)
 
     def build(self) -> FastMCP:
         mcp = FastMCP("mnemos", instructions=instructions(self.descriptions, self.language, self.files_mode()),

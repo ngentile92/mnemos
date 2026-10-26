@@ -282,7 +282,8 @@
     inbox = j.items || []; lastBatch = j.last_batch || null;
     const counts = j.counts || {};
     $("me-inbox-head").textContent = j.running ? "checking…" : j.date ? `checked ${when(j.at || j.date)} · ${inbox.length} to review${j.total > inbox.length ? ` · ${j.total - inbox.length} done` : ""}` : "not checked yet";
-    if ($("me-sugg")) { $("me-sugg-n").textContent = inbox.length ? String(inbox.length) : ""; $("me-sugg").classList.toggle("has", inbox.length > 0); }
+    window.MNEMOS_HY_N = inbox.length;
+    if ($("me-sugg")) { const n = inbox.length + (window.MNEMOS_RL_N || 0); $("me-sugg-n").textContent = n ? String(n) : ""; $("me-sugg").classList.toggle("has", n > 0); }
     $("me-hy-undo").classList.toggle("hidden", !lastBatch);
     if (lastBatch) $("me-hy-undo").textContent = `Undo last cleanup (${lastBatch.count})`;
     $("me-hy-groups").innerHTML = GROUPS.filter((g) => counts[g[0]]).map((g) => `<div class="me-hy-g${hyFilter === g[0] ? " on" : ""}" data-g="${g[0]}">
@@ -443,7 +444,8 @@
   on("me-b-clear", "onclick", () => { picked.clear(); renderList(); });
   on("me-new", "onclick", () => { const c = $("me-new-card"); c.classList.toggle("hidden"); if (!c.classList.contains("hidden")) $("me-dispute").focus(); });
   on("me-new-close", "onclick", () => $("me-new-card").classList.add("hidden"));
-  on("me-sugg", "onclick", () => { $("me-inbox-card").classList.toggle("hidden"); $("me-sugg").classList.toggle("on", !$("me-inbox-card").classList.contains("hidden")); });
+  // local app (0.19): "Suggestions" opens every decision at once (#me-review); the dashboard only has the health card
+  on("me-sugg", "onclick", () => { const box = $("me-review") || $("me-inbox-card"); box.classList.toggle("hidden"); $("me-sugg").classList.toggle("on", !box.classList.contains("hidden")); });
   if ($("me-kbd")) $("me-kbd").textContent = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
   document.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {

@@ -11,7 +11,13 @@ def test_layout_has_three_columns_and_toolbar():
     for el in ("me-filters", "me-bulk", "me-new", "me-sugg", "me-kbd", "me-b-pin", "me-b-move", "me-b-forget"):
         assert f'id="{el}"' in h, el
     assert 'class="card me-dispute hidden" id="me-new-card"' in h  # "New note" opens it
-    assert 'class="card me-inbox hidden" id="me-inbox-card"' in h  # "Suggestions" opens it
+    assert '<div id="me-review" class="hidden">' in h  # "Suggestions" opens every decision (0.19)
+    m = h[h.index('id="view-memoria"'):h.index('id="view-graph"')]
+    assert m.index('id="me-review"') < m.index('id="me-inbox-card"') < m.index('class="me-grid me-grid3"')
+    assert m.index('id="me-review"') < m.index('id="rl-card"') < m.index('class="me-grid me-grid3"')
+    # your notes come right after the search bar; profile and files come after them
+    assert m.index('class="card me-bar me-top"') < m.index('class="me-grid me-grid3"') < m.index('id="pf-card"')
+    assert m.index('class="me-grid me-grid3"') < m.index('id="files-view"')
     assert ".me-grid3{grid-template-columns:228px" in (S / "local.css").read_text()
 
 

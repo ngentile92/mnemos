@@ -51,40 +51,14 @@
 </section>
 <div id="app" class="hidden">
 <main id="view-memoria" class="view hidden">
-  
-  <section class="card hidden" id="files-view" style="margin:14px 36px"><div class="card-h"><h2>Memory files</h2><span class="muted small" id="fv-head"></span></div>
-    <p class="small muted">One folder per space. Click a file to read or edit it; every save is a new version you can restore.</p>
-    <div id="fv-list" class="ap-list"></div>
-    <div id="fv-editor" class="hidden" style="margin-top:12px">
-      <div class="card-h"><h3 id="fv-title" style="margin:0"></h3><span class="muted small" id="fv-meta"></span></div>
-      <textarea id="fv-text" rows="18" style="width:100%;font-family:ui-monospace,monospace;font-size:13px"></textarea>
-      <div class="me-actions" style="margin-top:8px"><button class="mbtn primary" id="fv-save">Save</button>
-        <button class="mbtn" id="fv-history">History</button><button class="mbtn" id="fv-back">Back</button>
-        <span class="small" id="fv-msg"></span></div>
-      <div id="fv-hist" class="ap-list"></div>
-    </div></section>
-  <section class="card hidden labs" id="pf-card" style="margin:14px 36px"><div class="card-h"><h2>What your AI knows about you</h2><span class="muted small" id="pf-head"></span></div>
-    <p class="small muted">The short profile every connected AI reads at the start of a chat, rebuilt each night from your notes. Tap a name to see everything Mnemos knows about it.</p>
-    <div id="pf-text" class="me-note" style="white-space:pre-wrap"></div>
-    <div id="pf-ents" class="pf-ents" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
-    <div id="pf-entity" class="hidden" style="margin-top:12px"></div>
-    <div id="pf-digest-wrap" class="hidden"><h3 class="small" style="margin-top:14px">Still true? <span class="muted" id="pf-digest-n"></span></h3>
-      <p class="small muted">Important things you have not confirmed in a while. Keep, fix or forget each one.</p><div id="pf-digest" class="ap-list"></div></div>
-    <p class="small" id="pf-msg"></p></section>
-  <section class="card hidden" id="rl-card" style="margin:14px 36px"><div class="card-h"><h2>Recently learned</h2><span class="muted small" id="rl-head"></span></div>
-    <p class="small muted">What Mnemos kept on its own from your coding chats. Undo anything that is wrong or not worth keeping.</p>
-    <div id="rl-list" class="ap-list"></div>
-    <div id="rl-inbox-wrap" class="hidden"><h3 class="small">To check <span class="muted" id="rl-inbox-n"></span></h3>
-      <p class="small muted">Possible contradictions with a note you have, or things Mnemos was not sure about.</p><div id="rl-inbox" class="ap-list"></div></div>
-    <p class="small" id="rl-msg"></p></section>
+  <section class="card hidden" id="empty-cta" style="margin:14px 36px"><h2>Your memory is empty</h2>
+    <p class="small muted">Connect the AIs you use: each one brings what it already knows about you.</p>
+    <a class="mbtn primary" href="#apps" id="empty-scan">Connect an AI</a></section>
   <section class="card hidden eo-slim" id="eng-offer" style="margin:14px 36px">
     <div class="me-actions"><span class="small"><b>Your memory is basic.</b> A private model on this Mac (<b id="eo-size"></b>, once) makes clearer topics on your map and finds notes that repeat or disagree. Nothing is sent anywhere.</span>
       <button class="mbtn primary" id="eo-go">Improve it</button><button class="mbtn" id="eo-no">Not now</button><span class="muted small" id="eo-msg"></span></div>
     <div class="hidden" id="eo-progress"><progress id="eo-bar" max="1" value="0" style="width:100%"></progress><p class="small muted" id="eo-phase"></p></div>
   </section>
-  <section class="card hidden" id="empty-cta" style="margin:14px 36px"><h2>Your memory is empty</h2>
-    <p class="small muted">Connect the AIs you use: each one brings what it already knows about you.</p>
-    <a class="mbtn primary" href="#apps" id="empty-scan">Connect an AI</a></section>
   <section class="card me-bar me-top">
     <select id="me-ctx" aria-label="Space"></select>
     <div class="me-search"><input id="me-q" type="search" placeholder="Search your memory…" maxlength="200" aria-label="Search your memory"><kbd id="me-kbd">⌘K</kbd></div>
@@ -101,11 +75,20 @@
     <button id="me-dispute-go" class="mbtn primary">Check</button></div>
     <div id="me-proposals"></div>
   </section>
-  <section class="card me-inbox hidden" id="me-inbox-card"><div class="card-h"><h2>Memory health</h2><span class="muted small" id="me-inbox-head"></span>
+  <!-- 0.19: every decision in one place, opened from "Suggestions" (it counts them); your notes stay first -->
+  <div id="me-review" class="hidden">
+  <section class="card hidden" id="rl-card" style="margin:14px 36px"><div class="card-h"><h2>Recently learned</h2><span class="muted small" id="rl-head"></span></div>
+    <p class="small muted">What Mnemos kept on its own from your coding chats. Undo anything that is wrong or not worth keeping.</p>
+    <div id="rl-list" class="ap-list"></div>
+    <div id="rl-inbox-wrap" class="hidden"><h3 class="small">To check <span class="muted" id="rl-inbox-n"></span></h3>
+      <p class="small muted">Possible contradictions with a note you have, or things Mnemos was not sure about.</p><div id="rl-inbox" class="ap-list"></div></div>
+    <p class="small" id="rl-msg"></p></section>
+  <section class="card me-inbox" id="me-inbox-card"><div class="card-h"><h2>Memory health</h2><span class="muted small" id="me-inbox-head"></span>
     <span class="me-actions" style="margin-left:auto"><button class="mbtn" id="me-hy-run">Check now</button><button class="mbtn hidden" id="me-hy-undo">Undo last cleanup</button></span></div>
     <p class="muted small me-help">Mnemos checks your memory after every import and once a day, and only <b>suggests</b>: nothing changes until you accept. Before applying anything it saves a backup, and “Undo last cleanup” puts everything back.</p>
     <div id="me-hy-groups" class="me-hy-groups"></div>
     <div id="me-inbox"></div></section>
+  </div>
   <section class="me-grid me-grid3">
     <aside class="card me-filters" id="me-filters" aria-label="Filters"></aside>
     <div class="card me-listcard"><div class="card-h"><h2>Notes</h2><span class="muted small" id="me-count"></span></div>
@@ -116,6 +99,25 @@
       <div id="me-list"></div></div>
     <div class="card me-detailcard"><div id="me-detail"><p class="muted">Pick a note on the left.</p></div></div>
   </section>
+  <section class="card hidden labs" id="pf-card" style="margin:14px 36px"><div class="card-h"><h2>What your AI knows about you</h2><span class="muted small" id="pf-head"></span></div>
+    <p class="small muted">The short profile every connected AI reads at the start of a chat, rebuilt each night from your notes. Tap a name to see everything Mnemos knows about it.</p>
+    <div id="pf-text" class="me-note" style="white-space:pre-wrap"></div>
+    <div id="pf-ents" class="pf-ents" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
+    <div id="pf-entity" class="hidden" style="margin-top:12px"></div>
+    <div id="pf-digest-wrap" class="hidden"><h3 class="small" style="margin-top:14px">Still true? <span class="muted" id="pf-digest-n"></span></h3>
+      <p class="small muted">Important things you have not confirmed in a while. Keep, fix or forget each one.</p><div id="pf-digest" class="ap-list"></div></div>
+    <p class="small" id="pf-msg"></p></section>
+  <section class="card hidden" id="files-view" style="margin:14px 36px"><div class="card-h"><h2>Memory files</h2><span class="muted small" id="fv-head"></span></div>
+    <p class="small muted">One folder per space. Click a file to read or edit it; every save is a new version you can restore.</p>
+    <div id="fv-list" class="ap-list"></div>
+    <div id="fv-editor" class="hidden" style="margin-top:12px">
+      <div class="card-h"><h3 id="fv-title" style="margin:0"></h3><span class="muted small" id="fv-meta"></span></div>
+      <textarea id="fv-text" rows="18" style="width:100%;font-family:ui-monospace,monospace;font-size:13px"></textarea>
+      <div class="me-actions" style="margin-top:8px"><button class="mbtn primary" id="fv-save">Save</button>
+        <button class="mbtn" id="fv-history">History</button><button class="mbtn" id="fv-back">Back</button>
+        <span class="small" id="fv-msg"></span></div>
+      <div id="fv-hist" class="ap-list"></div>
+    </div></section>
   <div id="me-toast" class="me-toast hidden" role="status"></div>
 </main>
 <main id="view-graph" class="view hidden">

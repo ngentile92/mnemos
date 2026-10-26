@@ -50,7 +50,7 @@ async def test_one_connector_default_space_and_override(home):
     assert not names & {"secrets_list", "secret_http_request"}
     save = next(t for t in await router.list_tools() if t.name == "memory_save")
     assert save.parameters["properties"]["context"]["enum"] == list(servers)
-    assert "context" not in save.parameters.get("required", [])
+    assert "context" in save.parameters.get("required", [])  # 0.19: several spaces -> the AI must pick one
     async with client(router) as c:
         who = data(await c.call_tool("hub_whoami", {}))
         assert who["app"] == "Cursor" and who["default_space"] == list(servers)[0]
@@ -107,9 +107,19 @@ async def test_switch_space_for_the_chat(home):
 
 def test_instructions_short_and_explicit():
     t = instructions({"personal": "home, family and hobbies", "work": "my job at Acme"})
-    assert "ask first" in t and "DATA" in t and "personal (home" in t and len(t) < 1300
+    assert "MUST pass `context`" in t and "ask the user" in t and "DATA" in t and "personal (home" in t and len(t) < 1300
     t2 = instructions({"personal": "vida personal", "work": "trabajo"}, "es")
-    assert "preguntá antes" in t2 and len(t2) < 1300
+    assert "pasá `context`" in t2 and len(t2) < 1300
+    one = instructions({"main": "everything"})
+    assert "MUST" not in one and "default space" in one
+
+
+def test_save_requires_context_only_with_several_spaces():
+    from hub_gateway.local_router import with_context
+    base = {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}
+    assert "context" not in with_context(base, ["main", "shared"], "memory_save")["required"]
+    assert "context" in with_context(base, ["main", "work", "shared"], "memory_save")["required"]
+    assert "context" not in with_context(base, ["main", "work"], "memory_search")["required"]
 
 
 def _free():

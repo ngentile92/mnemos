@@ -175,7 +175,7 @@
  "Edit": "Editar",
  "Empty for now: it fills up as you chat with your AIs.": "Vacío por ahora: se llena a medida que chateás con tus IAs.",
  "Engine": "Motor",
- "Every AI app you connected appears here the first time it uses Mnemos. Choose its default space (where it reads and saves unless you ask for another), which spaces it may use, or pause it. New apps use": "Cada app de IA que conectaste aparece acá la primera vez que usa Mnemos. Elegí su espacio por defecto (donde lee y guarda salvo que pidas otro), qué espacios puede usar, o pausala. Las apps nuevas usan",
+ "Every AI app you connected appears here the first time it uses Mnemos. Pause it, or remove its access. With more than one space, choose which ones it may use: each time it saves, the AI picks the space that fits.": "Cada app de IA que conectaste aparece acá la primera vez que usa Mnemos. Podés pausarla o quitarle el acceso. Si tenés más de un espacio, elegí cuáles puede usar: cada vez que guarda, la IA elige el espacio que corresponde.",
  "Every change is versioned (Undo)": "Cada cambio queda versionado (Deshacer)",
  "Everything is up to date ✓ Nothing new to import.": "Todo al día ✓ No hay nada nuevo para importar.",
  "Explore your map": "Explorá tu mapa",

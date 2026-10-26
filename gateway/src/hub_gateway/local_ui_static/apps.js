@@ -1,5 +1,5 @@
 "use strict";
-// Apps screen: each AI app's default space, allowed spaces, pause / remove access, and the activity feed.
+// Apps screen: each AI app's allowed spaces (0.19: no default space to pick; the AI chooses where each note goes), pause / remove access, and the activity feed.
 (() => {
   // activity summaries: "verb “quoted text” → n notes" — translate the verb and the tail, never the quoted text
   const trSum = (s) => { const T = window.tr || ((x) => x); const m = String(s || "").match(/^([^“]*)(“.*”)?(.*)$/s); return m ? [T(m[1].trim()), m[2] || "", m[3].trim() ? T(m[3].trim()) : ""].filter(Boolean).join(" ") : s; };
@@ -15,7 +15,6 @@
   }
   function render() {
     $("ap-head").textContent = `${data.apps.length} app${data.apps.length === 1 ? "" : "s"}`;
-    $("ap-default").innerHTML = data.spaces.map((s) => `<option value="${esc(s)}" ${s === data.default_space ? "selected" : ""}>${esc(label(s))}</option>`).join("");
     $("ap-filter").innerHTML = '<option value="">All apps</option>' + data.apps.map((a) => `<option value="${esc(a.key)}">${esc(a.label)}</option>`).join("");
     if (!data.apps.length) {
       $("ap-list").innerHTML = '<p class="small muted">No AI app has used your memory yet. Connect one above.</p>';
@@ -29,9 +28,8 @@
           ${a.revoked ? '<span class="ap-pill">access removed</span>' : a.paused ? '<span class="ap-pill">paused</span>' : ""}</div>
           <span class="small muted">last used ${esc(when(a.last_seen))} · 7 days: ${st.read || 0} reads, ${st.write || 0} saves${st.denied ? `, ${st.denied} refused` : ""}</span></div>
         <div class="ap-ctl small">
-          <label>Default space <select class="ap-def">${a.allowed.map((s) => `<option value="${esc(s)}" ${s === a.effective_default ? "selected" : ""}>${esc(label(s))}</option>`).join("")}</select></label>
-          <span>May use:</span>${data.spaces.map((s) => `<label><input type="checkbox" class="ap-sp" value="${esc(s)}" ${a.allowed.includes(s) ? "checked" : ""}> ${esc(label(s))}</label>`).join("")}
-          <span class="muted">(Shared: always readable)</span>
+          ${data.spaces.filter((s) => s !== "shared").length > 1 ? `<span>May use:</span>${data.spaces.map((s) => `<label><input type="checkbox" class="ap-sp" value="${esc(s)}" ${a.allowed.includes(s) ? "checked" : ""}> ${esc(label(s))}</label>`).join("")}
+          <span class="muted">(Shared: always readable)</span>` : ""}
         </div>
         <div class="ap-ctl"><button class="mbtn ap-pause">${a.paused ? "Resume" : "Pause"}</button>
           <button class="mbtn ${a.revoked ? "primary" : "danger"} ap-revoke">${a.revoked ? "Allow again" : "Remove access"}</button>
@@ -44,7 +42,6 @@
   $("ap-list").addEventListener("change", (ev) => {
     const row = ev.target.closest(".ap-row"); if (!row) return;
     const a = data.apps[+row.dataset.i];
-    if (ev.target.classList.contains("ap-def")) return update({ key: a.key, default: ev.target.value }, `${a.label} now saves to ${label(ev.target.value)} by default.`);
     if (ev.target.classList.contains("ap-sp")) {
       const spaces = [...row.querySelectorAll(".ap-sp:checked")].map((x) => x.value);
       if (!spaces.length) { ev.target.checked = true; return msg("Leave at least one space, or use Pause.", true); }
@@ -61,7 +58,6 @@
     }
     if (ev.target.classList.contains("ap-see")) { $("ap-filter").value = a.key; feed(); $("ap-feed").scrollIntoView({ behavior: "smooth" }); }
   });
-  $("ap-default").onchange = (e) => update({ default_space: e.target.value }, `New apps will use ${label(e.target.value)}.`);
   async function feed() {
     let r;
     try { r = await window.MNEMOS_API("/api/activity?" + new URLSearchParams({ app: $("ap-filter").value, limit: 150 })); }

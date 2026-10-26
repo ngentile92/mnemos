@@ -444,7 +444,8 @@
   }
   function summary() {
     const how = T(G.source === "model" ? "found by the model" : G.source === "entities" ? "from your memory model" : "names and topics");
-    const bld = "";
+    // 0.19: without the private model, names come from simple rules; say so once, with the way to improve it
+    const bld = G.basic && nodes.length ? `<p class="small g-basic">${esc(T("Topics named with simple rules, so some may look odd."))} <a href="#settings">${esc(T("Improve my memory"))}</a></p>` : "";
     progressCard();
     const per = G.notes_by_space ? Object.entries(G.notes_by_space).map(([s, k]) => `${esc(spaceLabel(s))} ${k}`).join(" · ") : "";
     $("g-node").innerHTML = (nodes.length ? `<p class="muted">${esc(F(G.notes === 1 ? "{n} {how} from 1 note" : "{n} {how} from {k} notes", { n: nodes.length, how, k: G.notes }))}${per ? ` (${per})` : ""}. ${esc(T("Tap one; shift-click a second to see the path."))}</p>`

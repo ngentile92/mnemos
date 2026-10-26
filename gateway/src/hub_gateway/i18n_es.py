@@ -793,7 +793,19 @@ EXACT: dict[str, str] = {
  "First memory saved by an AI": "Primera memoria guardada por una IA",
  "Asked in another AI (aha)": "Preguntado en otra IA (aha)",
  "Skipped the demo": "Saltó la demo",
- "Use my email-reply skill": "Usá mi skill email-reply"
+ "Use my email-reply skill": "Usá mi skill email-reply",
+ "Improve it": "Mejorarla",
+ "Memory quality": "Calidad de tu memoria",
+ "Details for support": "Detalles para soporte",
+ "What does each job now": "Qué hace cada tarea ahora",
+ "Improved": "Mejorada",
+ "Basic": "Básica",
+ "A private model groups your notes into clear topics on your map, finds notes that repeat and spots notes that disagree.": "Un modelo privado agrupa tus notas en temas claros en tu mapa, encuentra notas repetidas y detecta las que se contradicen.",
+ "This copy of Mnemos could not start its private model, so your memory stays basic: it keeps what your AIs save, as they write it. Installing Mnemos again usually fixes it.": "Esta copia de Mnemos no pudo arrancar su modelo privado, así que tu memoria queda básica: guarda lo que tus IAs guardan, tal como lo escriben. Instalar Mnemos de nuevo suele arreglarlo.",
+ "Your memory keeps what your AIs save, as they write it, and names topics with simple rules. Download the private model (it runs on this Mac; nothing is sent anywhere) for clearer topics on your map and to find notes that repeat or disagree.": "Tu memoria guarda lo que tus IAs guardan, tal como lo escriben, y nombra los temas con reglas simples. Descargá el modelo privado (corre en esta Mac; no se envía nada) para tener temas más claros en tu mapa y encontrar notas repetidas o que se contradicen.",
+ "not on this Mac (needs macOS 26 with Apple Intelligence turned on)": "no está en esta Mac (necesita macOS 26 con Apple Intelligence activado)",
+ "Apple's model on this Mac: nothing to download. It only helps when bringing in chats; it does not name the topics on your map or tidy up your notes. The private model above does all of that.": "El modelo de Apple en esta Mac: no hay que descargar nada. Solo ayuda al traer chats; no nombra los temas de tu mapa ni ordena tus notas. El modelo privado de arriba hace todo eso.",
+ "Topics named with simple rules, so some may look odd.": "Temas nombrados con reglas simples: algunos pueden verse raros."
 }
 
 PAT: dict[str, str] = {
@@ -922,6 +934,8 @@ PAT: dict[str, str] = {
 }
 
 HTML: dict[str, str] = {
+ "<b>More ways to improve it</b> <span class=\"muted small\">Apple Intelligence, your own key, details</span>": "<b>Más formas de mejorarla</b> <span class=\"muted small\">Apple Intelligence, tu propia clave, detalles</span>",
+ "<b>Your memory is basic.</b> A private model on this Mac (<b id=\"eo-size\"></b>, once) makes clearer topics on your map and finds notes that repeat or disagree. Nothing is sent anywhere.": "<b>Tu memoria es básica.</b> Un modelo privado en esta Mac (<b id=\"eo-size\"></b>, una sola vez) arma temas más claros en tu mapa y encuentra notas repetidas o que se contradicen. No se envía nada.",
  "<b>Advanced</b> <span class=\"muted small\">auto-capture, built-in memory for coding apps, activity</span>": "<b>Avanzado</b> <span class=\"muted small\">captura automática, memoria incorporada para apps de código, actividad</span>",
  "<b>How your memory thinks</b> <span class=\"muted small\">built-in model, Apple Intelligence, API key</span>": "<b>Cómo piensa tu memoria</b> <span class=\"muted small\">modelo incorporado, Apple Intelligence, clave de API</span>",
  'In the Mnemos window, press <b>Connect</b> next to each AI app you use and restart it. Each one turns <b>Connected ✓</b> here by itself after its first message.': 'En la ventana de Mnemos, tocá <b>Conectar</b> al lado de cada app de IA que usás y reiniciala. Cada una pasa a <b>Conectada ✓</b> acá sola después de su primer mensaje.',

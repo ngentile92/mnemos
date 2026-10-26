@@ -36,6 +36,7 @@ def test_demo_seed_dates_spaces_and_graph(tmp_path, monkeypatch):
     assert {x["type"] for x in g["nodes"]} >= {"person", "place", "org"}  # coloured without a model
     bridges = [x for x in g["nodes"] if len(x["spaces"]) > 1]
     assert bridges, "people in both spaces become bridges"
+    assert g["basic"] is True                                 # 0.19: no model → the map says names are approximate
 
 
 def test_ghosts_are_pruned_and_rebuild_backs_up(tmp_path, monkeypatch):

@@ -25,6 +25,8 @@ DEFAULT_DESC = {
                 "(not how software, code or work should be done).",
     "work": "Job and career: employer, clients, colleagues, work projects, meetings, tools and decisions at work, "
             "including preferences about code, design, UI and how the assistant should work on projects.",
+    "main": "Everything the user wants their AIs to remember: who they are, their life, work, projects, tastes and "
+            "how they like answers.",
     "side": "Side projects: things built on my own time, open source, experiments, ideas to try.",
     "study": "Learning: courses, books, research, things being studied.",
     "family": "Family: partner, kids, parents, home logistics.",

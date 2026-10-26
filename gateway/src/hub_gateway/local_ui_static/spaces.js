@@ -4,6 +4,7 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   let data = null;
+  const T = (x) => (window.tr ? window.tr(x) : x);
   const dot = (sp) => `<span class="sp-dot" style="background:${esc(sp.color)}"></span>`;
   function msg(t, bad) { $("sp-msg").textContent = t; $("sp-msg").style.color = bad ? "var(--bad,#f87171)" : "var(--ok,#34d399)"; }
   async function load() {
@@ -26,6 +27,14 @@
     const t = ev.target;
     try {
       if (t.id === "sp-fadd") { routing = await window.MNEMOS_API("/api/routing/folder", { path: $("sp-fpath").value, space: $("sp-fspace").value }); $("sp-fpath").value = ""; folders(); msg("Folder mapped."); }
+      else if (t.id === "sp-add") {
+        t.disabled = true;
+        try {
+          data = await window.MNEMOS_API("/api/spaces/add", { label: $("sp-new-label").value, description: $("sp-new-desc").value });
+          window.MNEMOS_SPACES = data; $("sp-new-label").value = $("sp-new-desc").value = "";
+          render(); msg("Space added. Your AIs can use it from their next message."); setTimeout(() => location.reload(), 1500);  // every space picker gets it
+        } finally { t.disabled = false; }
+      }
       else if (t.classList && t.classList.contains("sp-frm")) { routing = await window.MNEMOS_API("/api/routing/folder", { path: t.dataset.p, space: "" }); folders(); msg("Removed."); }
       else if (t.id === "sp-ttry") {
         $("sp-tout").innerHTML = '<span class="spin"></span>';
@@ -35,11 +44,15 @@
     } catch (e) { msg(e.message, true); $("sp-tout").textContent = ""; }
   });
   function render() {
+    // 0.19: one space = one memory to name; sharing, bridges and folders only appear once there are two
+    const many = data.spaces.filter((s) => s.name !== "shared").length > 1;
+    $("sp-intro-one").classList.toggle("hidden", many); $("sp-intro-many").classList.toggle("hidden", !many);
+    document.querySelectorAll("#view-spaces .sp-many").forEach((el) => el.classList.toggle("hidden", !many));
     $("sp-shared").textContent = data.shared;
     $("sp-list").innerHTML = data.spaces.map((sp, i) => `<div class="sp-row" data-i="${i}">
       <div class="sp-sw">${data.palette.map((c) => `<button title="${c}" data-c="${c}" class="${c === sp.color ? "on" : ""}" style="background:${c}"></button>`).join("")}</div>
-      <div><input class="sp-label" maxlength="40" value="${esc(sp.label)}" aria-label="Name"><div class="sp-key">key: ${esc(sp.name)} (never changes)</div></div>
-      <input class="sp-desc" maxlength="200" value="${esc(sp.description)}" placeholder="${esc(sp.default_description || "What goes here, in one line (e.g. my job at Acme: clients, team, projects)")}" aria-label="Description">
+      <div><input class="sp-label" maxlength="40" value="${esc(sp.label === "My memory" ? T(sp.label) : sp.label)}" aria-label="Name">${many ? `<div class="sp-key">key: ${esc(sp.name)} (never changes)</div>` : ""}</div>
+      <input class="sp-desc${many ? "" : " hidden"}" maxlength="200" value="${esc(sp.description === sp.name ? "" : sp.description)}" placeholder="${esc(sp.default_description || "What goes here, in one line (e.g. my job at Acme: clients, team, projects)")}" aria-label="Description">
       <button class="mbtn primary sp-save">Save</button></div>`).join("");
     const pairs = [];
     for (const a of data.spaces) for (const b of data.spaces) if (a.name !== b.name) pairs.push([a, b]);
@@ -62,8 +75,9 @@
   });
   async function save(row, sp) {
     try {
+      const desc = row.querySelector(".sp-desc").value.trim();
       data = await window.MNEMOS_API("/api/spaces/update", { name: sp.name, label: row.querySelector(".sp-label").value,
-        color: sp.color, description: row.querySelector(".sp-desc").value });
+        color: sp.color, ...(desc ? { description: desc } : {}) });
       window.MNEMOS_SPACES = data;
       render(); msg("Saved. Your AI apps see it from their next message."); window.dispatchEvent(new Event("mnemos:spaces"));
     } catch (e) { msg(e.message, true); }

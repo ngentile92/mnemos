@@ -805,7 +805,26 @@ EXACT: dict[str, str] = {
  "Your memory keeps what your AIs save, as they write it, and names topics with simple rules. Download the private model (it runs on this Mac; nothing is sent anywhere) for clearer topics on your map and to find notes that repeat or disagree.": "Tu memoria guarda lo que tus IAs guardan, tal como lo escriben, y nombra los temas con reglas simples. Descargá el modelo privado (corre en esta Mac; no se envía nada) para tener temas más claros en tu mapa y encontrar notas repetidas o que se contradicen.",
  "not on this Mac (needs macOS 26 with Apple Intelligence turned on)": "no está en esta Mac (necesita macOS 26 con Apple Intelligence activado)",
  "Apple's model on this Mac: nothing to download. It only helps when bringing in chats; it does not name the topics on your map or tidy up your notes. The private model above does all of that.": "El modelo de Apple en esta Mac: no hay que descargar nada. Solo ayuda al traer chats; no nombra los temas de tu mapa ni ordena tus notas. El modelo privado de arriba hace todo eso.",
- "Topics named with simple rules, so some may look odd.": "Temas nombrados con reglas simples: algunos pueden verse raros."
+ "Topics named with simple rules, so some may look odd.": "Temas nombrados con reglas simples: algunos pueden verse raros.",
+ "My memory": "Mi memoria",
+ "Give your memory a name, if you like. You can keep parts of it apart later (for example work and personal) from Settings → Spaces.": "Ponele un nombre a tu memoria, si querés. Más adelante podés separar partes (por ejemplo trabajo y personal) desde Ajustes → Espacios.",
+ "Name of your memory": "Nombre de tu memoria",
+ "name your memory, or keep parts of it apart": "nombrá tu memoria o separá partes",
+ "All your memory lives in one space. Give it the name you like.": "Toda tu memoria vive en un solo espacio. Ponele el nombre que quieras.",
+ "Each space is a separate memory (for example Personal and Work). When an AI saves something, it picks the space from these one-line descriptions, so keep them concrete.": "Cada espacio es una memoria aparte (por ejemplo Personal y Trabajo). Cuando una IA guarda algo, elige el espacio según estas descripciones de una línea, así que hacelas concretas.",
+ "Keep some things apart": "Separar algunas cosas",
+ "optional": "opcional",
+ "Add another space when you want some memories to never mix with the rest, for example work and personal. From then on, each AI decides where each thing goes, using the description you write.": "Agregá otro espacio cuando quieras que algunos recuerdos nunca se mezclen con el resto, por ejemplo trabajo y personal. Desde ahí, cada IA decide dónde va cada cosa, según la descripción que escribas.",
+ "Name, e.g. Work": "Nombre, por ej. Trabajo",
+ "What goes there, in one line": "Qué va ahí, en una línea",
+ "Name of the new space": "Nombre del espacio nuevo",
+ "What goes in the new space": "Qué va en el espacio nuevo",
+ "Add a space": "Agregar un espacio",
+ "Space added. Your AIs can use it from their next message.": "Espacio agregado. Tus IAs lo pueden usar desde su próximo mensaje.",
+ "name: 1-40 characters": "nombre: de 1 a 40 caracteres",
+ "you already have a space with that name": "ya tenés un espacio con ese nombre",
+ "at most 8 spaces": "como máximo 8 espacios",
+ "Use at most 40 characters for the name of your memory.": "Usá como máximo 40 caracteres para el nombre de tu memoria."
 }
 
 PAT: dict[str, str] = {
@@ -958,6 +977,9 @@ HTML: dict[str, str] = {
 }
 
 SERVER: dict[str, str] = {
+ "you already have a space with that name": "ya tenés un espacio con ese nombre",
+ "at most 8 spaces": "como máximo 8 espacios",
+ "Use at most 40 characters for the name of your memory.": "Usá como máximo 40 caracteres para el nombre de tu memoria.",
  'this is the first part of a split export: drop the zip that has conversations or memories in it': 'esta es la primera parte de una exportación dividida: soltá el zip que tiene las conversaciones o la memoria',
  'this is not a Claude or ChatGPT export (.zip)': 'esto no es una exportación de Claude o ChatGPT (.zip)',
  "{x}'s settings file is not valid; Mnemos did not touch it": 'El archivo de configuración de {x} no es válido; Mnemos no lo tocó',

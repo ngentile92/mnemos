@@ -676,7 +676,7 @@ fn headless() -> Option<i32> {
     } else if flag == "--setup" {
         let mut pw = String::new();
         let _ = std::io::stdin().read_line(&mut pw);
-        let ctxs = args.get(2).cloned().unwrap_or_else(|| "personal,work".into());
+        let ctxs = args.get(2).cloned().unwrap_or_else(|| "main".into());
         setup(ctxs.split(',').map(String::from).collect(), args.get(3).cloned().unwrap_or_default(),
               pw.trim_end_matches(['\r', '\n']).to_string())
     } else {

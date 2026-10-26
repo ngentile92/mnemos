@@ -50,7 +50,7 @@ $("w-go").onclick = async (e) => {
   if (pw !== $("w-pw2").value) return ($("w-err").textContent = "Passwords do not match.");
   e.target.disabled = true; e.target.textContent = "Creating… ";
   try {
-    await invoke("setup", { contexts: $("w-ctx").value.split(","), owner: $("w-owner").value, password: pw });
+    await invoke("setup", { contexts: ["main"], owner: $("w-owner").value, password: pw });
     $("w-pw").value = $("w-pw2").value = "";
     await invoke("start_hub");
   } catch (err) { $("w-err").textContent = String(err); }

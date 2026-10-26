@@ -43,7 +43,8 @@ def test_ui_welcome_and_tabs():
     html = (STATIC / "index.html").read_text()
     assert 'id="welcome"' in html and 'id="wl-name"' in html and 'id="wl-go"' in html
     w = html.split('id="welcome"')[1].split("</section>")[0]
-    assert w.count("<input") == 1 and "context" not in w.lower()
+    # your name, plus (0.19, only for a new one-space memory) the name of the memory
+    assert w.count("<input") == 2 and 'id="wl-memory"' in w and "context" not in w.lower()
     nav = html.split('id="tabs"')[1].split("</nav>")[0]
     main = [t for t in nav.split("<a ")[1:] if 'class="tab"' in t or 'class="tab active"' in t]
     assert [t.split(">")[1].split("<")[0] for t in main] == ["Your map", "Memory", "AIs", "⚙ Settings"]  # v0.18: four

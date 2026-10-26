@@ -1,6 +1,6 @@
 """Mnemos single-process mode: every context in ONE Python process, no Docker, no Cognee, no Infisical.
 
-    mnemos-local init  [--home ~/Mnemos] [--contexts personal,work] [--owner Name]
+    mnemos-local init  [--home ~/Mnemos] [--contexts main] [--owner Name]
     mnemos-local serve [--home ~/Mnemos] [--port 8765]        # http://127.0.0.1:8765/mcp (all spaces, one URL)
     mnemos-local stdio [--home ~/Mnemos]                      # all spaces, for Claude Desktop / Cursor / Codex
     mnemos-local stdio [--home ~/Mnemos] --context personal   # one space only (older configs, .mcpb)
@@ -316,6 +316,12 @@ tokens by hand.</p></body>""",
         router.router.reload_now()
         return out
 
+    async def _space_add(b):
+        key, out = lsp.add_space(home, str(b.get("label", "")), b.get("description"))
+        init_home(home, [key])  # its folders; contexts.yaml is never overwritten
+        router.router.reload_now()
+        return {**out, "added": key}
+
     async def _bridge(b):
         out = lsp.set_bridge(home, str(b.get("from", "")), str(b.get("to", "")), bool(b.get("on")))
         router.router.reload_now()
@@ -428,6 +434,7 @@ tokens by hand.</p></body>""",
     ui.hooks[("GET", "spaces")] = _spaces
     ui.hooks[("POST", "spaces/update")] = _space_update
     ui.hooks[("POST", "spaces/bridge")] = _bridge
+    ui.hooks[("POST", "spaces/add")] = _space_add
     from . import local_labs
 
     async def _labs(_b):
@@ -442,7 +449,7 @@ tokens by hand.</p></body>""",
         return local_welcome.status(home)
 
     async def _welcome_set(b):
-        out = local_welcome.finish(home, b.get("name"))  # ValueError -> 400 with the message
+        out = local_welcome.finish(home, b.get("name"), b.get("memory"))  # ValueError -> 400 with the message
         router.router.reload_now()
         return out
     async def _skill_examples(_b):
@@ -730,7 +737,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("cmd", choices=["init", "serve", "stdio", "token", "set-password", "hygiene", "migrate", "demo", "graph-rebuild"])
     ap.add_argument("action", nargs="?", help="migrate: preview | apply | undo")
     ap.add_argument("--home")
-    ap.add_argument("--contexts", default="personal,work")
+    ap.add_argument("--contexts", default="main")  # 0.19: one memory to start; add spaces later
     ap.add_argument("--owner", default="me")
     ap.add_argument("--port", type=int, default=int(os.environ.get("MNEMOS_LOCAL_PORT") or DEFAULT_PORT))
     ap.add_argument("--context", help="stdio: which context this process serves")

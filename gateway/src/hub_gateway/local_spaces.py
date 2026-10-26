@@ -23,6 +23,9 @@ SHARED_HELP = ("Shared holds what every space should know: your name, language, 
                "and every app can read it. Notes only get there when you choose “Promote to shared”.")
 
 
+DEFAULT_LABEL = {"main": "My memory"}  # 0.19: a new home starts with one space, key "main" (the UI translates it)
+
+
 def _file(home: Path) -> Path:
     return Path(home) / "contexts.yaml"
 
@@ -52,7 +55,7 @@ def read(home: Path) -> dict[str, Any]:
     spaces = []
     for i, (name, spec) in enumerate(raw.items()):
         spec = spec or {}
-        spaces.append({"name": name, "label": str(spec.get("label") or name.capitalize()),
+        spaces.append({"name": name, "label": str(spec.get("label") or DEFAULT_LABEL.get(name) or name.capitalize()),
                        "color": spec.get("color") if _COLOR.match(str(spec.get("color") or "")) else PALETTE[i % len(PALETTE)],
                        "description": str(spec.get("description") or "")})
     bridges = [{"from": str(b.get("from")), "to": str(b.get("to"))} for b in (data.get("bridges") or [])
@@ -103,3 +106,37 @@ def set_bridge(home: Path, src: str, dst: str, on: bool) -> dict[str, Any]:
         data.pop("bridges", None)
     _write(home, data)
     return read(home)
+
+
+def _slug(label: str) -> str:
+    import unicodedata
+    s = unicodedata.normalize("NFKD", label).encode("ascii", "ignore").decode().lower()
+    s = re.sub(r"[^a-z0-9]+", "", s)[:24]  # letters and digits only: the key is also the dataset name
+    return s if re.fullmatch(r"[a-z][a-z0-9]{0,23}", s or "") else ""
+
+
+def add_space(home: Path, label: str, description: str | None = None) -> tuple[str, dict[str, Any]]:
+    """0.19: a second (third…) space, named by the user. The key comes from the name and never changes; the folders
+    are created by the caller (local.init_home). Returns (key, read(home))."""
+    label = " ".join(str(label or "").split())
+    if not 1 <= len(label) <= 40:
+        raise ValueError("name: 1-40 characters")
+    data = _load(home)
+    raw = data.get("contexts") or {}
+    if any(str((spec or {}).get("label") or DEFAULT_LABEL.get(k) or k).casefold() == label.casefold() for k, spec in raw.items()):
+        raise ValueError("you already have a space with that name")
+    if len(raw) >= 8:
+        raise ValueError("at most 8 spaces")
+    base = _slug(label) or "space"
+    if base == "shared":
+        base = "sharedspace"
+    key, i = base, 2
+    while key in raw:
+        key, i = f"{base}{i}", i + 1
+    spec: dict[str, Any] = {"label": label, "color": PALETTE[len(raw) % len(PALETTE)]}
+    description = " ".join(str(description or "").split())
+    spec["description"] = description if 3 <= len(description) <= 200 else label
+    raw[key] = spec
+    data["contexts"] = raw
+    _write(home, data)
+    return key, read(home)

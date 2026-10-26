@@ -44,11 +44,19 @@ def status(home: Path) -> dict:
     return {"done": done(home), "name": owner(home), "spaces": spaces}
 
 
-def finish(home: Path, name: str | None = None) -> dict:
-    """Save the name (optional, at most 60 characters) and mark the welcome as seen."""
+def finish(home: Path, name: str | None = None, memory: str | None = None) -> dict:
+    """Save the name (optional, at most 60 characters) and mark the welcome as seen. `memory` (0.19, optional): the
+    name of the memory itself, only when there is exactly one space (a new home)."""
     name = " ".join(str(name or "").split())
     if len(name) > 60:
         raise ValueError("Use at most 60 characters for your name.")
+    memory = " ".join(str(memory or "").split())
+    if memory:
+        if len(memory) > 40:
+            raise ValueError("Use at most 40 characters for the name of your memory.")
+        sps = lsp.read(home)["spaces"]
+        if len(sps) == 1 and sps[0]["label"] != memory:
+            lsp.update_space(home, sps[0]["name"], label=memory)
     if name and name != owner(home):
         data = lsp._load(home)
         data["owner"] = name

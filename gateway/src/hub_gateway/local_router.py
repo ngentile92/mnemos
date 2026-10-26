@@ -186,6 +186,7 @@ class LocalRouter:
     def reload_now(self) -> None:
         if self.reloader:
             self.reloader()
+            self.apps.contexts = list(self.servers)  # a space added from the app is usable at once
         self._mtime = self._stat()
         if self.mcp is not None and self.files_mode() != self._files:
             self._add_space_tools(self.mcp)

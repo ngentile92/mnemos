@@ -56,6 +56,21 @@ JS = r"""
   return {bad, n: seen.length};
 }
 """
+# the header (with the four tabs) must stay on screen and clickable after scrolling to the bottom of any page
+HEADER_JS = r"""
+() => {
+  scrollTo(0, document.documentElement.scrollHeight);
+  const tabs = document.getElementById('tabs');
+  if (!tabs || tabs.classList.contains('hidden')) return 'tabs hidden';
+  for (const t of tabs.querySelectorAll('.tab')) {
+    const r = t.getBoundingClientRect();
+    if (r.top < 0 || r.bottom > innerHeight) return `tab "${t.textContent.trim()}" off screen`;
+    const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    if (!(h === t || t.contains(h))) return `tab "${t.textContent.trim()}" covered`;
+  }
+  return '';
+}
+"""
 
 
 async def main(base, tok, shots=None):
@@ -78,6 +93,10 @@ async def main(base, tok, shots=None):
                     await pg.screenshot(path=f"{shots}/reach-{t}-{w}.png")
                 r = await pg.evaluate(JS)
                 fails += [f"{w}x{h} #{t}: {x}" for x in r["bad"]]
+                hb = await pg.evaluate(HEADER_JS)
+                if hb:
+                    fails.append(f"{w}x{h} #{t} header after scrolling down: {hb}")
+                await pg.evaluate("scrollTo(0,0)")
                 print(f"{w}x{h} #{t}: {r['n']} elements, {len(r['bad'])} unreachable", flush=True)
             # the copy coach: open "Bring what it knows" for a copy-and-paste AI, copy, and check the notice, the
             # pulsing paste box and the dialog are all clickable, then after a paste the review and its Save button

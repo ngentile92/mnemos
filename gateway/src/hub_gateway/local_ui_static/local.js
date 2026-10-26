@@ -8,7 +8,7 @@
     const opt = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Mnemos-Write": "1" }, body: JSON.stringify(body) };
     const r = await fetch(path, opt);
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+    if (!r.ok) { const e = new Error(j.error || "HTTP " + r.status); e.status = r.status; throw e; }
     return j;
   }
   window.MNEMOS_API = api;
@@ -20,8 +20,14 @@
       history.replaceState(null, "", location.pathname);
       try { await api("/api/login", { token: m[1] }); } catch { /* fall through to the password form */ }
     }
+    // the local server can be restarting for a moment (app update, wake from sleep): retry before asking to log in
     let s;
-    try { s = await api("/api/session"); } catch { return showLogin(); }
+    for (let i = 0; ; i++) {
+      try { s = await api("/api/session"); break; } catch (e) {
+        if ((e.status && e.status < 500) || i >= 3) return showLogin();
+        await new Promise((r) => setTimeout(r, 700 * (i + 1)));
+      }
+    }
     if (await needsWelcome(s)) return showWelcome(s);
     boot(s);
   }
@@ -87,6 +93,12 @@
   async function route() {
     const v = location.hash.slice(1).split(/[?&]/)[0];
     const view = VIEWS.includes(v) ? v : await defaultView();
+    // never leave the map's presentation mode (full screen, no header) behind when you go elsewhere
+    if (view !== "graph" && document.body.classList.contains("g-pres")) {
+      document.body.classList.remove("g-pres");
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    }
+    $("tabs").classList.remove("hidden");
     document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.id !== "view-" + view));
     const lit = IN_SETTINGS.includes(view) ? "settings" : view;
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === lit));

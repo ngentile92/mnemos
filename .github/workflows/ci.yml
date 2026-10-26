@@ -196,6 +196,13 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$M/Mnemos.app"; codesign -dv "$M/Mnemos.app" 2>&1 | grep "Signature=adhoc"
           codesign -dv "$M/Mnemos.app" 2>&1 | grep "Sealed Resources"; hdiutil detach "$M"
           ls -lh dist
+      - name: private AI inside the downloaded app (quarantined copy from the dmg; llama.cpp + test model + Apple helper)
+        run: |
+          M=$(hdiutil attach -nobrowse -readonly dist/Mnemos-macos-unsigned.dmg | awk -F'\t' '/Volumes/{print $NF}')
+          Q=$(mktemp -d); ditto "$M/Mnemos.app" "$Q/Mnemos.app"; hdiutil detach "$M"
+          # what a browser download + drag to Applications leaves on every file
+          xattr -r -w com.apple.quarantine "0081;00000000;Safari;" "$Q/Mnemos.app"
+          desktop/scripts/check_bundle_ai.sh "$Q/Mnemos.app"
       - name: friend test (install from the dmg, setup, import, save, duplicate, connect Claude, stdio)
         timeout-minutes: 15
         run: scripts/friend_test_mac.sh dist/Mnemos-macos-unsigned.dmg "$RUNNER_TEMP/shots"

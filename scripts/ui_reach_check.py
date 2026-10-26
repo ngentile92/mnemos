@@ -97,6 +97,13 @@ async def main(base, tok, shots=None):
                 if hb:
                     fails.append(f"{w}x{h} #{t} header after scrolling down: {hb}")
                 await pg.evaluate("scrollTo(0,0)")
+                if t == "graph":  # two spaces sit side by side, not with a big empty gap between them
+                    rings = (await pg.evaluate("window.MnemosGraph._state()")).get("rings") or []
+                    for i, a in enumerate(rings):
+                        for b2 in rings[i + 1:]:
+                            gap = ((a["x"] - b2["x"]) ** 2 + (a["y"] - b2["y"]) ** 2) ** 0.5 - a["r"] - b2["r"]
+                            if gap > 0.6 * min(a["r"], b2["r"]):
+                                fails.append(f"{w}x{h} #graph: {gap:.0f} empty units between {a['name']} and {b2['name']}")
                 print(f"{w}x{h} #{t}: {r['n']} elements, {len(r['bad'])} unreachable", flush=True)
             # the copy coach: open "Bring what it knows" for a copy-and-paste AI, copy, and check the notice, the
             # pulsing paste box and the dialog are all clickable, then after a paste the review and its Save button

@@ -16,6 +16,7 @@
   const TYPE_L = { person: "people", org: "organisations", project: "projects", tool: "tools", place: "places", topic: "topics", other: "other" };
   const SPACE_C = ["#8b6cff", "#2fd8ff", "#ff6fb5", "#3ef0a4", "#ffc145", "#ff8a5b"];
   const PULL = 0.6;              // share of a drag applied to the dragged node's direct neighbours (Francisco Rua, #132)
+  const GAP = 90;                // empty space between two galaxies, edge to edge (world units)
   const LABELS = 15;             // always-on labels: the most important things
   const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -54,11 +55,16 @@
     const oldL = new Set(links.map((l) => l.source.id + "\u0001" + l.target.id));
     const live = old.size > 0, now = performance.now();
     const spaces = [...new Set(ns.flatMap((n) => n.spaces || []))].filter((s) => s !== "shared").sort();
-    const R = Math.max(260, 120 * Math.sqrt(ns.length));
+    // 0.19: galaxies start as far apart as their own size needs (it used to grow with every note on the map, so two
+    // spaces ended up with a huge empty gap); pack() then closes the gap to GAP once the real sizes are known
+    const homes = new Map(spaces.map((s) => [s, 0]));
+    for (const n of ns) { const own = (n.spaces || []).filter((s) => s !== "shared"); if (own.length === 1) homes.set(own[0], homes.get(own[0]) + 1); }
+    const est = Math.max(...[...homes.values()].map((c) => 70 + 34 * Math.sqrt(c)), 90);
+    const ring = (k) => (spaces.length === 1 ? 0 : (2 * est + GAP) / (2 * Math.sin(Math.PI / spaces.length)) * k);
     galaxies = spaces.map((name, i) => {
       const a = spaces.length === 1 ? 0 : Math.PI + (2 * Math.PI * i) / spaces.length;
-      const d = spaces.length === 1 ? 0 : R * 1.05;
-      return { name, label: spaceLabel(name), colour: spaceColour(name, i), x: Math.cos(a) * d, y: Math.sin(a) * d * 0.7, r: 120 };
+      const d = ring(spaces.length === 2 ? 1 : 1.1);
+      return { name, label: spaceLabel(name), colour: spaceColour(name, i), a, x: Math.cos(a) * d, y: Math.sin(a) * d * 0.7, r: 120 };
     });
     const gal = new Map(galaxies.map((x) => [x.name, x]));
     const max = Math.max(1, ...ns.map((n) => n.count || 1));
@@ -103,7 +109,7 @@
       .alphaTarget(reduce ? 0 : 0.012)        // never fully still: the graph breathes
       .on("tick", () => {});
     sim.stop();                                // we tick it from our own frame loop
-    if (!live) for (let i = 0; i < 160; i++) sim.tick(); // settle before the first frame
+    if (!live) { for (let i = 0; i < 160; i++) sim.tick(); pack(); for (let i = 0; i < 40; i++) sim.tick(); } // settle before the first frame
     else sim.alpha(0.35);                     // a live refresh: let the newcomers find their place in view
     for (const gx of galaxies) fitGalaxy(gx);
   }
@@ -116,6 +122,20 @@
       n.vx += (g.x + Math.cos(a) * rr - n.x) * 0.06 * Math.max(alpha, 0.2);
       n.vy += (g.y + Math.sin(a) * rr * 0.8 - n.y) * 0.06 * Math.max(alpha, 0.2);
     }
+  }
+  // move whole galaxies (their notes with them) so neighbours sit GAP apart, edge to edge
+  function pack() {
+    if (galaxies.length < 2) return;
+    galaxies.forEach(fitGalaxy);
+    const n = galaxies.length, s = 2 * Math.sin(Math.PI / n);
+    let d = 0;
+    for (let i = 0; i < n; i++) { const a = galaxies[i], b = galaxies[(i + 1) % n]; d = Math.max(d, (a.r + b.r + GAP) / s); }
+    for (const gx of galaxies) {
+      const nx = Math.cos(gx.a) * d, ny = Math.sin(gx.a) * d, dx = nx - gx.cx, dy = ny - gx.cy;
+      for (const nd of nodes) if (nd.home === gx.name) { nd.x += dx; nd.y += dy; }
+      gx.x += dx; gx.y += dy;
+    }
+    galaxies.forEach(fitGalaxy);
   }
   function fitGalaxy(gx) {
     const mine = nodes.filter((n) => n.home === gx.name && !n.orbit);
@@ -539,5 +559,6 @@
     if (!document.hidden && cv && !running && nodes.length && !$("view-graph").classList.contains("hidden")) { running = true; requestAnimationFrame(frame); }
   });
   window.addEventListener("mnemos:view", (ev) => { if (ev.detail !== "graph") { running = false; } else if (cv && !running && nodes.length) { running = true; resize(); requestAnimationFrame(frame); } });
-  window.MnemosGraph = { load: () => load(), timelapse, png, fit, _live: (g) => { build(g); legend(); summary(); }, _state: () => ({ nodes: nodes.length, links: links.length, galaxies: galaxies.map((g) => g.name) }) };
+  window.MnemosGraph = { load: () => load(), timelapse, png, fit, _live: (g) => { build(g); legend(); summary(); }, _state: () => ({ nodes: nodes.length, links: links.length, galaxies: galaxies.map((g) => g.name),
+    rings: galaxies.map((g) => ({ name: g.name, x: Math.round(g.cx), y: Math.round(g.cy), r: Math.round(g.r) })) }) };
 })();

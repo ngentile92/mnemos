@@ -91,12 +91,24 @@ def manifest() -> list[dict[str, Any]]:
     return json.loads(Path(p).read_text()) if p else [LLMS[llm_size()], EMBED]
 
 
+_RUNTIME_ERR = ""
+
+
 def runtime_ok() -> bool:
+    global _RUNTIME_ERR
     try:
         import llama_cpp
         return bool(llama_cpp.__version__)
-    except Exception:  # noqa: BLE001 — not bundled (pip install without the [local-ai] extra)
+    except Exception as e:  # noqa: BLE001 — not bundled (pip install without the [local-ai] extra), or it did not load
+        if not _RUNTIME_ERR:
+            _RUNTIME_ERR = f"{type(e).__name__}: {e}"[:300]
+            log.warning("built-in model runtime unavailable: %s", _RUNTIME_ERR)
         return False
+
+
+def runtime_error() -> str:
+    """Why the built-in model cannot run here ("" when it can): shown in Settings and the log, for support."""
+    return "" if runtime_ok() else _RUNTIME_ERR
 
 
 # ------------------------------------------------------------------ download (resumable, checksummed)
@@ -644,7 +656,7 @@ class Engine:
         ms = manifest()
         return {"active": {"import": show(self.llm("import")), "hygiene": show(self.llm("hygiene")),
                            "search": show(self.embedder()) if self.embedder() else {"kind": "rules", "name": "Keywords"}},
-                "builtin": {"choice": c["builtin"], "ready": self.dl.ready(), "runtime": runtime_ok(),
+                "builtin": {"choice": c["builtin"], "ready": self.dl.ready(), "runtime": runtime_ok(), "runtime_error": runtime_error(),
                             "upgrade": bool(self.legacy()) and not self.dl.ready(), "size_choice": llm_size(),
                             "ram_gb": round(ram_bytes() / 1024 ** 3),
                             "download": self.dl.state, "size": sum(m["size"] for m in ms),

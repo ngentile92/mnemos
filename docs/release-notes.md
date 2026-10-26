@@ -6,6 +6,17 @@
 
 Newest first. Each `## vX.Y.Z` section is the body of that GitHub Release (`scripts/release_notes.py`).
 
+## v0.19.0
+
+**One memory to start, simpler screens, and the AI picks where each note goes.**
+
+- **One space to start**: a new memory is a single space you can name in the welcome. Add more from Settings → Spaces when you want some things kept apart (for example work and personal). Memories that already have several spaces keep working as before.
+- **The AI picks the space**: with more than one space, each AI chooses the space that fits every time it saves, using the one-line descriptions you write, and asks you when none clearly fits. No more default space to set per app.
+- **Memory opens on your notes**: everything that needs a decision waits behind one Suggestions button.
+- **Memory quality in plain words**: Settings shows whether your memory is Basic or Improved, how to improve it with the private model, and why when it cannot start on this Mac.
+- **A tighter map**: spaces sit side by side, without the big empty gap between them.
+- **The top bar never goes missing**: it stays on screen while you scroll, and the app waits for a restarting Mnemos instead of asking you to sign in again.
+
 ## v0.18.0
 
 **Simpler: connect each AI, bring what it knows, see your map.**

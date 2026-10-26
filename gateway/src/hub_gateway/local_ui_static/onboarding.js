@@ -52,13 +52,16 @@
   function nameStep(w) {
     pane(1); dots();
     $("wl-name").value = w.name || ""; $("wl-name").focus();
+    const one = (w.spaces || []).length === 1;  // 0.19: a new memory is one space; name it here (optional)
+    $("wl-mem-row").classList.toggle("hidden", !one);
+    if (one && w.spaces[0].label !== "My memory") $("wl-memory").value = w.spaces[0].label;
     const go = async () => {
       $("wl-go").disabled = true; $("wl-err").textContent = "";
-      try { await api("/api/welcome", { name: $("wl-name").value }); st.phase = "pick"; save(st); pickStep(); }
+      try { await api("/api/welcome", { name: $("wl-name").value, memory: one ? $("wl-memory").value : "" }); st.phase = "pick"; save(st); pickStep(); }
       catch (e) { $("wl-err").textContent = T(e.message); }
       $("wl-go").disabled = false;
     };
-    $("wl-go").onclick = go; $("wl-name").onkeydown = (e) => { if (e.key === "Enter") go(); };
+    $("wl-go").onclick = go; $("wl-name").onkeydown = $("wl-memory").onkeydown = (e) => { if (e.key === "Enter") go(); };
   }
   function pickStep() {
     pane(2); dots();

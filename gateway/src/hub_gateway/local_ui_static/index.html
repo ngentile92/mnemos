@@ -35,6 +35,8 @@
     <h2 id="wl-h">Welcome to Mnemos</h2>
     <p class="muted">One memory for all your AIs. What should they call you?</p>
     <input id="wl-name" maxlength="60" autocomplete="name" placeholder="Your name (optional)" aria-label="Your name">
+    <div id="wl-mem-row" class="hidden"><p class="muted small">Give your memory a name, if you like. You can keep parts of it apart later (for example work and personal) from Settings → Spaces.</p>
+      <input id="wl-memory" maxlength="40" placeholder="My memory" aria-label="Name of your memory"></div>
     <div class="me-actions"><button id="wl-go" class="mbtn primary">Continue</button><span id="wl-err" class="err small"></span></div>
   </div>
   <div class="wl-pane hidden" id="wl-p2">
@@ -161,14 +163,20 @@
 <main id="view-spaces" class="view hidden">
   <a class="st-back small" href="#settings">← Settings</a>
   <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Your spaces</h2><span class="muted small">memories that never mix</span></div>
-    <p class="small muted">Each space is a separate memory (for example Personal and Work). Every AI app saves to its default space and asks you before using another one. The one-line description tells the AI what goes where, so keep it concrete.</p>
+    <p class="small muted" id="sp-intro-one">All your memory lives in one space. Give it the name you like.</p>
+    <p class="small muted" id="sp-intro-many">Each space is a separate memory (for example Personal and Work). When an AI saves something, it picks the space from these one-line descriptions, so keep them concrete.</p>
     <div id="sp-list" class="sp-list"></div><p class="small" id="sp-msg"></p></section>
-  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Shared</h2><span class="muted small">read by every space</span></div>
+  <section class="card" style="margin:0 36px 14px" id="sp-add-card"><div class="card-h"><h2>Keep some things apart</h2><span class="muted small">optional</span></div>
+    <p class="small muted">Add another space when you want some memories to never mix with the rest, for example work and personal. From then on, each AI decides where each thing goes, using the description you write.</p>
+    <div class="sp-frow"><input id="sp-new-label" maxlength="40" placeholder="Name, e.g. Work" aria-label="Name of the new space">
+      <input id="sp-new-desc" maxlength="200" placeholder="What goes there, in one line" aria-label="What goes in the new space">
+      <button class="mbtn primary" id="sp-add">Add a space</button></div></section>
+  <section class="card sp-many" style="margin:0 36px 14px"><div class="card-h"><h2>Shared</h2><span class="muted small">read by every space</span></div>
     <p class="small muted" id="sp-shared"></p></section>
-  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Let one space read another</h2><span class="muted small">read-only, off by default</span></div>
+  <section class="card sp-many" style="margin:0 36px 14px"><div class="card-h"><h2>Let one space read another</h2><span class="muted small">read-only, off by default</span></div>
     <p class="small muted">Turn one on when, say, your work AI should know your side project. It can only read: it never writes, edits or deletes there.</p>
     <div id="sp-bridges"></div></section>
-  <section class="card" style="margin:0 36px 14px"><div class="card-h"><h2>Folders</h2><span class="muted small">for Claude Code, Cursor and Codex</span></div>
+  <section class="card sp-many" style="margin:0 36px 14px"><div class="card-h"><h2>Folders</h2><span class="muted small">for Claude Code, Cursor and Codex</span></div>
     <p class="small muted">What you say in a coding app inside one of these folders always goes to the space you pick, whatever the note is about. Everything else is sorted by what it says, using the descriptions above.</p>
     <div id="sp-folders"></div>
     <div class="sp-frow"><input id="sp-fpath" placeholder="Folder, e.g. ~/code/my-project" aria-label="Folder"><select id="sp-fspace" aria-label="Space"></select><button class="mbtn primary" id="sp-fadd">Map folder</button></div>
@@ -212,7 +220,7 @@
 <main id="view-settings" class="view hidden">
   <section class="card st-hub" style="margin:14px 36px"><div class="card-h"><h2>Settings</h2></div>
     <div class="st-links">
-      <a class="st-link" href="#spaces"><b>Spaces</b><span class="small muted">Personal, Work… memories that never mix</span></a>
+      <a class="st-link" href="#spaces"><b>Spaces</b><span class="small muted">name your memory, or keep parts of it apart</span></a>
       <a class="st-link" href="#native"><b>What each AI knows</b><span class="small muted">each app's own memory files</span></a>
       <a class="st-link" href="#import"><b>Bring in more</b><span class="small muted">scan this Mac, export files, folders of notes</span></a>
       <a class="st-link" href="#skills"><b>Skills</b><span class="small muted">reusable instructions for your AIs</span></a>

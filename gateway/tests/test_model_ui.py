@@ -29,7 +29,7 @@ def test_entity_graph_v2(tmp_path):
 def test_model_ui_wired():
     html = (STATIC / "index.html").read_text()
     assert '<script src="/ui/model.js"></script>' in html and 'id="pf-card"' in html and 'id="mg-card"' in html
-    assert html.index('id="pf-card"') < html.index('id="rl-card"')  # profile card comes first
+    assert html.index('id="rl-card"') < html.index('id="pf-card"')  # 0.19: decisions open from Suggestions; the profile sits after your notes
     js = (STATIC / "model.js").read_text()
     for ep in ("model/profile", "model/entities", "model/entity", "model/digest/act", "model/why", "model/not-relevant",
                "model/migrate", "model/migrate/undo", "model/consolidate", "model/consolidate/undo"):

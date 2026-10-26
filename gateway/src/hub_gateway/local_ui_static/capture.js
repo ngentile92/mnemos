@@ -31,6 +31,9 @@
   async function load() {
     let r;
     try { r = await window.MNEMOS_API("/api/capture"); } catch { return; }
+    window.MNEMOS_RL_N = r.inbox.length;  // "Suggestions" counts these decisions too
+    const sg = $("me-sugg"), n = r.inbox.length + (window.MNEMOS_HY_N || 0);
+    if (sg) { $("me-sugg-n").textContent = n ? String(n) : ""; sg.classList.toggle("has", n > 0); }
     const show = r.recent.length || r.inbox.length;
     $("rl-card").classList.toggle("hidden", !show);
     if (!show) return;

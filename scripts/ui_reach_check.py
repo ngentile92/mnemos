@@ -105,6 +105,16 @@ async def main(base, tok, shots=None):
                             if gap > 0.6 * min(a["r"], b2["r"]):
                                 fails.append(f"{w}x{h} #graph: {gap:.0f} empty units between {a['name']} and {b2['name']}")
                 print(f"{w}x{h} #{t}: {r['n']} elements, {len(r['bad'])} unreachable", flush=True)
+            # Memory → Suggestions opens every decision (0.19): all reachable, and the notes stay right below
+            await pg.evaluate("location.hash='memoria'"); await pg.wait_for_timeout(2500)
+            await pg.evaluate("scrollTo(0,0)"); await pg.locator("#me-sugg").click(); await pg.wait_for_timeout(800)
+            if await pg.evaluate("document.getElementById('me-review').classList.contains('hidden')"):
+                fails.append(f"{w}x{h} memoria: Suggestions did not open the review")
+            r = await pg.evaluate(JS)
+            fails += [f"{w}x{h} memoria review: {x}" for x in r["bad"]]
+            if shots:
+                await pg.screenshot(path=f"{shots}/reach-memoria-review-{w}.png")
+            await pg.evaluate("scrollTo(0,0)"); await pg.locator("#me-sugg").click(); await pg.wait_for_timeout(300)
             # the copy coach: open "Bring what it knows" for a copy-and-paste AI, copy, and check the notice, the
             # pulsing paste box and the dialog are all clickable, then after a paste the review and its Save button
             await pg.evaluate("location.hash='apps'"); await pg.wait_for_timeout(2500)

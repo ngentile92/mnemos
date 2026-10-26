@@ -173,6 +173,9 @@ label.small input[type=checkbox],label.small input[type=radio]{display:inline-bl
 #sp-bridges{display:flex;flex-wrap:wrap;gap:10px 28px}.sp-br{display:inline-flex!important;align-items:center;gap:6px;margin:0!important}
 /* stacking (0.17.1): the header (with the More menu) sits above every card; blurred cards make their own layers */
 header.top{position:relative;z-index:50}
+/* 0.19: the header stays on screen while a long page scrolls (it used to scroll away and look gone) */
+body:has(#app:not(.hidden)) header.top{position:sticky;top:0;padding-top:14px;padding-bottom:10px;background:rgba(7,10,19,.88);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+html{scroll-padding-top:110px}
 /* graph toolbar: its own class (g-bar is the 6px progress bar) */
 .g-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;overflow:visible}
 /* import rows: one source per full-width row (label:has(input) made them inline) */

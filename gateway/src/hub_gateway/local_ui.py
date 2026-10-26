@@ -325,7 +325,8 @@ class UI:
                 cl = _lg.clusters([n["id"] for n in eg["nodes"]], [(e["source"], e["target"], e["weight"]) for e in eg["edges"]])
                 for n in eg["nodes"]:
                     n["cluster"], n["spaces"] = cl.get(n["id"], -1), [ctx]
-                return {**eg, "spaces": spaces, "building": False, "progress": None, "engine": None}
+                basic = await asyncio.to_thread(local_engine.get(self.home).local_llm) is None
+                return {**eg, "spaces": spaces, "building": False, "progress": None, "engine": None, "basic": basic}
         llm = await asyncio.to_thread(local_engine.get(self.home).local_llm)
         all_items: dict[str, dict] = {}
         triples: list = []
@@ -385,7 +386,7 @@ class UI:
             progress["elapsed"] = round(el)
         return {**out, "spaces": spaces, "building": building, "progress": progress if building else None,
                 "found": found[-16:] if building else [],
-                "engine": llm.name if llm else None}
+                "engine": llm.name if llm else None, "basic": llm is None}
 
     def _embedder(self):
         from .local_engine import EmbedProxy

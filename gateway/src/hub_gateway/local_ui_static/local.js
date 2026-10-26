@@ -445,7 +445,16 @@
       .map(([k, e]) => `<div class="me-actions"><span class="small"><b>${esc(k)}</b> · ${esc((window.tr || ((x) => x))(WHERE[e.kind] || e.kind))}</span><span class="muted small" title="${esc(e.name)}"></span></div>`).join("");
     $("st-models").innerHTML = b.models.map((m) => `<p class="small">${m.present ? "✓" : "○"} ${esc(m.name)} · ${gb(m.size)} · ${esc(m.license || "")} <span class="muted">(${m.role === "llm" ? "facts and cleanup" : "search and duplicates"})</span></p>`).join("");
     const busy = d.state === "downloading";
-    $("st-bstate").textContent = !b.runtime ? "not included in this install" : b.ready ? "installed" : b.upgrade ? (busy ? "upgrading to the better model — the previous one keeps working meanwhile" : "previous model in use — download the better one") : busy ? "downloading" : b.choice === "declined" ? "not downloaded (you said not now)" : "not downloaded";
+    // 0.19: one plain answer to "how good is my memory now, and how do I make it better?"
+    const T = window.tr || ((x) => x);
+    const smart = ["builtin", "ollama", "api"].includes(a.hygiene.kind);
+    $("mq-state").textContent = T(smart ? "Improved" : "Basic");
+    $("mq-state").classList.toggle("on", smart);
+    $("mq-text").textContent = T(smart ? "A private model groups your notes into clear topics on your map, finds notes that repeat and spots notes that disagree."
+      : !b.runtime ? "This copy of Mnemos could not start its private model, so your memory stays basic: it keeps what your AIs save, as they write it. Installing Mnemos again usually fixes it."
+      : "Your memory keeps what your AIs save, as they write it, and names topics with simple rules. Download the private model (it runs on this Mac; nothing is sent anywhere) for clearer topics on your map and to find notes that repeat or disagree.");
+    $("mq-why").classList.toggle("hidden", !b.runtime_error); $("mq-err").textContent = b.runtime_error || "";
+    $("st-bstate").textContent = !b.runtime ? "" : b.ready ? "installed" : b.upgrade ? (busy ? "upgrading to the better model — the previous one keeps working meanwhile" : "previous model in use — download the better one") : busy ? "downloading" : "";
     $("st-dl").classList.toggle("hidden", b.ready || !b.runtime); $("st-dl").disabled = busy;
     $("st-dl").textContent = d.state === "error" ? "Retry the download (it resumes)" : `Improve my memory (download ${gb(b.size)})`;
     $("st-rm").classList.toggle("hidden", !b.ready && !(b.models.some((m) => m.present)));
@@ -456,12 +465,12 @@
       if (busy) { $(bar).value = d.total ? d.done / d.total : 0; $(ph).textContent = `${d.file || ""} · ${gb(d.done || 0)} of ${gb(d.total || 0)}`; }
     }
     const ap = eng.apple || {};
-    $("st-apple").textContent = ap.available ? (ap.choice === "off" ? "available · off" : "available") : "not available on this Mac";
+    $("st-apple").textContent = ap.available ? (ap.choice === "off" ? "available · off" : "available") : "not on this Mac (needs macOS 26 with Apple Intelligence turned on)";
     $("st-apple-on").checked = ap.choice !== "off"; $("st-apple-on").disabled = !ap.available;
     $("eo-size").textContent = gb(b.size);
-    $("eng-offer").classList.toggle("hidden", !(b.runtime && !b.ready && (b.choice === "ask" || busy || (b.choice === "on" && d.state === "error"))));
+    $("eng-offer").classList.toggle("hidden", !(b.runtime && !b.ready && (busy || (!smart && (b.choice === "ask" || (b.choice === "on" && d.state === "error"))))));
     $("eo-go").disabled = busy; $("eo-no").classList.toggle("hidden", busy);
-    $("eo-go").textContent = d.state === "error" ? "Retry (resumes)" : "Download";
+    $("eo-go").textContent = d.state === "error" ? "Retry (resumes)" : "Improve it";
     $("eo-msg").textContent = d.state === "error" ? "Download failed: " + (d.error || "") : "";
     if (b.ready && d.state === "ready") $("eo-msg").textContent = "";
     const p = eng.api;

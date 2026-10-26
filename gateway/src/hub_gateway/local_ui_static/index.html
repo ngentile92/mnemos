@@ -77,9 +77,9 @@
     <div id="rl-inbox-wrap" class="hidden"><h3 class="small">To check <span class="muted" id="rl-inbox-n"></span></h3>
       <p class="small muted">Possible contradictions with a note you have, or things Mnemos was not sure about.</p><div id="rl-inbox" class="ap-list"></div></div>
     <p class="small" id="rl-msg"></p></section>
-  <section class="card hidden" id="eng-offer" style="margin:14px 36px"><h2>Improve my memory</h2>
-    <p class="small muted">Download a small private AI model (<b id="eo-size"></b>, once) so Mnemos finds better facts when importing, spots duplicates that use different words, and catches notes that disagree. It runs on this Mac: nothing is sent anywhere. Without it Mnemos keeps working with simple rules.</p>
-    <div class="me-actions"><button class="mbtn primary" id="eo-go">Download</button><button class="mbtn" id="eo-no">Not now</button><span class="muted small" id="eo-msg"></span></div>
+  <section class="card hidden eo-slim" id="eng-offer" style="margin:14px 36px">
+    <div class="me-actions"><span class="small"><b>Your memory is basic.</b> A private model on this Mac (<b id="eo-size"></b>, once) makes clearer topics on your map and finds notes that repeat or disagree. Nothing is sent anywhere.</span>
+      <button class="mbtn primary" id="eo-go">Improve it</button><button class="mbtn" id="eo-no">Not now</button><span class="muted small" id="eo-msg"></span></div>
     <div class="hidden" id="eo-progress"><progress id="eo-bar" max="1" value="0" style="width:100%"></progress><p class="small muted" id="eo-phase"></p></div>
   </section>
   <section class="card hidden" id="empty-cta" style="margin:14px 36px"><h2>Your memory is empty</h2>
@@ -215,20 +215,19 @@
       <a class="st-link" href="#import"><b>Bring in more</b><span class="small muted">scan this Mac, export files, folders of notes</span></a>
       <a class="st-link" href="#skills"><b>Skills</b><span class="small muted">reusable instructions for your AIs</span></a>
     </div></section>
-<details class="card adv" id="model-card" style="margin:14px 36px"><summary><b>How your memory thinks</b> <span class="muted small">built-in model, Apple Intelligence, API key</span></summary>
-<section class="card" style="margin:10px 0"><div class="card-h"><h2>How your memory thinks</h2><span class="muted small">on this Mac unless you add a key</span></div>
-    <div id="st-active"></div>
-    <details><summary class="small muted">Technical details</summary><p class="small muted">Order: an API key you enabled for that feature → Ollama (if running) → the built-in model → Apple Intelligence (import only) → simple rules. Search similarity never uses an API.</p></details>
-  </section>
-  <section class="card" style="margin:10px 0"><div class="card-h"><h2>Built-in model</h2><span class="muted small" id="st-bstate"></span></div>
-    <p class="small muted">Runs on this Mac (Apple Silicon: uses the GPU). Stored in your Mnemos folder; nothing is sent anywhere.</p>
-    <details><summary class="small muted">Technical details</summary><div id="st-models"></div></details>
-    <div class="me-actions"><button class="mbtn primary" id="st-dl">Improve my memory (download)</button><button class="mbtn danger hidden" id="st-rm">Remove the model</button><span class="muted small" id="st-bmsg"></span></div>
+<section class="card" id="mq-card" style="margin:14px 36px"><div class="card-h"><h2>Memory quality</h2><span class="ap-pill" id="mq-state"></span></div>
+    <p class="small" id="mq-text"></p>
+    <div class="me-actions"><button class="mbtn primary" id="st-dl">Improve my memory (download)</button><button class="mbtn danger hidden" id="st-rm">Remove the model</button><span class="muted small" id="st-bstate"></span><span class="muted small" id="st-bmsg"></span></div>
     <div class="hidden" id="st-progress"><progress id="st-bar" max="1" value="0" style="width:100%"></progress><p class="small muted" id="st-phase"></p></div>
-    <p class="small muted" id="st-ollama"></p>
+    <details class="hidden" id="mq-why"><summary class="small muted">Details for support</summary><p class="small muted" id="mq-err"></p></details>
+</section>
+<details class="card adv" id="model-card" style="margin:14px 36px"><summary><b>More ways to improve it</b> <span class="muted small">Apple Intelligence, your own key, details</span></summary>
+<section class="card" style="margin:10px 0"><div class="card-h"><h2>What does each job now</h2><span class="muted small">on this Mac unless you add a key</span></div>
+    <div id="st-active"></div>
+    <details><summary class="small muted">Technical details</summary><p class="small muted">Order: an API key you enabled for that feature → Ollama (if running) → the built-in model → Apple Intelligence (import only) → simple rules. Search similarity never uses an API.</p><div id="st-models"></div><p class="small muted" id="st-ollama"></p></details>
   </section>
   <section class="card" style="margin:10px 0"><div class="card-h"><h2>Apple Intelligence</h2><span class="muted small" id="st-apple"></span></div>
-    <p class="small muted">Apple's on-device model (macOS 26 with Apple Intelligence on). Nothing to download; used to find facts when the built-in model is not installed. The built-in model finds more useful facts.</p>
+    <p class="small muted">Apple's model on this Mac: nothing to download. It only helps when bringing in chats; it does not name the topics on your map or tidy up your notes. The private model above does all of that.</p>
     <div class="me-actions"><label class="small"><input type="checkbox" id="st-apple-on"> Use Apple Intelligence for import when available</label></div>
   </section>
   <section class="card" style="margin:10px 0"><div class="card-h"><h2>Use an API key (optional)</h2></div>

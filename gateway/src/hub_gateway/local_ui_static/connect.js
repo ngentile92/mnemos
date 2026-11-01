@@ -32,8 +32,9 @@
     "claude-code": "Start a new Claude Code session and send any message.",
     "codex": "Start a new Codex session and send any message.",
     "chatgpt": "Restart the ChatGPT app, switch to Codex or Work mode and send any message.",
-    "cursor": "Click Install in Cursor, then send any message there.",
+    "cursor": "Quit Cursor (⌘Q), open it again and send any message in its chat.",
   };
+  let CURSOR_LINK = "";
   const pill = (t, cls) => `<span class="pill ${cls || ""}">${esc(T(t))}</span>`;
   function card(a) {
     let head, body = "";
@@ -43,7 +44,9 @@
       if (a.key === "chatgpt") body += `<p class="small muted">${esc(T("In its Codex and Work modes. In normal chats, use copy and paste."))}</p>`;
     } else if (a.kind !== "cloud" && (a.configured || pending.has(a.key))) {
       head = pill("Waiting for its first message", "wait");
-      body = `<p class="small">${esc(T(NEXT[a.key] || ""))}</p><div class="cn-wait small muted"><span class="spin"></span>${esc(T("This turns Connected ✓ by itself."))}</div>`;
+      body = `<p class="small">${esc(T(NEXT[a.key] || ""))}</p><div class="cn-wait small muted"><span class="spin"></span>${esc(T("This turns Connected ✓ by itself."))}</div>
+        <div class="me-actions"><button class="mbtn ghost" data-paste="${esc(a.key)}">${esc(T("Use copy and paste instead"))}</button></div>`;
+      if (a.key === "cursor") body += `<p class="small muted">${esc(T("Not in Cursor after restarting it?"))} <a href="${esc(CURSOR_LINK)}">${esc(T("Add it with Cursor's install button"))}</a></p>`;
     } else if (a.kind !== "cloud" && a.installed) {
       head = pill("Found on this Mac");
       body = `<div class="me-actions"><button class="mbtn primary" data-connect="${esc(a.key)}">${esc(T("Connect"))}</button></div>`;
@@ -86,7 +89,7 @@
     try {
       const r = await window.MNEMOS_API("/api/connect", { key });
       pending.add(key);
-      if (r.open) location.href = r.open;  // Cursor's own install link: Cursor asks to confirm
+      if (r.link) CURSOR_LINK = r.link;  // a fallback only: Mnemos already wrote Cursor's settings
     } catch (e) { $("cn-msg").textContent = T(e.message); $("cn-msg").className = "small err"; }
     load();
   }

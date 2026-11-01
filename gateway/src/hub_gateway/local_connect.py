@@ -11,7 +11,7 @@ Connect writes the same config the Mnemos window used to write (backup first, on
 - Claude Code     ~/.claude.json, user scope
 - Codex           ~/.codex/config.toml [mcp_servers.mnemos]. The ChatGPT desktop app shares this file, so it gets
                   Mnemos too, but only in its Codex and Work modes (its normal chat only talks to servers online).
-- Cursor          its own install link: Cursor asks you to confirm
+- Cursor          ~/.cursor/mcp.json (quit and reopen Cursor); its install link is kept only as a fallback
 ChatGPT on the web, Claude on the web and Grok reach only servers on the internet: copy and paste, or Reach from
 anywhere (Settings → Advanced).
 """
@@ -169,7 +169,8 @@ def connect(key: str, home: Path, h: Path | None = None) -> dict:
             return {"ok": True, "next": "Restart the ChatGPT app, switch to Codex or Work mode and send any message."}
         return {"ok": True, "next": "Start a new Codex session and send any message."}
     if key == "cursor":
-        return {"ok": True, "open": cursor_link(home), "next": "Click Install in Cursor, then send any message there."}
+        _add_json_server(h / ".cursor/mcp.json", {"command": prog, "args": args}, "Cursor")
+        return {"ok": True, "link": cursor_link(home), "next": "Quit Cursor (⌘Q), open it again and send any message in its chat."}
     raise ValueError("This AI connects through copy and paste")
 
 

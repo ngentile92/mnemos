@@ -409,7 +409,6 @@ EXACT: dict[str, str] = {
  "In one AI app, say:": "En una app de IA, decí:",
  "Remember that my favourite colour is green.": "Acordate de que mi color favorito es el verde.",
  "Copy": "Copiar",
- "Copied ✓": "Copiado ✓",
  "Mnemos saves it.": "Mnemos lo guarda.",
  "Waiting for the save…": "Esperando que se guarde…",
  "In another AI app (or a new chat), ask:": "En otra app de IA (o en un chat nuevo), preguntá:",
@@ -839,6 +838,11 @@ EXACT: dict[str, str] = {
  "In Grok: open Connectors (grok.com/connectors) → New Connector → Custom.": "En Grok: abrí Conectores (grok.com/connectors) → Nuevo conector → Personalizado.",
  "Paste the address below and add it.": "Pegá la dirección de abajo y agregalo.",
  "Your memory is empty: bring what it knows first.": "Tu memoria está vacía: primero traé lo que sabe.",
+ "Use copy and paste instead": "Usar copiar y pegar",
+ "Not in Cursor after restarting it?": "¿No aparece en Cursor después de reiniciarlo?",
+ "Add it with Cursor's install button": "Agregalo con el botón de instalar de Cursor",
+ "Nothing yet? Make sure it was fully quit and opened again.": "¿Nada todavía? Fijate que se haya cerrado del todo y abierto de nuevo.",
+ "Quit Cursor (⌘Q), open it again and send any message in its chat.": "Cerrá Cursor (⌘Q), abrilo de nuevo y mandá cualquier mensaje en su chat.",
 }
 
 PAT: dict[str, str] = {
@@ -1149,7 +1153,6 @@ DESKTOP_EXACT: dict[str, str] = {
  "Open my memory": "Abrir mi memoria",
  "Restart the app and send it any message.": "Reiniciá la app y mandale cualquier mensaje.",
  "Welcome": "Bienvenida",
- "Three quick things. Nothing leaves this computer.": "Tres cosas rápidas. No sale nada de esta computadora.",
  "Create my Mnemos": "Crear mi Mnemos",
  "Creating…": "Creando…",
  "Start": "Iniciar",
@@ -1185,7 +1188,8 @@ DESKTOP_EXACT: dict[str, str] = {
  "Cursor opened: click Install there. Mnemos then appears in Cursor's list of tools (all your spaces).": "Se abrió Cursor: tocá Install ahí. Mnemos aparece entonces en la lista de herramientas de Cursor (todos tus espacios).",
  "Also remove the Mnemos extension in Claude → Settings → Extensions: with both, Claude sees two memories.": "Quitá también la extensión de Mnemos en Claude → Configuración → Extensiones: con las dos, Claude ve dos memorias.",
  "Added Mnemos to Claude Desktop (all your spaces).": "Se agregó Mnemos a Claude Desktop (todos tus espacios).",
- "Quit and reopen Claude Desktop to use it.": "Cerrá y volvé a abrir Claude Desktop para usarlo."
+ "Quit and reopen Claude Desktop to use it.": "Cerrá y volvé a abrir Claude Desktop para usarlo.",
+ "Choose a password. Nothing leaves this computer.": "Elegí una contraseña. No sale nada de esta computadora.",
 }
 
 DESKTOP_PAT: dict[str, str] = {

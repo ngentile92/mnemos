@@ -275,3 +275,4 @@ body.revealing .g-toolbar{opacity:.35;transition:opacity .6s}
 .eo-slim .me-actions{flex-wrap:wrap;align-items:center}
 .g-basic{margin-top:8px;color:var(--muted)}.g-basic a{color:#c4b5fd;cursor:pointer}
 .cn-loop{margin:8px 0;padding-left:18px;display:flex;flex-direction:column;gap:8px}.cn-loop .me-actions{margin-top:6px}[data-givemsg]:empty{display:none}
+.cn-gpt{margin:6px 0 8px;padding:8px 10px;border:1px solid rgba(251,191,36,.35);border-radius:9px}.cn-gpt summary{cursor:pointer;font-weight:600}.cn-gpt ul{margin:6px 0 0;padding-left:18px}

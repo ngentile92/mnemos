@@ -843,6 +843,16 @@ EXACT: dict[str, str] = {
  "Add it with Cursor's install button": "Agregalo con el botón de instalar de Cursor",
  "Nothing yet? Make sure it was fully quit and opened again.": "¿Nada todavía? Fijate que se haya cerrado del todo y abierto de nuevo.",
  "Quit Cursor (⌘Q), open it again and send any message in its chat.": "Cerrá Cursor (⌘Q), abrilo de nuevo y mandá cualquier mensaje en su chat.",
+ "ChatGPT's Codex and Work modes appear here as Codex; its normal chats never do, because they use copy and paste.": "Los modos Codex y Work de ChatGPT aparecen acá como Codex; sus chats normales nunca, porque usan copiar y pegar.",
+ "Ask it in a normal ChatGPT chat: that is where its saved memory is. Its data export does not include it.": "Preguntale en un chat normal de ChatGPT: ahí está la memoria que guardó. Su exportación de datos no la incluye.",
+ "How ChatGPT works with Mnemos": "Cómo funciona ChatGPT con Mnemos",
+ "Its Codex and Work modes read and save your memory on their own.": "Sus modos Codex y Work leen y guardan tu memoria por su cuenta.",
+ "Its normal chats: copy and paste, twice:": "Sus chats normales: copiar y pegar, dos veces:",
+ "ChatGPT uses your memory by itself only in its Codex and Work modes. In normal chats you will copy and paste: the next steps show how.": "ChatGPT usa tu memoria por su cuenta solo en sus modos Codex y Work. En los chats normales vas a copiar y pegar: los próximos pasos muestran cómo.",
+ "Its Codex and Work modes (in the desktop app) use your memory by themselves once connected.": "Sus modos Codex y Work (en la app de escritorio) usan tu memoria por su cuenta una vez conectados.",
+ "Its normal chats can't reach this computer: they use copy and paste.": "Sus chats normales no pueden llegar a esta computadora: usan copiar y pegar.",
+ "Its data export has your chats, not what ChatGPT saved in its memory: to bring that, ask it.": "Su exportación de datos trae tus chats, no lo que ChatGPT guardó en su memoria: para traer eso, preguntale.",
+ "Connect its Codex and Work modes": "Conectar sus modos Codex y Work",
 }
 
 PAT: dict[str, str] = {
@@ -992,6 +1002,7 @@ HTML: dict[str, str] = {
  "A <b>line</b> means two things appear together; a relation reads <i>subject — relation → object</i>, the way it was found.": "Una <b>línea</b> significa que dos cosas aparecen juntas; una relación se lee <i>sujeto — relación → objeto</i>, tal como se encontró.",
  "<b>Advanced</b> <span class=\"muted small\">reach from the web and phone, memory store, Labs</span>": "<b>Avanzado</b> <span class=\"muted small\">acceso desde la web y el teléfono, almacenamiento, Labs</span>",
  "<b>2. Give them your memory.</b> Copies a short “about me” block. Paste it in ChatGPT → Settings → Personalization → Custom instructions, Claude → Settings → Account → Instructions for Claude, or Grok → Settings → Customize → Custom instructions.": "<b>2. Dales tu memoria.</b> Copia un bloque corto “sobre mí”. Pegalo en ChatGPT → Configuración → Personalización → Instrucciones personalizadas, en Claude → Configuración → Cuenta → Instrucciones para Claude, o en Grok → Configuración → Personalizar → Instrucciones personalizadas.",
+ "<b>The export has your chats, not ChatGPT's saved memory.</b> To bring that too, copy it from Settings → Personalization → Memory → Manage and paste it below.": "<b>La exportación trae tus chats, no la memoria que guardó ChatGPT.</b> Para traer eso también, copiala desde Configuración → Personalización → Memoria → Administrar y pegala abajo.",
 }
 
 SERVER: dict[str, str] = {

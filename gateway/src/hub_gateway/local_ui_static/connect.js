@@ -36,42 +36,56 @@
   };
   let CURSOR_LINK = "";
   const pill = (t, cls) => `<span class="pill ${cls || ""}">${esc(T(t))}</span>`;
-  function card(a) {
-    let head, body = "";
-    if (a.seen) {
-      head = pill("Connected ✓", "ok");
-      body = `<p class="small muted">${esc(T("It reads and saves your memory on its own."))}</p><div class="me-actions"><button class="mbtn" data-paste="${esc(a.key)}">${esc(T("Bring what it knows"))}</button></div>`;
-      if (a.key === "chatgpt") body += `<p class="small muted">${esc(T("In its Codex and Work modes. In normal chats, use copy and paste."))}</p>`;
-    } else if (a.kind !== "cloud" && (a.configured || pending.has(a.key))) {
-      head = pill("Waiting for its first message", "wait");
-      body = `<p class="small">${esc(T(NEXT[a.key] || ""))}</p><div class="cn-wait small muted"><span class="spin"></span>${esc(T("This turns Connected ✓ by itself."))}</div>
-        <div class="me-actions"><button class="mbtn ghost" data-paste="${esc(a.key)}">${esc(T("Use copy and paste instead"))}</button></div>`;
-      if (a.key === "cursor") body += `<p class="small muted">${esc(T("Not in Cursor after restarting it?"))} <a href="${esc(CURSOR_LINK)}">${esc(T("Add it with Cursor's install button"))}</a></p>`;
-    } else if (a.kind !== "cloud" && a.installed) {
-      head = pill("Found on this Mac");
-      body = `<div class="me-actions"><button class="mbtn primary" data-connect="${esc(a.key)}">${esc(T("Connect"))}</button></div>`;
-      if (a.key === "chatgpt") body += `<p class="small muted">${esc(T("Works in its Codex and Work modes. In normal chats, use copy and paste."))}</p>`;
-    } else {
-      // v0.20: the whole copy-and-paste loop on the card: what to copy, where to paste it, how it comes back
-      head = pill("Copy and paste");
-      const url = remote && remote.enabled && remote.url;
-      const n = known[a.key] || 0;
-      body = `<p class="small muted">${esc(T("{x} runs on the internet and can't reach this computer, so you copy and paste, twice:").replace("{x}", T(a.name)))}</p>
+  // the copy-and-paste loop (cloud apps, and ChatGPT's normal chats): bring what it knows, give it your memory
+  function loopHtml(a, lead) {
+    const n = known[a.key] || 0;
+    return `<p class="small muted">${esc(lead)}</p>
         <ol class="cn-loop small">
           <li><b>${esc(T("Bring what it knows"))}</b> · ${esc(T("Mnemos copies a question; you paste it in a new chat, then paste the answer back here."))}${n ? ` <span class="pill ok">${esc(T("{n} notes from it").replace("{n}", n))}</span>` : ""}
             <div class="me-actions"><button class="mbtn primary" data-paste="${esc(a.key)}">${esc(T("Bring what it knows"))}</button></div></li>
           <li><b>${esc(T("Give it your memory"))}</b> · ${esc(T(WHERE()[a.key] || "Paste it in its settings."))}
             <div class="me-actions"><button class="mbtn" data-give="${esc(a.key)}">${esc(T("Copy your memory"))}</button></div></li>
         </ol>
-        <p class="small muted">${esc(T("What you tell {x} later stays in {x}. Press Bring what it knows again now and then: Mnemos skips what it already has.").replaceAll("{x}", T(a.name)))}</p>`
+        <p class="small muted">${esc(T("What you tell {x} later stays in {x}. Press Bring what it knows again now and then: Mnemos skips what it already has.").replaceAll("{x}", T(a.name)))}</p>
+        <p class="small" data-givemsg="${esc(a.key)}"></p>`;
+  }
+  // ChatGPT's three limits, said plainly wherever it shows up (v0.20)
+  const GPT = ["Its Codex and Work modes (in the desktop app) use your memory by themselves once connected.",
+    "Its normal chats can't reach this computer: they use copy and paste.",
+    "Its data export has your chats, not what ChatGPT saved in its memory: to bring that, ask it."];
+  const gptBox = () => `<details class="cn-gpt small" open><summary>${esc(T("How ChatGPT works with Mnemos"))}</summary><ul>${GPT.map((x) => `<li>${esc(T(x))}</li>`).join("")}</ul></details>`;
+  window.MNEMOS_GPT = { GPT, gptBox };
+  function card(a) {
+    let head, body = "";
+    if (a.seen) {
+      head = pill("Connected ✓", "ok");
+      body = a.key === "chatgpt" ? `<p class="small muted">${esc(T("Its Codex and Work modes read and save your memory on their own."))}</p>`
+        : `<p class="small muted">${esc(T("It reads and saves your memory on its own."))}</p><div class="me-actions"><button class="mbtn" data-paste="${esc(a.key)}">${esc(T("Bring what it knows"))}</button></div>`;
+    } else if (a.kind !== "cloud" && (a.configured || pending.has(a.key))) {
+      head = pill("Waiting for its first message", "wait");
+      body = `<p class="small">${esc(T(NEXT[a.key] || ""))}</p><div class="cn-wait small muted"><span class="spin"></span>${esc(T("This turns Connected ✓ by itself."))}</div>
+        <div class="me-actions"><button class="mbtn ghost" data-paste="${esc(a.key)}">${esc(T("Use copy and paste instead"))}</button></div>`;
+      if (a.key === "cursor" && CURSOR_LINK) body += `<p class="small muted">${esc(T("Not in Cursor after restarting it?"))} <a href="${esc(CURSOR_LINK)}">${esc(T("Add it with Cursor's install button"))}</a></p>`;
+    } else if (a.kind !== "cloud" && a.installed) {
+      head = pill("Found on this Mac");
+      body = `<div class="me-actions"><button class="mbtn primary" data-connect="${esc(a.key)}">${esc(T(a.key === "chatgpt" ? "Connect its Codex and Work modes" : "Connect"))}</button></div>`;
+    } else {
+      // v0.20: the whole copy-and-paste loop on the card: what to copy, where to paste it, how it comes back
+      head = pill("Copy and paste");
+      const url = remote && remote.enabled && remote.url;
+      body = loopHtml(a, T("{x} runs on the internet and can't reach this computer, so you copy and paste, twice:").replace("{x}", T(a.name)))
         + (url ? `<details class="small"><summary class="muted">${esc(T("Live connection"))}</summary><ol class="small cn-steps">${(STEPS[a.key] || []).map((x) => `<li>${esc(T(x))}</li>`).join("")}</ol>${CONNECTORS[a.key] ? `<p><a class="mbtn" href="${esc(CONNECTORS[a.key])}" target="_blank" rel="noopener noreferrer">${esc(T("Open {x}").replace("{x}", T(a.name)))}</a></p>` : ""}<div class="cn-url"><code>${esc(url)}</code><button class="mbtn" data-cncopy="${esc(url)}">${esc(T("Copy address"))}</button></div></details>`
           : `<p class="small muted">${esc(T("To let it read and save by itself, turn on Reach from anywhere (Settings → Advanced)."))}</p>`);
-      body += `<p class="small" data-givemsg="${esc(a.key)}"></p>`;
+    }
+    if (a.key === "chatgpt") {  // every state: its limits, and the copy-and-paste loop for its normal chats
+      body = gptBox() + body;
+      if (a.seen || a.installed || a.configured || pending.has(a.key)) body += loopHtml(a, T("Its normal chats: copy and paste, twice:"));
     }
     return `<div class="cn-card${a.seen ? " on" : ""}" data-k="${esc(a.key)}"><div class="cn-head"><b>${esc(T(a.name))}</b>${head}</div>${body}</div>`;
   }
   // which cards to show: everything found, connected or in the cloud; apps not on this Mac fold away
-  const shown = (a) => a.seen || a.configured || a.installed || a.kind === "cloud" || pending.has(a.key);
+  // ChatGPT shows even without its desktop app: its web chats work by copy and paste (v0.20)
+  const shown = (a) => a.seen || a.configured || a.installed || a.kind === "cloud" || !!a.cloud || pending.has(a.key);
   const STEPS = {
     "chatgpt": ["In ChatGPT: Settings → Apps → Advanced → turn on Developer mode (business plans).", "Add a custom server, paste the address below and choose OAuth.", "A Mnemos page opens: type your Mnemos password and pick the spaces."],
     "claude-web": ["In Claude: Settings → Connectors → Add custom connector.", "Paste the address below and press Connect.", "A Mnemos page opens: type your Mnemos password and pick the spaces."],

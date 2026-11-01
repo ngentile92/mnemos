@@ -6,6 +6,19 @@
 
 Newest first. Each `## vX.Y.Z` section is the body of that GitHub Release (`scripts/release_notes.py`).
 
+## v0.20.0
+
+**Grok and ChatGPT made clear, fewer waits, and a memory that works from the first minute.**
+
+- **Grok, end to end**: its card shows the whole copy-and-paste loop — bring what it knows into Mnemos, then give it your memory (where to paste it in Grok: profile picture → Settings → Customize → Custom instructions), and how new things it learns come back. Pasted answers are read cleanly and counted as Grok's.
+- **ChatGPT, said plainly**: it connects by itself only in its Codex and Work modes; in normal chats it is copy and paste, and its data export does not include its saved memory. Explained on its card, in the connect step, in Import and in AIs, and it shows even without the ChatGPT desktop app.
+- **No more waiting**: while an AI connects, copy and paste is offered right away instead of after 90 seconds.
+- **Cursor without an Install click**: Mnemos adds itself to Cursor's settings (with a backup first); quit and reopen Cursor.
+- **Your name, asked once**: never guessed or pre-filled.
+- **A new memory has every tool**: search, New note and corrections work from the start; without the private model a correction can replace the note with your sentence.
+- **Cleaner names and map**: spaces show by the names you gave them everywhere, import codes and filler words no longer appear as topics, and notes written from the app say "Mnemos app".
+- **Checked like a new person would**: a scripted first-hour journey (English and Spanish, two screen sizes) now runs on every change.
+
 ## v0.19.0
 
 **One memory to start, simpler screens, and the AI picks where each note goes.**

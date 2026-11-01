@@ -55,13 +55,34 @@ def _sentences(text: str) -> list[str]:
 
 
 # ------------------------------------------------------------------ parsers
+# the chat around a pasted answer ("Here's what I know…", "Let me know if…"): not facts about the user
+_CHATTER = re.compile(
+    r"^(?:here(?:'s| is| are)\b|sure[,!.]|of course\b|based on (?:our|what)\b|let me know\b|feel free\b|i hope\b|"
+    r"if you(?:'d| would| want)\b|hope this\b|is there anything\b|anything else\b|"
+    r"aqu[ií] (?:est[aá]|tenés|tienes|va)\b|ac[aá] (?:est[aá]|tenés|va)\b|claro[,!.]|por supuesto\b|"
+    r"avis[aá]me\b|av[ií]same\b|espero que\b|si (?:quer[eé]s|quieres|necesit[aá]s|necesitas)\b|¿)", re.I)
+
+
+def _clean_line(line: str) -> str:
+    """One pasted line without its Markdown: bullets, numbers, headings, bold/italic markers, quotes, code ticks."""
+    line = re.sub(r"^\s*(?:>\s*)*(?:#{1,6}\s+)?(?:[-*+•·]|\d+[.)])?\s*", "", line)
+    line = re.sub(r"(\*\*|__|`)", "", line)
+    line = re.sub(r"(?<!\w)\*(?!\s)([^*]+)(?<!\s)\*(?!\w)", r"\1", line)
+    return line.strip()
+
+
 def from_lines(text: str) -> list[str]:
-    """Pasted memory (Claude 'what do you know about me', ChatGPT Settings → Memory): one fact per line/bullet."""
+    """Pasted memory (Claude 'what do you know about me', ChatGPT Settings → Memory, Grok's answer): one fact per
+    line/bullet. Markdown (headings, bold labels, code fences) and the chat around the answer are dropped."""
     out = []
-    for line in text.splitlines():
-        line = re.sub(r"^\s*(?:[-*•·]|\d+[.)])\s*", "", line).strip()
-        if len(line) >= 8 and not line.endswith(":"):
-            out.append(line[:MAX_NOTE])
+    for raw in text.splitlines():
+        if raw.strip().startswith("```"):
+            continue
+        heading = bool(re.match(r"^\s*#{1,6}\s", raw)) or bool(re.fullmatch(r"\s*(\*\*|__)[^*_]+(\*\*|__):?\s*", raw))
+        line = _clean_line(raw)
+        if heading or len(line) < 8 or line.endswith(":") or _CHATTER.match(line):
+            continue
+        out.append(line[:MAX_NOTE])
     if len(out) <= 1 and len(text) > 200:  # one paragraph: split into sentences
         out = [s[:MAX_NOTE] for s in _sentences(text) if len(s) >= 8]
     return out

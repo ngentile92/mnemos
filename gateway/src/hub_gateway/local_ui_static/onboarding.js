@@ -14,13 +14,8 @@
   const KEY = "mnemosOnboarding";
   const es = () => /^es/i.test(document.documentElement.lang || navigator.language || "");
   const CODING = { "claude-code": 1, codex: 1, cursor: 1 };
-  const WHERE = {
-    "claude-desktop": "In Claude: Settings → Account → Instructions for Claude.",
-    "claude-web": "In Claude: Settings → Account → Instructions for Claude.",
-    chatgpt: "In ChatGPT: Settings → Personalization → Custom instructions.",
-    grok: "In Grok: Settings → Customize → Custom instructions.",
-  };
-  const OPEN = { chatgpt: "https://chatgpt.com/", "claude-web": "https://claude.ai/new", grok: "https://grok.com/" };
+  const WHERE = () => (window.MnemosBring || {}).WHERE || {};  // one list, in bring.js
+  const OPEN = () => (window.MnemosBring || {}).SETTINGS || {};
   const USE = {
     en: "I use Mnemos as my long-term memory. At the start of every chat, check it for what you know about me. When I share something lasting about myself, save it there right away in one short sentence, without asking.",
     es: "Uso Mnemos como mi memoria de largo plazo. Al empezar cada chat, fijate ahí qué sabés de mí. Cuando cuente algo duradero sobre mí, guardalo ahí enseguida en una frase corta, sin preguntar.",
@@ -149,8 +144,8 @@
       <div class="me-actions"><button class="mbtn primary" id="wl-copyuse">${esc(T("Copy the instruction"))}</button><button class="mbtn ghost" id="wl-skipd">${esc(T("Skip"))}</button></div>
       <div class="me-actions hidden" id="wl-pasted-row"><button class="mbtn primary" id="wl-pasted">${esc(T("I pasted it"))}</button></div>`;
     $("wl-copyuse").onclick = () => {
-      window.MnemosCoach.start({ text, away: 1, steps: [{ text: T(WHERE[a.key] || "Open its settings."), open: OPEN[a.key], openLabel: fill("Open {x}", T(a.name)) },
-        { text: T("Paste (⌘V) and save.") }, { text: T("Come back and press “I pasted it”.") }] });
+      window.MnemosCoach.start({ text, away: 1, steps: [{ text: T(WHERE()[a.key] || "Open its settings."), open: OPEN()[a.key], openLabel: fill("Open {x}", T(a.name)) },
+        { text: T("Paste (⌘V) in the box and save.") }, { text: T("Come back and press “I pasted it”.") }] });
       $("wl-pasted-row").classList.remove("hidden");
     };
     $("wl-pasted").onclick = () => { window.MnemosCoach.stop(); next(); };

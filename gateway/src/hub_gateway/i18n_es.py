@@ -824,7 +824,21 @@ EXACT: dict[str, str] = {
  "name: 1-40 characters": "nombre: de 1 a 40 caracteres",
  "you already have a space with that name": "ya tenés un espacio con ese nombre",
  "at most 8 spaces": "como máximo 8 espacios",
- "Use at most 40 characters for the name of your memory.": "Usá como máximo 40 caracteres para el nombre de tu memoria."
+ "Use at most 40 characters for the name of your memory.": "Usá como máximo 40 caracteres para el nombre de tu memoria.",
+ "Paste (⌘V) in the box and save.": "Pegá (⌘V) en el cuadro y guardá.",
+ "Start a new chat: {x} now knows you.": "Empezá un chat nuevo: {x} ya te conoce.",
+ "{x} runs on the internet and can't reach this computer, so you copy and paste, twice:": "{x} funciona en internet y no puede llegar a esta computadora, así que copiás y pegás, dos veces:",
+ "Mnemos copies a question; you paste it in a new chat, then paste the answer back here.": "Mnemos copia una pregunta; la pegás en un chat nuevo y después pegás la respuesta acá.",
+ "{n} notes from it": "{n} notas de ahí",
+ "Give it your memory": "Dale tu memoria",
+ "Copy your memory": "Copiar tu memoria",
+ "What you tell {x} later stays in {x}. Press Bring what it knows again now and then: Mnemos skips what it already has.": "Lo que le cuentes a {x} después queda en {x}. Cada tanto tocá Traer lo que sabe otra vez: Mnemos saltea lo que ya tiene.",
+ "To let it read and save by itself, turn on Reach from anywhere (Settings → Advanced).": "Para que lea y guarde por su cuenta, activá Acceso desde cualquier lugar (Ajustes → Avanzado).",
+ "ChatGPT: Settings → Personalization → Custom instructions. Claude: Settings → Account → Instructions for Claude. Grok: Settings → Customize → Custom instructions.": "ChatGPT: Configuración → Personalización → Instrucciones personalizadas. Claude: Configuración → Cuenta → Instrucciones para Claude. Grok: Configuración → Personalizar → Instrucciones personalizadas.",
+ "In Grok: click your profile picture (bottom left) → Settings → Customize → Custom instructions.": "En Grok: tocá tu foto de perfil (abajo a la izquierda) → Configuración → Personalizar → Instrucciones personalizadas.",
+ "In Grok: open Connectors (grok.com/connectors) → New Connector → Custom.": "En Grok: abrí Conectores (grok.com/connectors) → Nuevo conector → Personalizado.",
+ "Paste the address below and add it.": "Pegá la dirección de abajo y agregalo.",
+ "Your memory is empty: bring what it knows first.": "Tu memoria está vacía: primero traé lo que sabe.",
 }
 
 PAT: dict[str, str] = {
@@ -968,12 +982,12 @@ HTML: dict[str, str] = {
  "Your memory as Markdown files with history (in the <code>memory</code> folder of your Mnemos home).": "Tu memoria como archivos Markdown con historial (en la carpeta <code>memory</code> de tu carpeta de Mnemos).",
  "Reads <b>every</b> chat of the selected sources in the background (the scan above only reads the newest ones). You can keep using Mnemos, quit and come back: it continues where it stopped, and next time it only reads what is new. Nothing is saved until you approve it here.": "Lee <b>cada</b> chat de las fuentes elegidas en segundo plano (la revisión de arriba solo lee los más nuevos). Podés seguir usando Mnemos, cerrarlo y volver: sigue donde quedó, y la próxima vez solo lee lo nuevo. No se guarda nada hasta que lo apruebes acá.",
  "<b>1. Bring what they know.</b> Copies a question and opens the site: paste it in a new chat, then paste the answer below.": "<b>1. Traé lo que saben.</b> Copia una pregunta y abre el sitio: pegala en un chat nuevo y después pegá la respuesta abajo.",
- "<b>2. Give them your memory.</b> Copies a short “about me” block. Paste it in ChatGPT → Settings → Personalization → Custom instructions, or Claude → Settings → Account → Instructions for Claude.": "<b>2. Dales tu memoria.</b> Copia un bloque corto «sobre mí». Pegalo en ChatGPT → Configuración → Personalización → Instrucciones personalizadas, o en Claude → Configuración → Cuenta → Instrucciones para Claude.",
  "In Claude, ask: <i>“List everything you remember about me, one fact per line.”</i> Copy the answer and paste it here.": "En Claude, preguntá: <i>«Listá todo lo que recordás de mí, un dato por línea.»</i> Copiá la respuesta y pegala acá.",
  "Each <b>space</b> (Personal, Work…) is a galaxy with its own halo. Things in several spaces sit between them as <b>bridges</b> (white ring).": "Cada <b>espacio</b> (Personal, Trabajo…) es una galaxia con su halo. Lo que está en varios espacios queda en el medio como <b>puentes</b> (anillo blanco).",
  "A <b>dot</b> is a person, project, place, tool or topic named in your notes; its <b>size</b> is how much it matters (how many notes mention it).": "Un <b>punto</b> es una persona, proyecto, lugar, herramienta o tema de tus notas; su <b>tamaño</b> es cuánto importa (cuántas notas lo mencionan).",
  "A <b>line</b> means two things appear together; a relation reads <i>subject — relation → object</i>, the way it was found.": "Una <b>línea</b> significa que dos cosas aparecen juntas; una relación se lee <i>sujeto — relación → objeto</i>, tal como se encontró.",
- "<b>Advanced</b> <span class=\"muted small\">reach from the web and phone, memory store, Labs</span>": "<b>Avanzado</b> <span class=\"muted small\">acceso desde la web y el teléfono, almacenamiento, Labs</span>"
+ "<b>Advanced</b> <span class=\"muted small\">reach from the web and phone, memory store, Labs</span>": "<b>Avanzado</b> <span class=\"muted small\">acceso desde la web y el teléfono, almacenamiento, Labs</span>",
+ "<b>2. Give them your memory.</b> Copies a short “about me” block. Paste it in ChatGPT → Settings → Personalization → Custom instructions, Claude → Settings → Account → Instructions for Claude, or Grok → Settings → Customize → Custom instructions.": "<b>2. Dales tu memoria.</b> Copia un bloque corto “sobre mí”. Pegalo en ChatGPT → Configuración → Personalización → Instrucciones personalizadas, en Claude → Configuración → Cuenta → Instrucciones para Claude, o en Grok → Configuración → Personalizar → Instrucciones personalizadas.",
 }
 
 SERVER: dict[str, str] = {

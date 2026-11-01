@@ -83,9 +83,12 @@
     }
     // 2. ask the AI
     function askScreen(lead) {
-      const live = !!ai.seen && ai.kind !== "cloud";
+      // ChatGPT's normal chats can't reach Mnemos (only its Codex and Work modes can), and its saved memory is not in its
+      // export: so it is always asked here, by copy and paste (v0.20)
+      const live = !!ai.seen && ai.kind !== "cloud" && ai.key !== "chatgpt";
       const say = live ? T("Ask {x} to save what it knows about you.") : T("Ask {x} what it knows, then paste its answer here.");
       box.innerHTML = `${lead ? `<p class="small muted">${esc(lead)}</p>` : ""}<p class="bk-say">${esc(say.replace("{x}", name))}</p>
+        ${ai.key === "chatgpt" ? `<p class="small muted">${esc(T("Ask it in a normal ChatGPT chat: that is where its saved memory is. Its data export does not include it."))}</p>` : ""}
         <div class="me-actions"><button class="mbtn primary" data-bk="copy">${esc(T(live ? "Copy the request" : "Copy the question"))}</button>${skip()}</div>
         ${live ? `<div class="bk-wait hidden" id="bk-wait"><span class="spin"></span><span>${esc(T("Waiting for its notes…"))}</span></div>`
           : `<textarea id="bk-paste" class="bk-paste" placeholder="${esc(T("Paste the answer here"))}"></textarea><div id="bk-review"></div>`}

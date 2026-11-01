@@ -199,6 +199,7 @@
     <div class="card-h"><h2 id="bk-title">Bring what it knows</h2><button class="mbtn" id="bk-close">Close</button></div>
     <div id="bk-body"></div></div></div>
   <section class="card" style="margin:14px 36px"><div class="card-h"><h2>Apps using your memory</h2><span class="muted small" id="ap-head"></span></div>
+    <p class="small muted">ChatGPT's Codex and Work modes appear here as Codex; its normal chats never do, because they use copy and paste.</p>
     <p class="small muted">Every AI app you connected appears here the first time it uses Mnemos. Pause it, or remove its access. With more than one space, choose which ones it may use: each time it saves, the AI picks the space that fits.</p>
     <div id="ap-list" class="ap-list"></div><p class="small" id="ap-msg"></p></section>
   <details class="card adv" id="apps-adv" style="margin:0 36px 14px"><summary><b>Advanced</b> <span class="muted small">auto-capture, built-in memory for coding apps, activity</span></summary>
@@ -312,6 +313,7 @@
   <section class="imp-grid">
     <div class="card"><div class="card-h"><h2>From ChatGPT</h2></div>
       <p class="small muted">ChatGPT → Settings → Data controls → Export data. You get an email with a .zip: pick that file (or the conversations.json inside). Only things you said about yourself are proposed.</p>
+      <p class="small"><b>The export has your chats, not ChatGPT's saved memory.</b> To bring that too, copy it from Settings → Personalization → Memory → Manage and paste it below.</p>
       <input type="file" id="i-gpt-file" accept=".zip,.json">
       <p class="small muted">Or paste your ChatGPT memories (Settings → Personalization → Memory → Manage):</p>
       <textarea id="i-gpt-text" placeholder="One memory per line"></textarea>

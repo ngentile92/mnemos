@@ -89,7 +89,8 @@
     if (a.seen || !can) return next("bring");
     $("wl-h3").textContent = fill("Connect {x}", T(a.name));
     const waiting = a.configured;
-    $("wl-body").innerHTML = waiting ? waitHtml(a) : `<p class="muted">${esc(fill("One click adds Mnemos to {x}. Nothing else changes.", T(a.name)))}</p>
+    const gpt = a.key === "chatgpt" ? `<p class="small muted">${esc(T("ChatGPT uses your memory by itself only in its Codex and Work modes. In normal chats you will copy and paste: the next steps show how."))}</p>` : "";
+    $("wl-body").innerHTML = waiting ? gpt + waitHtml(a) : `${gpt}<p class="muted">${esc(fill("One click adds Mnemos to {x}. Nothing else changes.", T(a.name)))}</p>
       <div class="me-actions"><button class="mbtn primary" id="wl-connect">${esc(fill("Connect {x}", T(a.name)))}</button></div><p class="small" id="wl-cmsg"></p>`;
     if (waiting) return wait(a);
     $("wl-connect").onclick = async (e) => {
@@ -139,7 +140,7 @@
       $("wl-body").innerHTML = `<div class="wl-wait ok"><span>✓</span><span>${esc(fill("{x} starts every session knowing you.", T(a.name)))}</span></div>`;
       setTimeout(() => next(), 1400); return;
     }
-    const live = a.seen && a.kind !== "cloud";
+    const live = a.seen && a.kind !== "cloud" && a.key !== "chatgpt";  // ChatGPT's normal chats need the pasted memory
     let text = USE[es() ? "es" : "en"];
     if (!live) { try { text = (await api("/api/cloud/block")).block || text; } catch (_) { /* keep the short one */ } }
     $("wl-body").innerHTML = `<p class="muted">${esc(T(live ? "Paste one instruction in its settings so it checks your memory in every chat." : "Paste what Mnemos knows in its settings, so every chat starts knowing you."))}</p>

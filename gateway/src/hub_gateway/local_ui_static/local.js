@@ -350,22 +350,24 @@
     b.disabled = false; b.textContent = "Save selected";
   };
   // copy coach: says where to paste, lights the answer box, and a paste anywhere on the page lands there
+  let cloudSrc = "text";  // which AI the pasted answer came from (its notes count for that AI)
   document.querySelectorAll("[data-cloud]").forEach((b) => { b.onclick = () => {
     const T = window.tr || ((x) => x);
+    cloudSrc = b.dataset.src || "text";
     window.MnemosCoach.start({ text: window.MnemosBring ? window.MnemosBring.ask() : CLOUD_PROMPT, target: "c-text", away: 1,
       steps: [{ text: T("Open it and start a new chat."), open: b.dataset.cloud, openLabel: b.textContent }, { text: T("Paste (⌘V) and send.") },
               { text: T("Copy its whole answer.") }, { text: T("Paste it here (⌘V), anywhere on this page.") }],
       onPaste: () => setTimeout(() => $("c-go").click(), 50) });
   }; });
-  $("c-go").onclick = (e) => previewJSON("claude", { text: $("c-text").value }, e.target);
+  $("c-go").onclick = (e) => previewJSON(cloudSrc, { text: $("c-text").value }, e.target);
   $("c-block").onclick = async () => {
     $("c-block-msg").textContent = "";
     try {
       const r = await api("/api/cloud/block");
       const T = window.tr || ((x) => x);
       await window.MnemosCoach.start({ text: r.block, away: 1, steps: [
-        { text: T("ChatGPT: Settings → Personalization → Custom instructions. Claude: Settings → Profile → Instructions for Claude.") },
-        { text: T("Paste (⌘V) and save.") }] });
+        { text: T("ChatGPT: Settings → Personalization → Custom instructions. Claude: Settings → Account → Instructions for Claude. Grok: Settings → Customize → Custom instructions.") },
+        { text: T("Paste (⌘V) in the box and save.") }] });
     } catch (e) { $("c-block-msg").textContent = "Could not copy: " + e.message; }
   };
   // ------------------------------------------------ full-history mining (background, resumable)

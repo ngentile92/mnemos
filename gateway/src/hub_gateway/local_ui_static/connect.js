@@ -14,12 +14,15 @@
   const boot = () => BOOT[es() ? "es" : "en"];
   // v0.18: every AI connects from here (the Mnemos window has no Connect buttons any more). Desktop apps first:
   // one button writes the app's settings (backup first); the card turns Connected ✓ on the app's first call.
-  let ais = [], remote = null, apps = [], poll = null;
+  let ais = [], remote = null, apps = [], poll = null, known = {};
+  const WHERE = () => (window.MnemosBring || {}).WHERE || {};
+  const CONNECTORS = { grok: "https://grok.com/connectors", "claude-web": "https://claude.ai/settings/connectors" };
   const pending = new Set();
   async function load() {
     clearTimeout(poll);
     try { const r = await window.MNEMOS_API("/api/connect"); ais = r.ais || []; remote = r.remote; } catch (_) { ais = []; }
     try { apps = (await window.MNEMOS_API("/api/apps")).apps || []; } catch (_) { apps = []; }
+    try { known = (await window.MNEMOS_API("/api/ai/known")).known || {}; } catch (_) { known = {}; }
     render();
     if (location.hash.startsWith("#apps") && ais.some((a) => !a.seen && (a.configured || pending.has(a.key)))) poll = setTimeout(load, 3000);
   }
@@ -46,11 +49,21 @@
       body = `<div class="me-actions"><button class="mbtn primary" data-connect="${esc(a.key)}">${esc(T("Connect"))}</button></div>`;
       if (a.key === "chatgpt") body += `<p class="small muted">${esc(T("Works in its Codex and Work modes. In normal chats, use copy and paste."))}</p>`;
     } else {
+      // v0.20: the whole copy-and-paste loop on the card: what to copy, where to paste it, how it comes back
       head = pill("Copy and paste");
       const url = remote && remote.enabled && remote.url;
-      body = `<div class="me-actions"><button class="mbtn primary" data-paste="${esc(a.key)}">${esc(T("Bring what it knows"))}</button></div>`
-        + (url ? `<details class="small"><summary class="muted">${esc(T("Live connection"))}</summary><ol class="small cn-steps">${(STEPS[a.key] || []).map((x) => `<li>${esc(T(x))}</li>`).join("")}</ol><div class="cn-url"><code>${esc(url)}</code><button class="mbtn" data-cncopy="${esc(url)}">${esc(T("Copy address"))}</button></div></details>`
-          : `<p class="small muted">${esc(T("A live connection needs Reach from anywhere (Settings → Advanced)."))}</p>`);
+      const n = known[a.key] || 0;
+      body = `<p class="small muted">${esc(T("{x} runs on the internet and can't reach this computer, so you copy and paste, twice:").replace("{x}", T(a.name)))}</p>
+        <ol class="cn-loop small">
+          <li><b>${esc(T("Bring what it knows"))}</b> · ${esc(T("Mnemos copies a question; you paste it in a new chat, then paste the answer back here."))}${n ? ` <span class="pill ok">${esc(T("{n} notes from it").replace("{n}", n))}</span>` : ""}
+            <div class="me-actions"><button class="mbtn primary" data-paste="${esc(a.key)}">${esc(T("Bring what it knows"))}</button></div></li>
+          <li><b>${esc(T("Give it your memory"))}</b> · ${esc(T(WHERE()[a.key] || "Paste it in its settings."))}
+            <div class="me-actions"><button class="mbtn" data-give="${esc(a.key)}">${esc(T("Copy your memory"))}</button></div></li>
+        </ol>
+        <p class="small muted">${esc(T("What you tell {x} later stays in {x}. Press Bring what it knows again now and then: Mnemos skips what it already has.").replaceAll("{x}", T(a.name)))}</p>`
+        + (url ? `<details class="small"><summary class="muted">${esc(T("Live connection"))}</summary><ol class="small cn-steps">${(STEPS[a.key] || []).map((x) => `<li>${esc(T(x))}</li>`).join("")}</ol>${CONNECTORS[a.key] ? `<p><a class="mbtn" href="${esc(CONNECTORS[a.key])}" target="_blank" rel="noopener noreferrer">${esc(T("Open {x}").replace("{x}", T(a.name)))}</a></p>` : ""}<div class="cn-url"><code>${esc(url)}</code><button class="mbtn" data-cncopy="${esc(url)}">${esc(T("Copy address"))}</button></div></details>`
+          : `<p class="small muted">${esc(T("To let it read and save by itself, turn on Reach from anywhere (Settings → Advanced)."))}</p>`);
+      body += `<p class="small" data-givemsg="${esc(a.key)}"></p>`;
     }
     return `<div class="cn-card${a.seen ? " on" : ""}" data-k="${esc(a.key)}"><div class="cn-head"><b>${esc(T(a.name))}</b>${head}</div>${body}</div>`;
   }
@@ -59,7 +72,7 @@
   const STEPS = {
     "chatgpt": ["In ChatGPT: Settings → Apps → Advanced → turn on Developer mode (business plans).", "Add a custom server, paste the address below and choose OAuth.", "A Mnemos page opens: type your Mnemos password and pick the spaces."],
     "claude-web": ["In Claude: Settings → Connectors → Add custom connector.", "Paste the address below and press Connect.", "A Mnemos page opens: type your Mnemos password and pick the spaces."],
-    "grok": ["In Grok: Connectors → New Connector → Custom.", "Paste the address below.", "A Mnemos page opens: type your Mnemos password and pick the spaces."],
+    "grok": ["In Grok: open Connectors (grok.com/connectors) → New Connector → Custom.", "Paste the address below and add it.", "A Mnemos page opens: type your Mnemos password and pick the spaces."],
   };
   function render() {
     // desktop apps first (connected, then found), copy-and-paste ones last
@@ -93,6 +106,13 @@
   document.addEventListener("click", (ev) => {
     const c = ev.target.closest("[data-cncopy]"); if (c) { ev.preventDefault(); copy(c.dataset.cncopy); }
     const k = ev.target.closest("[data-connect]"); if (k) { ev.preventDefault(); connect(k.dataset.connect, k); }
+    const g = ev.target.closest("[data-give]");
+    if (g) {
+      ev.preventDefault();
+      const a = ais.find((x) => x.key === g.dataset.give), m = document.querySelector(`[data-givemsg="${g.dataset.give}"]`);
+      if (m) m.textContent = "";
+      window.MnemosBring.giveBack(a).catch((e) => { if (m) { m.textContent = T(e.message); m.className = "small err"; } });
+    }
     const pz = ev.target.closest("[data-paste]");
     if (pz) { ev.preventDefault(); bring(pz.dataset.paste); }
   });

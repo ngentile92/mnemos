@@ -20,6 +20,24 @@
     codex_memory: "codex", agents_md: "codex", chatgpt_zip: "chatgpt", claude_zip: "claude-desktop" };
   const OPEN = { chatgpt: "https://chatgpt.com/", "claude-web": "https://claude.ai/new", grok: "https://grok.com/" };
   const EXPORT = { "claude-desktop": 1, "claude-web": 1, chatgpt: 1 };
+  // where each chat app keeps the text it reads at the start of every chat (v0.20: one list for the whole app)
+  const WHERE = {
+    "claude-desktop": "In Claude: Settings → Account → Instructions for Claude.",
+    "claude-web": "In Claude: Settings → Account → Instructions for Claude.",
+    chatgpt: "In ChatGPT: Settings → Personalization → Custom instructions.",
+    grok: "In Grok: click your profile picture (bottom left) → Settings → Customize → Custom instructions.",
+  };
+  const SETTINGS = { chatgpt: "https://chatgpt.com/#settings/Personalization", "claude-web": "https://claude.ai/settings", "claude-desktop": "https://claude.ai/settings", grok: "https://grok.com/" };
+  // 2. give it your memory: what Mnemos knows, pasted where the app reads it in every new chat
+  async function giveBack(ai) {
+    const name = T(ai.name);
+    let text = "";
+    try { text = (await api("/api/cloud/block")).block || ""; } catch (_) { /* nothing to copy yet */ }
+    if (!text) throw new Error("Your memory is empty: bring what it knows first.");
+    window.MnemosCoach.start({ text, away: 1, title: "Copied ✓",
+      steps: [{ text: T(WHERE[ai.key] || "Open its settings."), open: SETTINGS[ai.key] || OPEN[ai.key], openLabel: T("Open {x}").replace("{x}", name) },
+              { text: T("Paste (⌘V) in the box and save.") }, { text: T("Start a new chat: {x} now knows you.").replace("{x}", name) }] });
+  }
   async function knownOf(key) { try { return ((await api("/api/ai/known")).known || {})[key] || 0; } catch (_) { return 0; } }
   async function ctx() { try { return (await api("/api/session")).contexts.find((c) => c !== "shared") || "personal"; } catch (_) { return "personal"; } }
 
@@ -140,5 +158,5 @@
       };
     }
   }
-  window.MnemosBring = { open, ask };
+  window.MnemosBring = { open, ask, giveBack, WHERE, SETTINGS };
 })();

@@ -23,7 +23,7 @@
   const save = (st) => localStorage.setItem(KEY, JSON.stringify(st));
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch (_) { return null; } };
   const mark = (step) => api("/api/ftue", { step }).catch(() => {});
-  let st = null, ais = [], poll = null, finishCb = null;
+  let st = null, ais = [], poll = null, finishCb = null, cursorLink = "";
 
   async function cards() { try { ais = (await api("/api/connect")).ais || []; } catch (_) { ais = []; } return ais; }
   const ai = (k) => ais.find((a) => a.key === k) || { key: k, name: k, kind: "cloud" };
@@ -94,7 +94,7 @@
     if (waiting) return wait(a);
     $("wl-connect").onclick = async (e) => {
       e.target.disabled = true; e.target.innerHTML = `<span class="spin"></span>${esc(T("Connecting…"))}`;
-      try { const r = await api("/api/connect", { key: a.key }); if (r.open) location.href = r.open; a.configured = true; $("wl-body").innerHTML = waitHtml(a); wait(a); }
+      try { const r = await api("/api/connect", { key: a.key }); if (r.link) cursorLink = r.link; a.configured = true; $("wl-body").innerHTML = waitHtml(a); wait(a); }
       catch (err) { e.target.disabled = false; e.target.textContent = T("Try again"); $("wl-cmsg").textContent = T(err.message); $("wl-cmsg").className = "small err"; }
     };
   }
@@ -103,22 +103,24 @@
     "claude-code": "Start a new Claude Code session and send any message.",
     codex: "Start a new Codex session and send any message.",
     chatgpt: "Restart the ChatGPT app, switch to Codex or Work mode and send any message.",
-    cursor: "Click Install in Cursor, then send any message there.",
+    cursor: "Quit Cursor (⌘Q), open it again and send any message in its chat.",
   };
   function waitHtml(a) {
     return `<ol class="wl-todo"><li class="done"><span>✓</span>${esc(T("Mnemos is in its settings."))}</li><li class="now"><span>2</span>${esc(T(NEXT[a.key] || "Send it any message."))}</li></ol>
       <div class="wl-wait" id="wl-wait"><span class="spin"></span><span>${esc(fill("Waiting for {x}…", T(a.name)))}</span></div>
-      <div class="me-actions hidden" id="wl-stuck"><span class="small muted">${esc(T("Didn't work? Make sure it was fully quit and opened again."))}</span><button class="mbtn ghost" id="wl-skipc">${esc(T("Skip: use copy and paste"))}</button></div>`;
+      <p class="small muted hidden" id="wl-stuck">${esc(T("Nothing yet? Make sure it was fully quit and opened again."))}${a.key === "cursor" && cursorLink ? ` <a href="${esc(cursorLink)}">${esc(T("Add it with Cursor's install button"))}</a>` : ""}</p>
+      <div class="me-actions"><button class="mbtn ghost" id="wl-skipc">${esc(T("Use copy and paste instead"))}</button></div>`;
   }
   function wait(a) {
     const t0 = Date.now();
+    $("wl-skipc").onclick = () => { clearTimeout(poll); next("bring"); };
     const tick = async () => {
       await cards();
       if (ai(a.key).seen) {
         $("wl-wait").classList.add("ok"); $("wl-wait").innerHTML = `<span>✓</span><span>${esc(fill("{x} is connected", T(a.name)))}</span>`;
         mark("first_app"); setTimeout(() => next("bring"), 1200); return;
       }
-      if (Date.now() - t0 > 90000) { $("wl-stuck").classList.remove("hidden"); $("wl-skipc").onclick = () => next("bring"); }
+      if (Date.now() - t0 > 20000) $("wl-stuck").classList.remove("hidden");
       poll = setTimeout(tick, 3000);
     };
     tick();

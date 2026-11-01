@@ -61,9 +61,15 @@ def test_codex_block_is_shared_with_chatgpt_desktop(h, tmp_path):
     assert d["codex"]["configured"] and not d["chatgpt"]["configured"]  # no ChatGPT app on this test Mac
 
 
-def test_cursor_uses_its_install_link_and_cloud_apps_refuse(h, tmp_path):
-    r = C.connect("cursor", tmp_path / "M")
-    assert r["open"].startswith("cursor://anysphere.cursor-deeplink/mcp/install?name=mnemos&config=")
+def test_cursor_is_written_directly_and_cloud_apps_refuse(h, tmp_path):
+    (h / ".cursor").mkdir()
+    (h / ".cursor/mcp.json").write_text('{"mcpServers": {"other": {"command": "x"}}}')
+    r = C.connect("cursor", tmp_path / "M")  # 0.20: no Install click in Cursor
+    import json
+    cfg = json.loads((h / ".cursor/mcp.json").read_text())
+    assert set(cfg["mcpServers"]) == {"other", "mnemos"} and cfg["mcpServers"]["mnemos"]["args"][-1] == str(tmp_path / "M")
+    assert "open" not in r and r["link"].startswith("cursor://anysphere.cursor-deeplink/mcp/install?name=mnemos&config=")
+    assert list((h / ".cursor").glob("mcp.json.mnemos-backup-*")) and C.detect()["cursor"]["configured"]
     for k in ("grok", "claude-web"):
         with pytest.raises(ValueError):
             C.connect(k, tmp_path / "M")

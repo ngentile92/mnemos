@@ -59,6 +59,11 @@
     $("login-pw").onkeydown = (e) => { if (e.key === "Enter") go(); };
   }
 
+  window.MNEMOS_LABEL = (name) => {
+    const sp = (((window.MNEMOS_SPACES || {}).spaces) || []).find((x) => x.name === name);
+    const l = (sp && sp.label) || (name === "shared" ? "Shared" : name);
+    return window.tr ? window.tr(l) : l;
+  };
   function boot(s) {
     window.MNEMOS = { contexts: s.contexts.map((name) => ({ name })), labs: !!s.labs, store: s.store || "notes" };
     document.body.classList.toggle("nolabs", !s.labs);
@@ -69,11 +74,14 @@
         $("labs-msg").textContent = r.on ? "On ✓" : "Off ✓"; } catch (e) { $("labs-msg").textContent = e.message; }
     };
     $("app").classList.remove("hidden"); $("tabs").classList.remove("hidden");
-    for (const id of ["g-ctx", "s-ctx", "i-ctx"]) $(id).innerHTML = s.contexts.map((c) => `<option>${esc(c)}</option>`).join("");
+    const opts = () => s.contexts.map((c) => `<option value="${esc(c)}">${esc(window.MNEMOS_LABEL(c))}</option>`).join("");
+    for (const id of ["g-ctx", "s-ctx", "i-ctx"]) $(id).innerHTML = opts();
     const sc = document.createElement("script");
     sc.src = "/ui/memory.js";
     sc.onload = () => route();
-    document.body.appendChild(sc);
+    // 0.20: every screen names a space by its name ("My memory", "Work"), never its key: load them first
+    api("/api/spaces").then((d) => { window.MNEMOS_SPACES = window.MNEMOS_SPACES || d; for (const id of ["g-ctx", "s-ctx", "i-ctx"]) { const v = $(id).value; $(id).innerHTML = opts(); $(id).value = v; } })
+      .catch(() => {}).finally(() => document.body.appendChild(sc));
     window.addEventListener("hashchange", route);
     loadEngine();
   }

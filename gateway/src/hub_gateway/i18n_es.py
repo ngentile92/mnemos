@@ -853,6 +853,21 @@ EXACT: dict[str, str] = {
  "Its normal chats can't reach this computer: they use copy and paste.": "Sus chats normales no pueden llegar a esta computadora: usan copiar y pegar.",
  "Its data export has your chats, not what ChatGPT saved in its memory: to bring that, ask it.": "Su exportación de datos trae tus chats, no lo que ChatGPT guardó en su memoria: para traer eso, preguntale.",
  "Connect its Codex and Work modes": "Conectar sus modos Codex y Work",
+ "Replace it with my sentence": "Reemplazarla por mi frase",
+ "Mark it obsolete": "Marcarla como obsoleta",
+ "1 note": "1 nota",
+ "Mnemos app": "app Mnemos",
+ "project (optional)": "proyecto (opcional)",
+ "Nothing in memory says otherwise": "Ninguna nota dice otra cosa",
+ "Save it as a new note?": "¿Guardarlo como nota nueva?",
+ "Or keep it as a separate fact": "O guardalo como un dato aparte",
+ "Save it as a new note instead of correcting.": "Guardalo como nota nueva en vez de corregir.",
+ "Best match": "Mejor coincidencia",
+ "Dismiss": "Descartar",
+ "mark as obsolete": "marcar como obsoleta",
+ "correct": "corregir",
+ "may say otherwise": "puede decir otra cosa",
+ "You can edit or forget it later.": "Podés editarla u olvidarla después.",
 }
 
 PAT: dict[str, str] = {
@@ -977,7 +992,8 @@ PAT: dict[str, str] = {
  "Saving {n}…": "Guardando {n}…",
  "Reading the export…": "Leyendo la exportación…",
  "Connect {x}": "Conectar {x}",
- "Reconnect {x}": "Reconectar {x}"
+ "Reconnect {x}": "Reconectar {x}",
+ "{n} notes": "{n} {n:nota|notas}",
 }
 
 HTML: dict[str, str] = {

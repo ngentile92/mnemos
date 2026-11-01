@@ -561,5 +561,6 @@
   });
   window.addEventListener("mnemos:view", (ev) => { if (ev.detail !== "graph") { running = false; } else if (cv && !running && nodes.length) { running = true; resize(); requestAnimationFrame(frame); } });
   window.MnemosGraph = { load: () => load(), timelapse, png, fit, _live: (g) => { build(g); legend(); summary(); }, _state: () => ({ nodes: nodes.length, links: links.length, galaxies: galaxies.map((g) => g.name),
-    rings: galaxies.map((g) => ({ name: g.name, x: Math.round(g.cx), y: Math.round(g.cy), r: Math.round(g.r) })) }) };
+    rings: galaxies.map((g) => ({ name: g.name, label: g.label, x: Math.round(g.cx), y: Math.round(g.cy), r: Math.round(g.r) })),
+    labels: nodes.map((n) => n.label) }) };
 })();

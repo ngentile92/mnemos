@@ -14,7 +14,9 @@
   const DAY = 864e5;
   const ageDays = (it) => { const d = Date.parse(it.created_at); return isNaN(d) ? 1e9 : (Date.now() - d) / DAY; };
   const isImported = (it) => (it.tags || []).some((t) => String(t).startsWith("import")) || /^import/.test(it.source_app || "");
-  const appName = (it) => it.source_app || "unknown app";
+  const T0 = (x) => (window.tr ? window.tr(x) : x);
+  // notes written from this app before 0.20 carry the library default name ("mcp 0.1.0")
+  const appName = (it) => { const a = String(it.source_app || ""); return !a ? "unknown app" : /^mcp \d/.test(a) || a === "Mnemos app" ? T0("Mnemos app") : a; };
   const TESTS = {
     show: { all: () => true, pinned: (it) => it.pinned, mine: (it) => it.editable, shared: (it) => !it.editable,
       old: (it) => it.obsolete || it.validity === "expired" },
@@ -39,6 +41,8 @@
       <h3>When</h3>${opt("when", "", "Any time", n("when", () => true))}${opt("when", "d7", "Last 7 days", n("when", TESTS.when.d7))}${opt("when", "d30", "Last 30 days", n("when", TESTS.when.d30))}${opt("when", "older", "Older", n("when", TESTS.when.older))}
       ${F.show !== "all" || F.app || F.origin || F.when ? '<button class="mbtn sm me-freset" id="me-freset">Clear filters</button>' : ""}`;
   }
+  const spLabel = (name) => { const s = (((window.MNEMOS_SPACES || {}).spaces) || []).find((x) => x.name === name); const l = (s && s.label) || name; return window.tr ? window.tr(l) : l; };
+  const spOpts = (names, sel) => names.map((c) => `<option value="${esc(c)}"${c === sel ? " selected" : ""}>${esc(spLabel(c))}</option>`).join("");
   function renderBulk() {
     if (!$("me-bulk")) return;
     $("me-bulk").classList.toggle("hidden", !picked.size);
@@ -46,13 +50,11 @@
     $("me-b-to").innerHTML = spOpts(CTXS.filter((c) => c !== ctx()));
     $("me-b-move").classList.toggle("hidden", CTXS.length < 2); $("me-b-to").classList.toggle("hidden", CTXS.length < 2);
   }
-  $("me-ctx").innerHTML = CTXS.map((c) => `<option>${esc(c)}</option>`).join("");
+  $("me-ctx").innerHTML = CTXS.map((c) => `<option value="${esc(c)}">${esc(spLabel(c))}</option>`).join("");
   const saved = localStorage.getItem("mnemos.memctx");
   if (saved && CTXS.includes(saved)) $("me-ctx").value = saved;
   const ctx = () => $("me-ctx").value;
   // spaces by their display name (Spaces screen), translated; the key stays the value
-  const spLabel = (name) => { const s = (((window.MNEMOS_SPACES || {}).spaces) || []).find((x) => x.name === name); const l = (s && s.label) || name; return window.tr ? window.tr(l) : l; };
-  const spOpts = (names, sel) => names.map((c) => `<option value="${esc(c)}"${c === sel ? " selected" : ""}>${esc(spLabel(c))}</option>`).join("");
   const when = (s) => {
     if (!s) return "";
     const t = String(s);
@@ -249,7 +251,7 @@
     const others = CTXS.filter((c) => c !== ctx());
     confirmPanel(it, `<p><b>Move this note to another context.</b> It is copied there (tagged “moved-from-${esc(ctx())}”, origin dashboard) and then forgotten here — you can undo the forget in <b>${esc(ctx())}</b>.</p>
       <div class="me-row"><select id="me-move-to">${spOpts(others)}</select>
-      <input id="me-move-proj" placeholder="project (only for contexts with projects)" maxlength="80"></div>`, "Move note", async () => {
+      <input id="me-move-proj" placeholder="project (optional)" maxlength="80"></div>`, "Move note", async () => {
       const to = $("me-move-to").value;
       await post("/api/memory/move", { context: ctx(), id: it.id, to, text: it.text, project: $("me-move-proj").value, confirm: true });
       toast(`Moved to ${spLabel(to)} ✓`, it.id); selId = null; $("me-detail").innerHTML = '<p class="muted">Pick a note on the left.</p>'; load();
@@ -350,11 +352,11 @@
   function saveCard(q, hasProps) {
     return `<div class="me-prop me-save"><div class="small muted">${hasProps ? "Or keep it as a separate fact" : "Nothing in memory says otherwise"}</div>
       <div class="why">${hasProps ? "Save it as a new note instead of correcting." : "Save it as a new note?"}</div>
-      <div class="me-row"><select id="me-save-ctx" aria-label="Context">${CTXS.map((c) => `<option${c === ctx() ? " selected" : ""}>${esc(c)}</option>`).join("")}</select>
-      <input id="me-save-proj" placeholder="project (only for contexts with projects)" maxlength="80"></div>
+      <div class="me-row"><select id="me-save-ctx" aria-label="Context">${spOpts(CTXS, ctx())}</select>
+      <input id="me-save-proj" placeholder="project (optional)" maxlength="80"></div>
       <textarea id="me-save-text" style="min-height:70px;margin-top:8px">${esc(q)}</textarea>
       <div class="me-actions"><button class="mbtn ${hasProps ? "" : "primary"}" id="me-save-new">Save as new note</button>
-      <span class="muted small">Saved with origin “dashboard”; you can edit or forget it later.</span></div></div>`;
+      <span class="muted small">You can edit or forget it later.</span></div></div>`;
   }
   $("me-proposals").addEventListener("click", async (ev) => {
     if (ev.target.id !== "me-save-new") return;
@@ -364,7 +366,7 @@
       const sv = await post("/api/memory/save", { context: c, text: $("me-save-text").value, project: $("me-save-proj").value });
       if (sv.status === "duplicate") { b.disabled = false; b.textContent = "Save as new note"; toast("Already saved: a near-identical note exists"); return; }
       if (sv.similar_notes && sv.similar_notes.length) toast("Saved ✓ — similar notes exist; check they don't contradict it");
-      b.closest(".me-save").innerHTML = `<span class="small">Saved as a new note in <b>${esc(c)}</b> ✓ (it appears in the list in a few seconds)</span>`;
+      b.closest(".me-save").innerHTML = `<span class="small">Saved as a new note in <b>${esc(spLabel(c))}</b> ✓ (it appears in the list in a few seconds)</span>`;
       toast("Saved as new note ✓");
       if (c === ctx()) setTimeout(() => load(), 2500);
     } catch (e) { b.disabled = false; b.textContent = "Save as new note"; toast("Not saved: " + e.message); }
@@ -377,10 +379,10 @@
     try {
       const j = await post("/api/memory/dispute", { context: ctx(), correction: q });
       const ps = j.proposals || [];
-      box.innerHTML = ps.length ? ps.map((p, i) => `<div class="me-prop"><div class="small muted">${i === 0 ? "Best match · " : ""}${esc(p.dataset)} · ${p.action === "obsolete" ? "mark as obsolete" : "correct"}</div>
+      box.innerHTML = ps.length ? ps.map((p, i) => `<div class="me-prop"><div class="small muted">${i === 0 ? esc(T0("Best match")) + " · " : ""}${esc(spLabel(p.dataset))} · ${esc(T0(p.action === "obsolete" ? "mark as obsolete" : p.action ? "correct" : "may say otherwise"))}</div>
         <div class="why">${esc(p.why)}</div>
         ${p.action === "update" ? `<div class="diff">${diffHtml(p.diff)}</div>` : `<div class="diff"><del>${esc(p.text)}</del></div>`}
-        <div class="me-actions"><button class="mbtn primary" data-apply="${i}">${p.action === "update" ? "Apply correction" : "Mark obsolete"}</button><button class="mbtn" data-skip="${i}">Dismiss</button></div></div>`).join("")
+        <div class="me-actions"><button class="mbtn primary" data-apply="${i}">${p.action === "update" ? "Apply correction" : p.action === "obsolete" ? "Mark obsolete" : "Replace it with my sentence"}</button>${p.action ? "" : `<button class="mbtn" data-old="${i}">Mark it obsolete</button>`}<button class="mbtn" data-skip="${i}">Dismiss</button></div></div>`).join("")
         : "";
       box.insertAdjacentHTML("beforeend", saveCard(q, ps.length > 0));
       const ck = j.checked || [];
@@ -388,11 +390,13 @@
       if (ck.length) box.insertAdjacentHTML("beforeend", `<details class="me-checked"><summary class="small muted">Checked ${ck.length} note${ck.length > 1 ? "s" : ""}${j.cached ? " · same answer as before (cached)" : ""}${j.timings_ms ? ` · ${((j.timings_ms.retrieval + j.timings_ms.model) / 1000).toFixed(1)} s` : ""} — why</summary>` +
         ck.map((c) => `<div class="small"><span class="${c.verdict === "proposed" ? "ok" : "muted"}">${esc(c.verdict)}</span> — ${esc(c.preview)}…</div>`).join("") + "</details>");
       box.querySelectorAll("[data-skip]").forEach((b) => (b.onclick = () => b.closest(".me-prop").remove()));
-      box.querySelectorAll("[data-apply]").forEach((b) => (b.onclick = async () => {
-        const p = ps[+b.dataset.apply];
+      box.querySelectorAll("[data-apply],[data-old]").forEach((b) => (b.onclick = async () => {
+        const p = ps[+(b.dataset.apply ?? b.dataset.old)];
         b.disabled = true; b.innerHTML = '<span class="spin"></span>Applying…';
         try {
+          const old = b.dataset.old !== undefined;
           const r = p.action === "update" ? await post("/api/memory/update", { context: ctx(), id: p.id, text: p.proposed_text })
+            : !p.action && !old ? await post("/api/memory/update", { context: ctx(), id: p.id, text: q })  // no model: your sentence replaces it
             : await post("/api/memory/obsolete", { context: ctx(), id: p.id, obsolete: true, reason: q.slice(0, 300) });
           b.closest(".me-prop").innerHTML = `<span class="small">Applied ✓${r.version ? ` (version ${r.version})` : ""}</span>`;
           toast("Applied ✓", p.action === "update" ? p.id : null); load();

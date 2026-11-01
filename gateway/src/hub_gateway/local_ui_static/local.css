@@ -25,10 +25,8 @@ label.small{display:block;margin:10px 0 4px}label.small input,label.small textar
 
 /* Labs (0.11): optional layers, hidden unless turned on in Settings → Labs */
 body.nolabs .labs{display:none!important}
-/* Simple memory (0.11): when files mode is on, hide the notes list and show the files view.
-   Memory health (0.14) stays visible: its checks and undo work on both stores. */
-body.filesmode .me-bar, body.filesmode .me-dispute, body.filesmode .me-grid,
-body.filesmode #empty-cta { display: none !important }
+/* Simple memory (0.11): the files view shows below the notes. 0.20: the notes list, search, New note and corrections
+   stay on in files mode too (a new memory starts in files mode, and they all work on both stores). */
 
 .sp-frow{display:flex;gap:8px;margin-top:10px}.sp-frow input{flex:1}
 .rl-where{margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}.rl-where select{width:auto;padding:2px 6px;font-size:12px}

@@ -97,10 +97,13 @@ which who will with y yo you your al lo le les con por para como pero muy más m
 monday tuesday wednesday thursday friday saturday sunday january february march april may june july august
 september october november december lunes martes miércoles jueves viernes sábado domingo enero febrero marzo
 abril mayo junio julio agosto septiembre octubre noviembre diciembre note notes user usuario
+about sobre acerca after before since during here also then now today yesterday tomorrow every always never usually
+sometimes acá aca aquí aqui después despues antes durante ahora siempre nunca cada
 i'm i’m im i've i’ve i'd i’d i'll i’ll""".split())
 _CAP = re.compile(r"\b([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñü'’.-]*(?:\s+(?:de|del|la|van|von|da)?\s*[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñü'’-]*){0,3})")
 _SUBJ = set("is was has had and lives works likes said will can es era tiene vive trabaja y dijo".split())  # "Carlos is…": a name
 _TAG = re.compile(r"(?<![\w#])#([\w-]{2,40})")
+_BATCH = re.compile(r"imp-[0-9a-f]{8}")  # an import's undo batch (local_discover)
 
 
 def entities(text: str) -> set[str]:
@@ -139,7 +142,8 @@ def build_graph(items: list[dict], max_nodes: int = 60, max_edges: int = 160) ->
         if it.get("obsolete"):
             continue
         ents = entities(str(it.get("text", "")))
-        ents.update("#" + str(t).lower() for t in (it.get("tags") or []) if t and not str(t).startswith(("import-", "via-")))  # where it came from is not a topic
+        ents.update("#" + str(t).lower() for t in (it.get("tags") or [])  # where it came from (and its undo batch) is not a topic
+                    if t and not str(t).startswith(("import-", "via-")) and not _BATCH.fullmatch(str(t)))
         per_note[it["id"]] = ents
     spell: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     for nid, ents in list(per_note.items()):  # one name per concept: case/accents-insensitive, most common spelling
@@ -427,7 +431,9 @@ class UI:
         from fastmcp import Client
         if ctx not in self.servers:
             raise ValueError(f"unknown context {ctx!r}")
-        async with Client(self.servers[ctx]) as c:
+        from mcp.types import Implementation
+        # 0.20: notes written from this app say "Mnemos app", not the library default ("mcp 0.1.0")
+        async with Client(self.servers[ctx], client_info=Implementation(name="Mnemos", version="app")) as c:
             r = await c.call_tool(tool, args)
         return r.structured_content or {}
 

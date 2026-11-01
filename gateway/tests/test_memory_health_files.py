@@ -32,5 +32,4 @@ async def test_files_move_accept(home):
 def test_health_card_not_hidden_in_files_mode():
     from pathlib import Path
     css = (Path(local.__file__).parent / "local_ui_static" / "local.css").read_text()
-    rule = next(l for l in css.splitlines() if l.startswith("body.filesmode .me-bar"))
-    assert ".me-inbox" not in rule
+    assert "body.filesmode .me-inbox" not in css  # 0.20: nothing in Memory is hidden in files mode
